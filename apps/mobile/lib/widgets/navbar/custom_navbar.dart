@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:provider/provider.dart';
 
 class CustomNavbar extends StatelessWidget {
@@ -40,7 +40,7 @@ class CustomNavbar extends StatelessWidget {
       child: Container(
         height: (Platform.isIOS ? 70 : 65),
         decoration: BoxDecoration(
-          color: const Color(colorNavy),
+          color: context.colors.navy,
           borderRadius: const BorderRadius.all(Radius.circular(70)),
         ),
         child: Row(
@@ -57,11 +57,11 @@ class CustomNavbar extends StatelessWidget {
                 height: isActive ? (Platform.isIOS ? 52 : 45) : 48,
                 decoration: isActive
                     ? BoxDecoration(
-                        color: Color(colorAmbar),
+                        color: context.colors.ambar,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Color(colorAmbar).withOpacity(0.4),
+                            color: context.colors.ambar.withOpacity(0.4),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -69,6 +69,7 @@ class CustomNavbar extends StatelessWidget {
                       )
                     : null,
                 child: _buildIcon(
+                  context: context,
                   index: index,
                   isActive: isActive,
                   items: items,
@@ -84,6 +85,7 @@ class CustomNavbar extends StatelessWidget {
   }
 
   Widget _buildIcon({
+    required BuildContext context,
     required int index,
     required bool isActive,
     required List<IconData> items,
@@ -114,9 +116,9 @@ class CustomNavbar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
             constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
             decoration: BoxDecoration(
-              color: Color(colorBrasa),
+              color: context.colors.brasa,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Color(colorNavy), width: 1.5),
+              border: Border.all(color: context.colors.navy, width: 1.5),
             ),
             child: Text(
               label,

@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/user/user_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/date_picker_field.dart';
 import 'package:mobile/widgets/buttons/primary_button.dart';
 
@@ -87,7 +87,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(colorDarkGrey),
+      backgroundColor: context.colors.darkGrey,
       body: Stack(
         children: [
           Form(
@@ -114,7 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   Text(
                     'Preencha seus dados para começar',
-                    style: GoogleFonts.inter(color: Color(colorGrey)),
+                    style: GoogleFonts.inter(color: context.colors.grey),
                   ),
 
                   const SizedBox(height: 15),
@@ -126,7 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Text(
                           'USUÁRIO',
                           style: GoogleFonts.inter(
-                            color: Color(colorGrey),
+                            color: context.colors.grey,
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
                           ),
@@ -140,7 +140,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           textInputAction: TextInputAction.next,
                           style: const TextStyle(color: Colors.white),
-                          cursorColor: Color(colorAmbar),
+                          cursorColor: context.colors.ambar,
 
                           inputFormatters: [
                             LengthLimitingTextInputFormatter(50),
@@ -167,8 +167,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(18),
-                              borderSide: const BorderSide(
-                                color: Color(colorAmbar),
+                              borderSide: BorderSide(
+                                color: context.colors.ambar,
                                 width: 1.3,
                               ),
                             ),
@@ -212,7 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Text(
                           'E-MAIL',
                           style: GoogleFonts.inter(
-                            color: Color(colorGrey),
+                            color: context.colors.grey,
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
                           ),
@@ -226,7 +226,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                           textInputAction: TextInputAction.next,
                           style: const TextStyle(color: Colors.white),
-                          cursorColor: Color(colorAmbar),
+                          cursorColor: context.colors.ambar,
 
                           inputFormatters: [
                             LengthLimitingTextInputFormatter(320),
@@ -252,8 +252,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(18),
-                              borderSide: const BorderSide(
-                                color: Color(colorAmbar),
+                              borderSide: BorderSide(
+                                color: context.colors.ambar,
                                 width: 1.3,
                               ),
                             ),
@@ -295,7 +295,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         Text(
                           'DATA DE NASCIMENTO',
                           style: GoogleFonts.inter(
-                            color: Color(colorGrey),
+                            color: context.colors.grey,
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
                           ),
@@ -328,7 +328,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: Text(
                           'SENHA',
                           style: GoogleFonts.inter(
-                            color: Color(colorGrey),
+                            color: context.colors.grey,
                             fontWeight: FontWeight.bold,
                             fontSize: 10,
                           ),
@@ -343,7 +343,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           obscureText: true,
                           textInputAction: TextInputAction.done,
                           style: const TextStyle(color: Colors.white),
-                          cursorColor: Color(colorAmbar),
+                          cursorColor: context.colors.ambar,
 
                           inputFormatters: [
                             LengthLimitingTextInputFormatter(20),
@@ -369,8 +369,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(18),
-                              borderSide: const BorderSide(
-                                color: Color(colorAmbar),
+                              borderSide: BorderSide(
+                                color: context.colors.ambar,
                                 width: 1.3,
                               ),
                             ),
@@ -425,12 +425,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
             left: 16,
             child: SafeArea(
               child: CircleAvatar(
-                backgroundColor: Color(colorDarkGrey).withOpacity(0.8),
+                backgroundColor: context.colors.darkGrey.withOpacity(0.8),
                 child: IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back_ios_new,
-                    color: Color(colorAmbar),
+                    color: context.colors.ambar,
                   ),
                 ),
               ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/places/place_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/place/place_card.dart';
 class SearchByCategory extends StatefulWidget {
   final String categoria;
@@ -60,8 +60,8 @@ class _SearchByCategoryState extends State<SearchByCategory> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(colorAmbar)),
+      return Center(
+        child: CircularProgressIndicator(color: context.colors.ambar),
       );
     }
 
@@ -80,7 +80,7 @@ class _SearchByCategoryState extends State<SearchByCategory> {
             onPressed: _buscarPorCategoria,
             child: Text(
               'Tentar novamente',
-              style: TextStyle(color: Color(colorAmbar)),
+              style: TextStyle(color: context.colors.ambar),
             ),
           ),
         ],

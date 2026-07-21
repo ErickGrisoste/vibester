@@ -7,7 +7,7 @@ import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/service/user/user_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/primary_button.dart';
 import 'package:provider/provider.dart';
 
@@ -88,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(colorDarkGrey),
+      backgroundColor: context.colors.darkGrey,
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -112,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               Text(
                 'Digite suas credenciais de acesso',
-                style: GoogleFonts.inter(color: Color(colorGrey)),
+                style: GoogleFonts.inter(color: context.colors.grey),
               ),
 
               SizedBox(height: 30),
@@ -124,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       'E-MAIL OU USUÁRIO',
                       style: GoogleFonts.inter(
-                        color: Color(colorGrey),
+                        color: context.colors.grey,
                         fontWeight: FontWeight.bold,
                         fontSize: 10,
                       ),
@@ -136,7 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _emailOuUsuarioController,
                       textInputAction: TextInputAction.next,
                       style: const TextStyle(color: Colors.white),
-                      cursorColor: Color(colorAmbar),
+                      cursorColor: context.colors.ambar,
                       inputFormatters: [LengthLimitingTextInputFormatter(320)],
                       decoration: InputDecoration(
                         filled: true,
@@ -158,8 +158,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Color(colorAmbar),
+                          borderSide: BorderSide(
+                            color: context.colors.ambar,
                             width: 1.3,
                           ),
                         ),
@@ -199,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       'SENHA',
                       style: GoogleFonts.inter(
-                        color: Color(colorGrey),
+                        color: context.colors.grey,
                         fontWeight: FontWeight.bold,
                         fontSize: 10,
                       ),
@@ -212,7 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       obscureText: true,
                       textInputAction: TextInputAction.done,
                       style: const TextStyle(color: Colors.white),
-                      cursorColor: Color(colorAmbar),
+                      cursorColor: context.colors.ambar,
                       inputFormatters: [LengthLimitingTextInputFormatter(20)],
                       decoration: InputDecoration(
                         filled: true,
@@ -234,8 +234,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Color(colorAmbar),
+                          borderSide: BorderSide(
+                            color: context.colors.ambar,
                             width: 1.3,
                           ),
                         ),

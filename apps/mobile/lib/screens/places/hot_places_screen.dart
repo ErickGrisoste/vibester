@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/place/place_card.dart';
 import 'package:mobile/utils/search_bar.dart';
 import 'package:provider/provider.dart';
@@ -47,17 +47,17 @@ class _HotPlacesScreenState extends State<HotPlacesScreen> {
 
     if (provider.isLoading && places.isEmpty) {
       return Scaffold(
-        backgroundColor: Color(colorNoturno),
-        body: const Center(
-          child: CircularProgressIndicator(color: Color(colorAmbar)),
+        backgroundColor: context.colors.noturno,
+        body: Center(
+          child: CircularProgressIndicator(color: context.colors.ambar),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       body: RefreshIndicator(
-        color: Color(colorAmbar),
+        color: context.colors.ambar,
         onRefresh: () =>
             context.read<PlaceListProvider>().fetchPlaces(force: true),
         child: ListView.builder(
@@ -87,7 +87,7 @@ class _HotPlacesScreenState extends State<HotPlacesScreen> {
                           TextSpan(
                             text: 'ao vivo!',
                             style: TextStyle(
-                              color: Color(colorAmbar),
+                              color: context.colors.ambar,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

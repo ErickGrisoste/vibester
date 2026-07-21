@@ -10,7 +10,7 @@ import 'package:mobile/widgets/indicators/lineup_indicator.dart';
 import 'package:mobile/widgets/buttons/secundary_button.dart';
 import 'package:mobile/widgets/buttons/tertiary_button.dart';
 import 'package:provider/provider.dart';
-import '../../utils/colors.dart';
+import '../../theme/theme_extensions.dart';
 import 'package:intl/intl.dart';
 
 class EventDetailScreen extends StatefulWidget {
@@ -92,7 +92,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
 
       body: ListView(
         children: [
@@ -112,7 +112,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Color(colorNoturno).withAlpha(255),
+                          context.colors.noturno.withAlpha(255),
                         ],
                       ),
                     ),
@@ -135,14 +135,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   top: 20,
                   left: 16,
                   child: CircleAvatar(
-                    backgroundColor: Color(colorDarkGrey).withOpacity(0.8),
+                    backgroundColor: context.colors.darkGrey.withOpacity(0.8),
                     child: IconButton(
                       onPressed: () {
                         Navigator.pop(context);
                       },
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.arrow_back_ios_new,
-                        color: Color(colorAmbar),
+                        color: context.colors.ambar,
                       ),
                     ),
                   ),
@@ -153,7 +153,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   top: 20,
                   right: 16,
                   child: CircleAvatar(
-                    backgroundColor: Color(colorDarkGrey).withOpacity(0.8),
+                    backgroundColor: context.colors.darkGrey.withOpacity(0.8),
                     child: IconButton(
                       onPressed: () {
                         //Ação de compartilhar
@@ -180,10 +180,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           ),
 
                           decoration: BoxDecoration(
-                            color: const Color(colorDarkGrey).withOpacity(0.4),
+                            color: context.colors.darkGrey.withOpacity(0.4),
                             borderRadius: BorderRadius.circular(30),
                             border: Border.all(
-                              color: const Color(colorAmbar),
+                              color: context.colors.ambar,
                               width: 1.5,
                             ),
                           ),
@@ -191,14 +191,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           child: Text(
                             _event.categoria,
                             style: GoogleFonts.inter(
-                              color: const Color(colorAmbar),
+                              color: context.colors.ambar,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                               letterSpacing: 4,
 
                               //possivel sombra (teste)
                               shadows: [
-                                Shadow(color: Color(colorBrasa), blurRadius: 5),
+                                Shadow(color: context.colors.brasa, blurRadius: 5),
                               ],
                             ),
                           ),
@@ -253,7 +253,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   ),
 
                   decoration: BoxDecoration(
-                    color: Color(colorNavy),
+                    color: context.colors.navy,
                     borderRadius: BorderRadius.circular(20),
                   ),
 
@@ -266,7 +266,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             Text(
                               'DATA & HORA',
                               style: GoogleFonts.inter(
-                                color: Color(colorGrey),
+                                color: context.colors.grey,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -298,7 +298,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               Text(
                                 'LOCAL',
                                 style: GoogleFonts.inter(
-                                  color: Color(colorGrey),
+                                  color: context.colors.grey,
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                 ),

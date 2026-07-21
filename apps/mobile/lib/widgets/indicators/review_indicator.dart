@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class ReviewIndicator extends StatelessWidget {
   final double avaliacao;
@@ -24,7 +24,7 @@ class ReviewIndicator extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
-      color: Color(colorNavy),
+      color: context.colors.navy,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Row(
@@ -45,7 +45,7 @@ class ReviewIndicator extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                _buildStars(avaliacao),
+                _buildStars(context, avaliacao),
                 const SizedBox(height: 6),
                 Text(
                   '$totalReviews reviews',
@@ -66,7 +66,7 @@ class ReviewIndicator extends StatelessWidget {
                 children: List.generate(5, (i) {
                   final estrela = 5 - i;
                   final percent = dist[i];
-                  return _buildBarRow(estrela, percent);
+                  return _buildBarRow(context, estrela, percent);
                 }),
               ),
             ),
@@ -76,7 +76,7 @@ class ReviewIndicator extends StatelessWidget {
     );
   }
 
-  Widget _buildStars(double rating) {
+  Widget _buildStars(BuildContext context, double rating) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (i) {
@@ -89,12 +89,12 @@ class ReviewIndicator extends StatelessWidget {
         } else {
           icon = Icons.star_border;
         }
-        return Icon(icon, color: Color(colorBrasa), size: 16);
+        return Icon(icon, color: context.colors.brasa, size: 16);
       }),
     );
   }
 
-  Widget _buildBarRow(int estrela, double percent) {
+  Widget _buildBarRow(BuildContext context, int estrela, double percent) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
@@ -118,7 +118,7 @@ class ReviewIndicator extends StatelessWidget {
                 value: percent,
                 minHeight: 6,
                 backgroundColor: Colors.white.withOpacity(0.1),
-                valueColor: AlwaysStoppedAnimation<Color>(Color(colorBrasa)),
+                valueColor: AlwaysStoppedAnimation<Color>(context.colors.brasa),
               ),
             ),
           ),

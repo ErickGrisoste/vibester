@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class PrimaryTextField extends StatelessWidget {
   final String labelText;
@@ -24,7 +24,7 @@ class PrimaryTextField extends StatelessWidget {
         maxLines: null,
         minLines: null,
         style: TextStyle(color: Colors.white),
-        cursorColor: Color(colorAmbar),
+        cursorColor: context.colors.ambar,
         decoration: InputDecoration(
           labelText: labelText,
           labelStyle: TextStyle(color: Colors.white54),
@@ -38,7 +38,7 @@ class PrimaryTextField extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Color(colorAmbar), width: 1.3),
+            borderSide: BorderSide(color: context.colors.ambar, width: 1.3),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),

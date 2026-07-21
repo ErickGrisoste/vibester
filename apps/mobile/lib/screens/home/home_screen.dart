@@ -5,7 +5,7 @@ import 'package:mobile/screens/favorites/user_favorites_screen.dart';
 import 'package:mobile/screens/home/home_tab.dart';
 import 'package:mobile/screens/search/search_screen.dart';
 import 'package:mobile/screens/user/user_profile_screen.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/navbar/custom_navbar.dart';
 import 'package:provider/provider.dart';
 
@@ -50,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       extendBody: true,
       body: NotificationListener<ScrollNotification>(
         //Serve para definir o estado. Controla tmb o botão da tela de feed pra sumir junto da barra. Tmb valida pra não sumir com PageView

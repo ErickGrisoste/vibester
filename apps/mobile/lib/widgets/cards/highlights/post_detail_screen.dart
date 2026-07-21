@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/posts/post_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:provider/provider.dart';
 
 class PostDetailScreen extends StatefulWidget {
@@ -103,9 +103,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             .round();
 
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       appBar: AppBar(
-        backgroundColor: Color(colorNoturno),
+        backgroundColor: context.colors.noturno,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
@@ -179,7 +179,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: index == _paginaAtual
-                                      ? Color(colorAmbar)
+                                      ? context.colors.ambar
                                       : Colors.white38,
                                 ),
                               );
@@ -206,7 +206,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             ? Icons.favorite
                             : Icons.favorite_outline,
                         color: highlight.curtidoPeloUsuario
-                            ? Color(colorBrasa)
+                            ? context.colors.brasa
                             : Colors.white70,
                         size: 22,
                       ),

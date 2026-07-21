@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class CaptionTextField extends StatefulWidget {
   final TextEditingController controller;
@@ -72,7 +72,7 @@ class _CaptionTextFieldState extends State<CaptionTextField> {
             counterText: '',
             contentPadding: const EdgeInsets.all(16),
             filled: true,
-            fillColor: Color(colorNoturno),
+            fillColor: context.colors.noturno,
             errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 12),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
@@ -80,8 +80,8 @@ class _CaptionTextFieldState extends State<CaptionTextField> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(
-                color: Color(colorAmbar),
+              borderSide: BorderSide(
+                color: context.colors.ambar,
                 width: 1.3,
               ),
             ),

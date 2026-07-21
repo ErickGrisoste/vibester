@@ -6,7 +6,7 @@ import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/user/user_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/search_bar.dart';
 import 'package:mobile/utils/search_state.dart';
 import 'package:mobile/widgets/cards/place/place_card.dart';
@@ -127,9 +127,9 @@ class _SearchScreenState extends State<SearchScreen> {
     final buscandoUsuarios = pesquisaController.text.trim().isNotEmpty;
 
     return Scaffold(
-      backgroundColor: Color(colorDarkGrey),
+      backgroundColor: context.colors.darkGrey,
       appBar: AppBar(
-        backgroundColor: Color(colorNavy),
+        backgroundColor: context.colors.navy,
         elevation: 0,
         centerTitle: true,
         automaticallyImplyLeading: false,
@@ -140,7 +140,7 @@ class _SearchScreenState extends State<SearchScreen> {
         ),
       ),
       body: RefreshIndicator(
-        color: Color(colorAmbar),
+        color: context.colors.ambar,
         onRefresh: () async {
           if (_categoriaSelecionada != null) {
             await context.read<PlaceListProvider>().fetchPlaces(force: true);
@@ -178,9 +178,9 @@ class _SearchScreenState extends State<SearchScreen> {
             // Resultados de busca de usuários
             if (buscandoUsuarios) ...[
               if (_isSearchingUsers)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   child: Center(
-                    child: CircularProgressIndicator(color: Color(colorAmbar)),
+                    child: CircularProgressIndicator(color: context.colors.ambar),
                   ),
                 )
               else if (_searchError != null)
@@ -274,7 +274,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           child: Text(
                             "Limpar",
                             style: TextStyle(
-                              color: Color(colorAmbar),
+                              color: context.colors.ambar,
                               fontSize: 13,
                             ),
                           ),
@@ -317,7 +317,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           },
                         ),
                         Divider(
-                          color: Color(colorGrey),
+                          color: context.colors.grey,
                           height: 1,
                           indent: 16,
                           endIndent: 16,
@@ -333,7 +333,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       right: 16,
                       bottom: 45,
                     ),
-                    color: Color(colorGrey),
+                    color: context.colors.grey,
                     height: 1,
                     width: double.infinity,
                   ),
@@ -390,7 +390,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: Color(colorDarkGrey),
+                                      color: context.colors.darkGrey,
                                       width: 1,
                                     ),
                                   ),
@@ -442,10 +442,10 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
               ] else ...[
                 if (provider.isLoading && places.isEmpty)
-                  const SliverFillRemaining(
+                  SliverFillRemaining(
                     child: Center(
                       child: CircularProgressIndicator(
-                        color: Color(colorAmbar),
+                        color: context.colors.ambar,
                       ),
                     ),
                   )
@@ -521,7 +521,7 @@ class _UserSearchTile extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 26,
-              backgroundColor: Color(colorGrey),
+              backgroundColor: context.colors.grey,
               backgroundImage:
                   (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
                   ? CachedNetworkImageProvider(user.avatarUrl!)

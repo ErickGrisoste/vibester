@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/indicators/price_indicator.dart';
 import 'package:provider/provider.dart';
 
@@ -16,10 +16,10 @@ class LineupPlaceIndicator extends StatelessWidget {
     final places = placesProvider.places;
 
     if (placesProvider.isLoading && places.isEmpty) {
-      return const SizedBox(
+      return SizedBox(
         height: 160,
         child: Center(
-          child: CircularProgressIndicator(color: Color(colorAmbar)),
+          child: CircularProgressIndicator(color: context.colors.ambar),
         ),
       );
     }
@@ -54,7 +54,7 @@ class LineupPlaceIndicator extends StatelessWidget {
                     height: 86,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Color(colorAmbar), width: 2),
+                      border: Border.all(color: context.colors.ambar, width: 2),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(3),
@@ -64,7 +64,7 @@ class LineupPlaceIndicator extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Color(colorNoturno),
+                            color: context.colors.noturno,
                             width: 0,
                           ),
                         ),
@@ -112,7 +112,7 @@ class LineupPlaceIndicator extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.star_border,
-                        color: Color(colorBrasa),
+                        color: context.colors.brasa,
                         size: 12,
                       ),
                       SizedBox(width: 6),

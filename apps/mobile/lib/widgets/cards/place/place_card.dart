@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/models/place/place_model.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/indicators/category_indicator.dart';
 import 'package:mobile/widgets/indicators/movement_indicator.dart';
 import 'package:mobile/widgets/indicators/price_indicator.dart';
@@ -17,11 +17,11 @@ class PlaceCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Card(
-        color: Color(colorNoturno),
+        color: context.colors.noturno,
         margin: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Color(colorGrey).withAlpha(80), width: 1),
+          side: BorderSide(color: context.colors.grey.withAlpha(80), width: 1),
         ),
         child: Stack(
           children: [
@@ -34,7 +34,7 @@ class PlaceCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       boxShadow: [
                         BoxShadow(
-                          color: Color(colorAmbar).withOpacity(0.6),
+                          color: context.colors.ambar.withOpacity(0.6),
                           blurRadius: 10,
                           offset: const Offset(0, 1),
                           spreadRadius: 2,

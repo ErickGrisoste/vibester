@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class PostPhotoPicker extends StatefulWidget {
   final ValueChanged<File?>? onPhotoChanged;
@@ -62,7 +62,7 @@ class _PostPhotoPickerState extends State<PostPhotoPicker> {
         child: Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            color: Color(colorDarkGrey).withAlpha(40),
+            color: context.colors.darkGrey.withAlpha(40),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.white10, width: 1.5),
           ),
@@ -73,13 +73,13 @@ class _PostPhotoPickerState extends State<PostPhotoPicker> {
                     Icon(
                       Icons.add_photo_alternate_outlined,
                       size: 48,
-                      color: Color(colorAmbar).withAlpha(180),
+                      color: context.colors.ambar.withAlpha(180),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Adicionar foto',
                       style: TextStyle(
-                        color: Color(colorAmbar).withAlpha(180),
+                        color: context.colors.ambar.withAlpha(180),
                         fontSize: 14,
                       ),
                     ),

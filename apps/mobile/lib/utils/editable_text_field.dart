@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class EditableTextField extends StatelessWidget {
   final String label;
@@ -23,14 +23,14 @@ class EditableTextField extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.all(Radius.circular(50)),
-        color: Color(colorNoturno),
-        border: Border.all(color: Color(colorBrasa), width: 1),
+        color: context.colors.noturno,
+        border: Border.all(color: context.colors.brasa, width: 1),
       ),
       child: Center(
         child: Text(
           label.toUpperCase(),
           style: TextStyle(
-            color: Color(colorBrasa),
+            color: context.colors.brasa,
             fontWeight: FontWeight.bold,
           ),
           overflow: TextOverflow.ellipsis,

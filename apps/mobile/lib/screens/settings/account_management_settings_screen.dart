@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class AccountManagementSettingsScreen extends StatefulWidget {
   const AccountManagementSettingsScreen({super.key});
@@ -14,7 +14,7 @@ class AccountManagementSettingsScreen extends StatefulWidget {
 
 class _AccountManagementSettingsScreenState
     extends State<AccountManagementSettingsScreen> {
-  final Color _color = Color(colorDarkGrey);
+  Color get _color => context.colors.darkGrey;
 
   @override
   Widget build(BuildContext context) {
@@ -24,10 +24,10 @@ class _AccountManagementSettingsScreenState
           'Gerenciar Conta',
           style: GoogleFonts.inter(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Color(colorNoturno),
+        backgroundColor: context.colors.noturno,
         foregroundColor: Colors.white,
       ),
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       body: SingleChildScrollView(
         child: Column(
           children: [

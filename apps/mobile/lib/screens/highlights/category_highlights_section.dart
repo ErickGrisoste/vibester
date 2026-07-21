@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/user/interest_model.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class CategoryHighlightsSection extends StatefulWidget {
   const CategoryHighlightsSection({super.key});
@@ -26,7 +26,7 @@ class _CategoryHighlightsSectionState extends State<CategoryHighlightsSection> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Color(colorAmbar),
+                color: context.colors.ambar,
                 borderRadius: BorderRadius.circular(30),
               ),
               child: Row(

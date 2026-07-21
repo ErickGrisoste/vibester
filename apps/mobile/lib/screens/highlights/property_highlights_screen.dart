@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/highlights/highlights_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/highlights/highlights_card.dart';
 import 'package:provider/provider.dart';
 
@@ -98,8 +98,8 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
     super.build(context);
 
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(colorAmbar)),
+      return Center(
+        child: CircularProgressIndicator(color: context.colors.ambar),
       );
     }
 
@@ -127,7 +127,7 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
                       onPressed: _buscarHighlights,
                       child: Text(
                         'Tentar novamente',
-                        style: TextStyle(color: Color(colorAmbar)),
+                        style: TextStyle(color: context.colors.ambar),
                       ),
                     ),
                   ],
@@ -176,7 +176,7 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
     }
 
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
 
       //Uso o gridview no lugar do listview pq é mais simples de mecher e de montar as imagens
       //O gridview pega toda a largura ta tela, q é dividido pelo crossAC e pelo childAR

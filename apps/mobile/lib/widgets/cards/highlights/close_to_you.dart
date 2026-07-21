@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/highlights/close_to_you_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/location_satate.dart';
 
 class CloseToYou extends StatefulWidget {
@@ -64,10 +64,10 @@ class _CloseToYouState extends State<CloseToYou> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 24),
-          child: CircularProgressIndicator(color: Color(colorAmbar)),
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: CircularProgressIndicator(color: context.colors.ambar),
         ),
       );
     }
@@ -88,7 +88,7 @@ class _CloseToYouState extends State<CloseToYou> {
             onPressed: _buscarEstabelecimentosProximos,
             child: Text(
               'Tentar novamente',
-              style: TextStyle(color: Color(colorAmbar)),
+              style: TextStyle(color: context.colors.ambar),
             ),
           ),
         ],
@@ -117,10 +117,10 @@ class _CloseToYouState extends State<CloseToYou> {
         return Container(
           margin: EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
-            color: Color(colorNavy),
+            color: context.colors.navy,
             borderRadius: BorderRadius.circular(70),
             border: Border.all(
-              color: Color(colorBrasa).withAlpha(60),
+              color: context.colors.brasa.withAlpha(60),
               width: 2,
             ),
           ),
@@ -136,7 +136,7 @@ class _CloseToYouState extends State<CloseToYou> {
                 );
               },
               borderRadius: BorderRadius.circular(70),
-              splashColor: Color(colorAmbar),
+              splashColor: context.colors.ambar,
               child: Stack(
                 children: [
                   Padding(
@@ -153,7 +153,7 @@ class _CloseToYouState extends State<CloseToYou> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Color(colorDarkGrey),
+                              color: context.colors.darkGrey,
                               width: 1,
                             ),
                           ),
@@ -208,7 +208,7 @@ class _CloseToYouState extends State<CloseToYou> {
                                 children: [
                                   Icon(
                                     Icons.star_border,
-                                    color: Color(colorAmbar),
+                                    color: context.colors.ambar,
                                     size: 20,
                                   ),
                                   SizedBox(width: 3),
@@ -249,7 +249,7 @@ class _CloseToYouState extends State<CloseToYou> {
                     child: Center(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Color(colorAmbar),
+                          color: context.colors.ambar,
                           borderRadius: BorderRadius.circular(50),
                         ),
                         padding: EdgeInsets.symmetric(

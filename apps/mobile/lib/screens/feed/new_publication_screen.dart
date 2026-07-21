@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/posts/post_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/location_picker.dart';
 import 'package:mobile/utils/location_picker_tile.dart';
 import 'package:mobile/widgets/cards/feed/post_photo_picker.dart';
@@ -51,13 +51,13 @@ class _NewPublicationScreenState extends State<NewPublicationScreen> {
   Widget build(BuildContext context) {
     final UserModel? user = context.read<UserProvider>().user;
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       appBar: AppBar(
         actions: <Widget>[
           IconButton(
-            icon: const Icon(
+            icon: Icon(
               Icons.add_circle,
-              color: Color(colorAmbar),
+              color: context.colors.ambar,
               size: 30,
             ),
             onPressed: () async {
@@ -72,7 +72,7 @@ class _NewPublicationScreenState extends State<NewPublicationScreen> {
           'Novo Post',
           style: GoogleFonts.inter(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Color(colorNoturno),
+        backgroundColor: context.colors.noturno,
         foregroundColor: Colors.white,
       ),
       body: Form(
@@ -98,7 +98,7 @@ class _NewPublicationScreenState extends State<NewPublicationScreen> {
                   onTap: () async {
                     final location = await showModalBottomSheet<String>(
                       context: context,
-                      backgroundColor: Color(colorNoturno),
+                      backgroundColor: context.colors.noturno,
                       isScrollControlled: true,
                       builder: (_) => const LocationPicker(),
                     );

@@ -6,7 +6,7 @@ import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/service/user/user_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/primary_button.dart';
 import 'package:pinput/pinput.dart';
 import 'package:provider/provider.dart';
@@ -119,12 +119,12 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
       textStyle: GoogleFonts.inter(
         fontSize: 20,
         fontWeight: FontWeight.w600,
-        color: Color(colorAmbar),
+        color: context.colors.ambar,
       ),
       decoration: BoxDecoration(
-        color: Color(colorAmbar).withOpacity(0.05),
+        color: context.colors.ambar.withOpacity(0.05),
         border: Border.all(
-          color: Color(colorAmbar).withOpacity(0.3),
+          color: context.colors.ambar.withOpacity(0.3),
           width: 1.5,
         ),
         borderRadius: BorderRadius.circular(12),
@@ -133,11 +133,11 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
 
     final focusedTheme = defaultTheme.copyWith(
       decoration: defaultTheme.decoration!.copyWith(
-        border: Border.all(color: Color(colorAmbar), width: 2),
-        color: Color(colorAmbar).withOpacity(0.08),
+        border: Border.all(color: context.colors.ambar, width: 2),
+        color: context.colors.ambar.withOpacity(0.08),
         boxShadow: [
           BoxShadow(
-            color: Color(colorAmbar).withOpacity(0.25),
+            color: context.colors.ambar.withOpacity(0.25),
             blurRadius: 8,
             spreadRadius: 1,
           ),
@@ -160,7 +160,7 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
     );
 
     return Scaffold(
-      backgroundColor: Color(colorDarkGrey),
+      backgroundColor: context.colors.darkGrey,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -190,7 +190,7 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Color(colorGrey),
+                      color: context.colors.grey,
                     ),
                   ),
                   TextSpan(
@@ -205,7 +205,7 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
                     text:
                         '\n\nVerifique sua caixa de entrada e insira o\ncódigo abaixo para ativar sua conta ',
                     style: GoogleFonts.inter(
-                      color: Color(colorGrey),
+                      color: context.colors.grey,
                       fontSize: 14,
                     ),
                   ),

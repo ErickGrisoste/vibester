@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class MovimentoIndicator extends StatelessWidget {
   final int nivel;
@@ -8,9 +8,9 @@ class MovimentoIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Color _getColor(int nivel) {
-      if (nivel <= 2) return Color(colorBrasa).withAlpha(150);
-      if (nivel <= 3) return Color(colorBrasa).withAlpha(70);
-      return Color(colorBrasa);
+      if (nivel <= 2) return context.colors.brasa.withAlpha(150);
+      if (nivel <= 3) return context.colors.brasa.withAlpha(70);
+      return context.colors.brasa;
     }
 
     return Row(
@@ -20,17 +20,17 @@ class MovimentoIndicator extends StatelessWidget {
           width: 16,
           height: 9,
           decoration: BoxDecoration(
-            color: index < nivel ? _getColor(nivel) : Color(colorNoturno),
+            color: index < nivel ? _getColor(nivel) : context.colors.noturno,
             borderRadius: BorderRadius.circular(2),
             boxShadow: [
               BoxShadow(
-                color: Color(colorBrasa).withOpacity(0.6),
+                color: context.colors.brasa.withOpacity(0.6),
                 blurRadius: 10,
                 offset: const Offset(0, 1),
                 spreadRadius: 1,
               ),
             ],
-            border: BoxBorder.all(color: Color(colorBrasa), width: 1),
+            border: BoxBorder.all(color: context.colors.brasa, width: 1),
           ),
         );
       }),

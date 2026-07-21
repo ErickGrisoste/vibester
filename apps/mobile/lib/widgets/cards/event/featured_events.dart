@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/utils/app_progress_indicator.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class FeaturedEvents extends StatefulWidget {
   final EventModel event;
@@ -71,7 +71,7 @@ class _FeaturedEventsState extends State<FeaturedEvents> {
                       ),
 
                       decoration: BoxDecoration(
-                        color: const Color(colorAmbar),
+                        color: context.colors.ambar,
                         borderRadius: BorderRadius.circular(30),
                       ),
 
@@ -84,7 +84,7 @@ class _FeaturedEventsState extends State<FeaturedEvents> {
                           letterSpacing: 4,
 
                           shadows: [
-                            Shadow(color: Color(colorBrasa), blurRadius: 5),
+                            Shadow(color: context.colors.brasa, blurRadius: 5),
                           ],
                         ),
                       ),

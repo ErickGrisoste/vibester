@@ -5,7 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/user/user_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/users/editing_avatar.dart';
 import 'package:provider/provider.dart';
 
@@ -135,7 +135,7 @@ class _PersonalInformationSettingsScreenState
         backgroundColor: Colors.transparent,
         child: Container(
           decoration: BoxDecoration(
-            color: Color(colorDarkGrey).withAlpha(230),
+            color: context.colors.darkGrey.withAlpha(230),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -145,7 +145,7 @@ class _PersonalInformationSettingsScreenState
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 decoration: BoxDecoration(
-                  color: Color(colorNavy).withAlpha(230),
+                  color: context.colors.navy.withAlpha(230),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
@@ -172,13 +172,13 @@ class _PersonalInformationSettingsScreenState
                   autofocus: true,
                   maxLength: maxCaracteres,
                   style: const TextStyle(color: Colors.white),
-                  cursorColor: Color(colorAmbar),
+                  cursorColor: context.colors.ambar,
                   decoration: InputDecoration(
                     enabledBorder: const UnderlineInputBorder(
                       borderSide: BorderSide(color: Colors.white38),
                     ),
                     focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: Color(colorAmbar)),
+                      borderSide: BorderSide(color: context.colors.ambar),
                     ),
                     counterStyle: const TextStyle(color: Colors.white38),
                   ),
@@ -295,17 +295,17 @@ class _PersonalInformationSettingsScreenState
 
     if (user == null) {
       return Scaffold(
-        backgroundColor: Color(colorNoturno),
+        backgroundColor: context.colors.noturno,
         appBar: AppBar(
           title: const Text('Informações pessoais'),
-          backgroundColor: Color(colorNoturno),
+          backgroundColor: context.colors.noturno,
           foregroundColor: Colors.white,
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    final Color cardColor = Color(colorDarkGrey);
+    final Color cardColor = context.colors.darkGrey;
 
     return Scaffold(
       appBar: AppBar(
@@ -313,10 +313,10 @@ class _PersonalInformationSettingsScreenState
           'Informações pessoais',
           style: GoogleFonts.inter(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Color(colorNoturno),
+        backgroundColor: context.colors.noturno,
         foregroundColor: Colors.white,
       ),
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       body: SingleChildScrollView(
         child: Column(
           children: [

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class InitialScreen extends StatefulWidget {
   const InitialScreen({super.key});
@@ -18,7 +18,7 @@ class _InitialScreenState extends State<InitialScreen> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        backgroundColor: Color(colorNavy),
+        backgroundColor: context.colors.navy,
         body: Container(
           margin: EdgeInsets.all(20),
           child: Column(
@@ -43,7 +43,7 @@ class _InitialScreenState extends State<InitialScreen> {
                           TextSpan(text: 'Descubra os melhores '),
                           TextSpan(
                             text: 'rolês',
-                            style: TextStyle(color: Color(colorAmbar)),
+                            style: TextStyle(color: context.colors.ambar),
                           ),
                           TextSpan(text: ' da sua cidade'),
                         ],
@@ -62,7 +62,7 @@ class _InitialScreenState extends State<InitialScreen> {
               Text(
                 'Bares, baladas, restaurantes e eventos. Tudo em tempo real, perto de você.',
                 style: GoogleFonts.inter(
-                  color: Color(colorGrey),
+                  color: context.colors.grey,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -71,7 +71,7 @@ class _InitialScreenState extends State<InitialScreen> {
                 padding: const EdgeInsets.all(12.0),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(colorAmbar),
+                    backgroundColor: context.colors.ambar,
                     fixedSize: Size(300, 60),
                   ),
                   onPressed: () {
@@ -88,9 +88,9 @@ class _InitialScreenState extends State<InitialScreen> {
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(colorNavy),
+                  backgroundColor: context.colors.navy,
                   fixedSize: Size(300, 60),
-                  side: BorderSide(color: Color(colorAmbar), width: 1),
+                  side: BorderSide(color: context.colors.ambar, width: 1),
                 ),
                 onPressed: () {
                   Navigator.pushNamed(context, AppRoutes.login);
@@ -116,12 +116,12 @@ class _InitialScreenState extends State<InitialScreen> {
                     TextSpan(text: 'Ao continuar, voce concorda com nossos '),
                     TextSpan(
                       text: 'Termos de Uso',
-                      style: TextStyle(color: Color(colorAmbar)),
+                      style: TextStyle(color: context.colors.ambar),
                     ),
                     TextSpan(text: ' e'),
                     TextSpan(
                       text: ' Politica de privacidade',
-                      style: TextStyle(color: Color(colorAmbar)),
+                      style: TextStyle(color: context.colors.ambar),
                     ),
                   ],
                 ),

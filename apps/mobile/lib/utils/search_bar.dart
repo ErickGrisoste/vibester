@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class CustomSearchBar extends StatelessWidget {
   final TextEditingController controller;
@@ -18,20 +18,20 @@ class CustomSearchBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Color(colorNoturno),
+        color: context.colors.noturno,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.white.withOpacity(0.12), width: 2),
       ),
       child: TextField(
         controller: controller,
-        cursorColor: Color(colorAmbar),
+        cursorColor: context.colors.ambar,
         style: const TextStyle(color: Colors.white),
         onChanged: (_) => onChanged(),
         onSubmitted: (_) => onSubmitted?.call(),
         decoration: InputDecoration(
           hintText: 'Buscar por nome ou categoria...',
           hintStyle: TextStyle(color: Colors.white38, fontSize: 14),
-          prefixIcon: Icon(Icons.search, color: Color(colorAmbar)),
+          prefixIcon: Icon(Icons.search, color: context.colors.ambar),
           suffixIcon: controller.text.isNotEmpty
               ? IconButton(
                   icon: Icon(Icons.close, color: Colors.white38),
