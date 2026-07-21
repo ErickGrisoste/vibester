@@ -20,7 +20,7 @@ spec:
       containers:
         - name: event-service
           # Image tag is overridden by CI/CD pipeline with the commit SHA
-          image: ghcr.io/felipesantos979/vibester-event-service:latest
+          image: ghcr.io/victormarchidev/vibester-event-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3334

@@ -19,7 +19,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: landing-page
-          image: ghcr.io/felipesantos979/vibester-landing-page:latest
+          image: ghcr.io/victormarchidev/vibester-landing-page:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
