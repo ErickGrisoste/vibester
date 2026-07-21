@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/models/place/exclusive_offers_model.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class ExclusiveOffers extends StatefulWidget {
   final ExclusiveOffersModel offer;
@@ -17,9 +17,9 @@ class _ExclusiveOffersState extends State<ExclusiveOffers> {
     return Container(
       margin: EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: Color(colorNavy),
+        color: context.colors.navy,
         borderRadius: BorderRadius.circular(60),
-        border: Border.all(color: Color(colorBrasa).withAlpha(60), width: 2),
+        border: Border.all(color: context.colors.brasa.withAlpha(60), width: 2),
       ),
       child: Material(
         color: Colors.transparent,
@@ -27,7 +27,7 @@ class _ExclusiveOffersState extends State<ExclusiveOffers> {
         child: InkWell(
           onTap: () {},
           borderRadius: BorderRadius.circular(55),
-          splashColor: Color(colorAmbar),
+          splashColor: context.colors.ambar,
           child: Stack(
             children: [
               Padding(
@@ -44,7 +44,7 @@ class _ExclusiveOffersState extends State<ExclusiveOffers> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: Color(colorDarkGrey),
+                          color: context.colors.darkGrey,
                           width: 1,
                         ),
                       ),
@@ -67,7 +67,7 @@ class _ExclusiveOffersState extends State<ExclusiveOffers> {
                           Text(
                             '${widget.offer.desconto}% OFF',
                             style: TextStyle(
-                              color: Color(colorAmbar),
+                              color: context.colors.ambar,
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                             ),

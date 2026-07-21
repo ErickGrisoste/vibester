@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/feed/publication_model.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:provider/provider.dart';
 
 class LikeIndicator extends StatelessWidget {
@@ -30,7 +30,7 @@ class LikeIndicator extends StatelessWidget {
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Color(colorNoturno),
+              color: context.colors.noturno,
               borderRadius: BorderRadius.circular(30),
             ),
             child: Row(
@@ -39,7 +39,7 @@ class LikeIndicator extends StatelessWidget {
                 Icon(
                   Icons.favorite,
                   color: publication.isLiked
-                      ? Color(colorBrasa)
+                      ? context.colors.brasa
                       : Colors.white38,
                 ),
                 SizedBox(width: 10),
@@ -48,7 +48,7 @@ class LikeIndicator extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.bold,
                     color: publication.isLiked
-                        ? Color(colorBrasa)
+                        ? context.colors.brasa
                         : Colors.white38,
                   ),
                 ),

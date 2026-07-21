@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class SecundaryButton extends StatelessWidget {
   final String label;
@@ -22,7 +22,7 @@ class SecundaryButton extends StatelessWidget {
 
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Color(colorAmbar),
+          backgroundColor: context.colors.ambar,
 
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),

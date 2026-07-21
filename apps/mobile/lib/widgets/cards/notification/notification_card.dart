@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/notification/notification_model.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/relative_time.dart';
 
 class NotificationCard extends StatelessWidget {
@@ -45,12 +45,12 @@ class NotificationCard extends StatelessWidget {
       onTap: onTap,
       child: Card(
         color: notification.lida
-            ? Color(colorNavy)
-            : Color(colorNavy).withOpacity(0.6),
+            ? context.colors.navy
+            : context.colors.navy.withOpacity(0.6),
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Color(colorGrey).withAlpha(80), width: 1),
+          side: BorderSide(color: context.colors.grey.withAlpha(80), width: 1),
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -65,7 +65,7 @@ class NotificationCard extends StatelessWidget {
                     height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Color(colorBrasa),
+                      color: context.colors.brasa,
                     ),
                   ),
                 ),
@@ -82,9 +82,9 @@ class NotificationCard extends StatelessWidget {
                           memCacheWidth: 120,
                           fadeInDuration: Duration.zero,
                           fadeOutDuration: Duration.zero,
-                          errorWidget: (_, _, _) => _fallbackAvatar(),
+                          errorWidget: (_, _, _) => _fallbackAvatar(context),
                         )
-                      : _fallbackAvatar(),
+                      : _fallbackAvatar(context),
                 ),
               ),
 
@@ -147,9 +147,9 @@ class NotificationCard extends StatelessWidget {
     );
   }
 
-  Widget _fallbackAvatar() {
+  Widget _fallbackAvatar(BuildContext context) {
     return Container(
-      color: Color(colorDarkGrey),
+      color: context.colors.darkGrey,
       child: const Icon(Icons.person, color: Colors.white38),
     );
   }

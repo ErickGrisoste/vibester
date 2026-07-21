@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/event/lineup_model.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class LineupIndicator extends StatelessWidget {
   final List<LineupModel>? lineup;
@@ -32,7 +32,7 @@ class LineupIndicator extends StatelessWidget {
                 padding: EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Color(colorAmbar), width: 2),
+                  border: Border.all(color: context.colors.ambar, width: 2),
                 ),
                 child: ClipOval(
                   child: CachedNetworkImage(

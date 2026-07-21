@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:intl/intl.dart';
 
 class DatePickerField extends FormField<DateTime> {
@@ -53,7 +53,7 @@ class _DatePickerFieldView extends StatelessWidget {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.dark(
-              primary: Color(colorAmbar),
+              primary: context.colors.ambar,
               surface: Color(0xFF141414),
               onSurface: Colors.white,
             ),
@@ -61,20 +61,20 @@ class _DatePickerFieldView extends StatelessWidget {
               context,
             ).textTheme.apply(bodyColor: Colors.white38, displayColor: Colors.white),
             textSelectionTheme: TextSelectionThemeData(
-              cursorColor: Color(colorAmbar),
-              selectionColor: Color(colorAmbar).withOpacity(0.4),
-              selectionHandleColor: Color(colorAmbar),
+              cursorColor: context.colors.ambar,
+              selectionColor: context.colors.ambar.withOpacity(0.4),
+              selectionHandleColor: context.colors.ambar,
             ),
             inputDecorationTheme: InputDecorationTheme(
               labelStyle: TextStyle(
-                color: Color(colorAmbar),
+                color: context.colors.ambar,
               ),
               enabledBorder: OutlineInputBorder(
                 borderSide: const BorderSide(color: Colors.white10),
                 borderRadius: BorderRadius.circular(8),
               ),
               focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: Color(colorAmbar)),
+                borderSide: BorderSide(color: context.colors.ambar),
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
@@ -109,7 +109,7 @@ class _DatePickerFieldView extends StatelessWidget {
                 color: hasError
                     ? Colors.redAccent
                     : (selectedDate != null
-                        ? Color(colorAmbar)
+                        ? context.colors.ambar
                         : Colors.white10),
                 width: 1.3,
               ),
@@ -129,7 +129,7 @@ class _DatePickerFieldView extends StatelessWidget {
                 ),
                 Icon(
                   Icons.calendar_today,
-                  color: hasError ? Colors.redAccent : Color(colorAmbar),
+                  color: hasError ? Colors.redAccent : context.colors.ambar,
                   size: 18,
                 ),
               ],

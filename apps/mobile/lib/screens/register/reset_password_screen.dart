@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/primary_button.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
@@ -16,7 +16,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(colorDarkGrey),
+      backgroundColor: context.colors.darkGrey,
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -41,7 +41,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               ),
               Text(
                 'Informe e confirme sua nova senha abaixo',
-                style: GoogleFonts.inter(color: Color(colorGrey)),
+                style: GoogleFonts.inter(color: context.colors.grey),
               ),
 
               SizedBox(height: 15),
@@ -54,7 +54,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     child: Text(
                       'SENHA',
                       style: GoogleFonts.inter(
-                        color: Color(colorGrey),
+                        color: context.colors.grey,
                         fontWeight: FontWeight.bold,
                         fontSize: 10,
                       ),
@@ -65,7 +65,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     child: TextFormField(
                       obscureText: true,
                       style: TextStyle(color: Colors.white),
-                      cursorColor: Color(colorAmbar),
+                      cursorColor: context.colors.ambar,
                       textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
                         filled: true,
@@ -87,8 +87,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Color(colorAmbar),
+                          borderSide: BorderSide(
+                            color: context.colors.ambar,
                             width: 1.3,
                           ),
                         ),
@@ -128,7 +128,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     child: Text(
                       'CONFIRMA SENHA',
                       style: GoogleFonts.inter(
-                        color: Color(colorGrey),
+                        color: context.colors.grey,
                         fontWeight: FontWeight.bold,
                         fontSize: 10,
                       ),
@@ -139,7 +139,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     child: TextFormField(
                       obscureText: true,
                       style: TextStyle(color: Colors.white),
-                      cursorColor: Color(colorAmbar),
+                      cursorColor: context.colors.ambar,
                       decoration: InputDecoration(
                         filled: true,
                         fillColor: Color(0xFF141414),
@@ -160,8 +160,8 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Color(colorAmbar),
+                          borderSide: BorderSide(
+                            color: context.colors.ambar,
                             width: 1.3,
                           ),
                         ),

@@ -6,7 +6,7 @@ import 'package:mobile/screens/feed/feed_screen.dart';
 import 'package:mobile/screens/highlights/highlights_section_screen.dart';
 import 'package:mobile/screens/places/hot_places_screen.dart';
 import 'package:mobile/service/location/location_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/location_satate.dart';
 
 class HomeTab extends StatefulWidget {
@@ -71,15 +71,15 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(colorDarkGrey),
+      backgroundColor: context.colors.darkGrey,
       appBar: AppBar(
         toolbarHeight: 45,
         automaticallyImplyLeading: false,
-        backgroundColor: Color(colorNavy),
-        foregroundColor: Color(colorAmbar),
+        backgroundColor: context.colors.navy,
+        foregroundColor: context.colors.ambar,
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            color: Color(colorNavy),
+            color: context.colors.navy,
             boxShadow: [
               BoxShadow(
                 color: Colors.white.withOpacity(0.1),
@@ -98,9 +98,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         bottom: TabBar(
           controller: _tabController,
           unselectedLabelColor: Colors.white54,
-          labelColor: Color(colorAmbar),
+          labelColor: context.colors.ambar,
           dividerColor: Colors.transparent,
-          indicatorColor: Color(colorAmbar),
+          indicatorColor: context.colors.ambar,
           labelPadding: const EdgeInsets.all(10),
           labelStyle: GoogleFonts.inter(
             fontSize: Platform.isIOS ? 14 : 16,

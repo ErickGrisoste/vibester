@@ -7,7 +7,7 @@ import 'package:mobile/screens/events/event_list_screen.dart';
 import 'package:mobile/screens/highlights/property_highlights_screen.dart';
 import 'package:mobile/screens/places/place_reviews_screen.dart';
 import 'package:mobile/service/places/place_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/indicators/category_indicator.dart';
 import 'package:mobile/utils/divider.dart';
 import 'package:mobile/widgets/indicators/place_stats_bar.dart';
@@ -53,18 +53,18 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
-            backgroundColor: Color(colorNoturno),
+            backgroundColor: context.colors.noturno,
             body: Center(
-              child: CircularProgressIndicator(color: Color(colorAmbar)),
+              child: CircularProgressIndicator(color: context.colors.ambar),
             ),
           );
         }
 
         if (snapshot.hasError) {
           return Scaffold(
-            backgroundColor: Color(colorNoturno),
+            backgroundColor: context.colors.noturno,
             appBar: AppBar(
-              backgroundColor: Color(colorNoturno),
+              backgroundColor: context.colors.noturno,
               foregroundColor: Colors.white,
             ),
             body: Center(
@@ -81,13 +81,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
         final provider = Provider.of<PlaceListProvider>(context);
 
         return Scaffold(
-          backgroundColor: Color(colorNoturno),
+          backgroundColor: context.colors.noturno,
           appBar: AppBar(
             title: Text(
               place.nome,
               style: GoogleFonts.inter(fontWeight: FontWeight.bold),
             ),
-            backgroundColor: Color(colorNoturno),
+            backgroundColor: context.colors.noturno,
             foregroundColor: Colors.white,
           ),
           body: _buildContent(context, place, provider),
@@ -133,9 +133,9 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
                               end: Alignment.bottomCenter,
                               colors: [
                                 Colors.transparent,
-                                Color(colorNoturno).withOpacity(0.3),
-                                Color(colorNoturno).withOpacity(0.7),
-                                Color(colorNoturno),
+                                context.colors.noturno.withOpacity(0.3),
+                                context.colors.noturno.withOpacity(0.7),
+                                context.colors.noturno,
                               ],
                               stops: const [0.0, 0.4, 0.7, 1.0],
                             ),
@@ -153,7 +153,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
                         decoration: BoxDecoration(
                           boxShadow: [
                             BoxShadow(
-                              color: Color(colorAmbar).withOpacity(0.6),
+                              color: context.colors.ambar.withOpacity(0.6),
                               blurRadius: 10,
                               offset: const Offset(0, 1),
                               spreadRadius: 3,
@@ -208,7 +208,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.location_on, color: Color(colorBrasa)),
+                  Icon(Icons.location_on, color: context.colors.brasa),
                   Text(
                     place.endereco,
                     style: TextStyle(color: Colors.grey.withAlpha(90)),
@@ -237,7 +237,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
               unselectedLabelColor: Colors.white54,
               labelColor: Colors.white,
               dividerColor: Colors.transparent,
-              indicatorColor: Color(colorAmbar),
+              indicatorColor: context.colors.ambar,
               indicatorPadding: EdgeInsetsGeometry.symmetric(
                 horizontal: 10,
                 vertical: 6,
@@ -253,7 +253,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
                 Tab(text: 'AVALIAÇÕES'),
               ],
             ),
-            color: Color(colorNoturno),
+            color: context.colors.noturno,
           ),
         ),
       ],

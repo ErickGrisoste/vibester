@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/screens/register/email_confirm_screen.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/primary_button.dart';
 
 class RecoverPasswordScreen extends StatefulWidget {
@@ -25,7 +25,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(colorDarkGrey),
+      backgroundColor: context.colors.darkGrey,
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -51,7 +51,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                 ),
                 Text(
                   'Insira seu email para recuperação de conta',
-                  style: GoogleFonts.inter(color: Color(colorGrey)),
+                  style: GoogleFonts.inter(color: context.colors.grey),
                 ),
 
                 SizedBox(height: 15),
@@ -63,7 +63,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                       child: Text(
                         'E-MAIL',
                         style: GoogleFonts.inter(
-                          color: Color(colorGrey),
+                          color: context.colors.grey,
                           fontWeight: FontWeight.bold,
                           fontSize: 10,
                         ),
@@ -74,7 +74,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                       child: TextFormField(
                         controller: _emailController,
                         style: TextStyle(color: Colors.white),
-                        cursorColor: Color(colorAmbar),
+                        cursorColor: context.colors.ambar,
                         decoration: InputDecoration(
                           filled: true,
                           fillColor: Color(0xFF141414),
@@ -95,8 +95,8 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
-                            borderSide: const BorderSide(
-                              color: Color(colorAmbar),
+                            borderSide: BorderSide(
+                              color: context.colors.ambar,
                               width: 1.3,
                             ),
                           ),

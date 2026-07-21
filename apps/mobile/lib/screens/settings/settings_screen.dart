@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/payment/payment_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -18,7 +18,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final Color _color = Color(colorDarkGrey);
+  Color get _color => context.colors.darkGrey;
   final PaymentService _paymentService = PaymentService();
   bool modoFantasma = false;
   bool _carregandoCheckout = false;
@@ -29,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Color(colorDarkGrey),
+        backgroundColor: context.colors.darkGrey,
         title: Text(
           'Sair da conta',
           style: GoogleFonts.inter(
@@ -115,10 +115,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           'Configurações',
           style: GoogleFonts.inter(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Color(colorNoturno),
+        backgroundColor: context.colors.noturno,
         foregroundColor: Colors.white,
       ),
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -339,7 +339,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               modoFantasma = value;
                             });
                           },
-                          activeColor: Color(colorBrasa),
+                          activeColor: context.colors.brasa,
                         ),
                       ),
                     ],

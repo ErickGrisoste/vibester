@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/models/place/place_model.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/indicators/category_indicator.dart';
 
 class PlaceFavoriteCard extends StatelessWidget {
@@ -14,11 +14,11 @@ class PlaceFavoriteCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Card(
-        color: Color(colorNavy),
+        color: context.colors.navy,
         margin: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Color(colorGrey).withAlpha(80), width: 1),
+          side: BorderSide(color: context.colors.grey.withAlpha(80), width: 1),
         ),
         child: Stack(
           children: [

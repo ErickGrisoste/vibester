@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/utils/app_progress_indicator.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class IWillGoEventCard extends StatelessWidget {
   final EventModel event;
@@ -19,13 +19,13 @@ class IWillGoEventCard extends StatelessWidget {
         margin: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Color(colorAmbar).withAlpha(50), width: 1),
+          side: BorderSide(color: context.colors.ambar.withAlpha(50), width: 1),
         ),
         clipBehavior: Clip.antiAlias,
         child: SizedBox(
           height: 150,
           child: Container(
-            color: Color(colorNavy),
+            color: context.colors.navy,
             child: Column(
               children: [
                 Expanded(
@@ -54,10 +54,10 @@ class IWillGoEventCard extends StatelessWidget {
                                 width: 60,
                                 height: 60,
                                 decoration: BoxDecoration(
-                                  color: Color(colorNavy).withAlpha(150),
+                                  color: context.colors.navy.withAlpha(150),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: Color(colorAmbar),
+                                    color: context.colors.ambar,
                                     width: 0,
                                   ),
                                 ),
@@ -80,7 +80,7 @@ class IWillGoEventCard extends StatelessWidget {
                                           .toUpperCase(),
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: Color(colorAmbar),
+                                        color: context.colors.ambar,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -107,10 +107,10 @@ class IWillGoEventCard extends StatelessWidget {
                               right: 8,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: Color(colorAmbar).withAlpha(20),
+                                  color: context.colors.ambar.withAlpha(20),
                                   borderRadius: BorderRadius.circular(15),
                                   border: Border.all(
-                                    color: Color(colorAmbar),
+                                    color: context.colors.ambar,
                                     width: 1,
                                   ),
                                 ),
@@ -125,7 +125,7 @@ class IWillGoEventCard extends StatelessWidget {
                                       event.categoria,
                                       style: TextStyle(
                                         fontSize: 8,
-                                        color: Color(colorAmbar),
+                                        color: context.colors.ambar,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
@@ -141,7 +141,7 @@ class IWillGoEventCard extends StatelessWidget {
                                 width: 150,
                                 height: 60,
                                 decoration: BoxDecoration(
-                                  color: Color(colorNavy),
+                                  color: context.colors.navy,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Column(
@@ -182,7 +182,7 @@ class IWillGoEventCard extends StatelessWidget {
                                           "Voce confirmou sua presença!",
                                           style: TextStyle(
                                             fontSize: 8,
-                                            color: Color(colorAmbar),
+                                            color: context.colors.ambar,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),

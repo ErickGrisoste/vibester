@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/service/api_client.dart';
@@ -12,6 +11,7 @@ import 'package:mobile/providers/notification/notification_provider.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/theme/app_theme.dart';
 import 'package:mobile/screens/events/event_detail_screen.dart';
 import 'package:mobile/screens/events/event_list_screen.dart';
 import 'package:mobile/screens/events/favorites_events_screen.dart';
@@ -131,10 +131,7 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         //Chama a classe da propriedade de scroll
         scrollBehavior: _NoBounceScrollBehavior(),
-        theme: ThemeData(
-          textTheme: GoogleFonts.interTextTheme(),
-          fontFamily: GoogleFonts.inter().fontFamily,
-        ),
+        theme: AppTheme.light,
         initialRoute: savedUser != null
             ? AppRoutes.home
             : AppRoutes.initialScreen,

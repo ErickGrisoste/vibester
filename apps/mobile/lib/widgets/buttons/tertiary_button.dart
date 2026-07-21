@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class TertiaryButton extends StatefulWidget {
   final String label;
@@ -27,10 +27,10 @@ class _TertiaryButtonState extends State<TertiaryButton> {
       width: double.infinity,
       height: 60,
       decoration: BoxDecoration(
-        color: widget.state.color,
+        color: widget.state.color(context),
         borderRadius: BorderRadius.circular(30),
         border: widget.state == ButtonState.idle
-            ? Border.all(width: 1, color: Color(colorAmbar))
+            ? Border.all(width: 1, color: context.colors.ambar)
             : null,
       ),
       child: Material(
@@ -60,10 +60,10 @@ enum ButtonState {
   success,
   error;
 
-  Color get color => switch (this) {
-    ButtonState.idle => Color(colorNavy),
+  Color color(BuildContext context) => switch (this) {
+    ButtonState.idle => context.colors.navy,
     ButtonState.loading => const Color(0xFFFFAA00),
-    ButtonState.success => Color(colorAmbar),
+    ButtonState.success => context.colors.ambar,
     ButtonState.error => const Color(0xFFF44336),
   };
 

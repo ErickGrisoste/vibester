@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class HighlightsCard extends StatelessWidget {
   final HighlightModel highlight;
@@ -27,7 +27,7 @@ class HighlightsCard extends StatelessWidget {
         },
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(color: Color(colorAmbar), width: 1),
+            border: Border.all(color: context.colors.ambar, width: 1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: ClipRRect(
@@ -54,7 +54,7 @@ class HighlightsCard extends StatelessWidget {
                         color: Colors.white12,
                         child: Center(
                           child: CircularProgressIndicator(
-                            color: Color(colorAmbar),
+                            color: context.colors.ambar,
                             strokeWidth: 2,
                             value: progress.progress,
                           ),

@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class EditableAvatar extends StatefulWidget {
   final String? imageUrl;
@@ -89,12 +89,12 @@ class _EditableAvatarState extends State<EditableAvatar> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: Color(colorAmbar).withAlpha(150),
+                color: context.colors.ambar.withAlpha(150),
                 width: 2,
               ),
             ),
             child: CircleAvatar(
-              backgroundColor: Color(colorDarkGrey).withAlpha(150),
+              backgroundColor: context.colors.darkGrey.withAlpha(150),
               radius: widget.radius > 0 ? widget.radius : 48,
               backgroundImage: _provider,
               child: _provider == null
@@ -107,7 +107,7 @@ class _EditableAvatarState extends State<EditableAvatar> {
             right: 0,
             child: CircleAvatar(
               radius: 48 * 0.28,
-              backgroundColor: Color(colorAmbar),
+              backgroundColor: context.colors.ambar,
               child: Icon(Icons.edit, size: 48 * 0.28, color: Colors.white),
             ),
           ),

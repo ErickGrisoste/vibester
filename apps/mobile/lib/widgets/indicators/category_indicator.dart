@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class CategoryIndicator extends StatelessWidget {
   final String categoria;
@@ -11,15 +11,15 @@ class CategoryIndicator extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: Color(colorNoturno).withAlpha(50),
+        color: context.colors.noturno.withAlpha(50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Color(colorAmbar).withAlpha(150)),
+        border: Border.all(color: context.colors.ambar.withAlpha(150)),
       ),
       child: Text(
         categoria,
         style: TextStyle(
           fontWeight: FontWeight.bold,
-          color: Color(colorAmbar),
+          color: context.colors.ambar,
           fontSize: 10,
         ),
       ),

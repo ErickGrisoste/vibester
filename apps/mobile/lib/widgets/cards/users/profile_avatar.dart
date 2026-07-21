@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class ProfileAvatar extends StatelessWidget {
   final String? imageUrl;
@@ -52,7 +52,7 @@ class ProfileAvatar extends StatelessWidget {
               ],
             ),
             child: CircleAvatar(
-              backgroundColor: Color(colorDarkGrey).withAlpha(150),
+              backgroundColor: context.colors.darkGrey.withAlpha(150),
               radius: 48,
               backgroundImage: _imageProvider,
               child: _imageProvider == null

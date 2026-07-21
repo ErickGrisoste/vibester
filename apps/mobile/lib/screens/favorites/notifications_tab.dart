@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/notification/notification_card.dart';
 import 'package:provider/provider.dart';
 
@@ -39,10 +39,10 @@ class _NotificationsTabState extends State<NotificationsTab> {
     final provider = context.watch<NotificationProvider>();
 
     if (provider.isLoading && provider.notifications.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
         child: Center(
-          child: CircularProgressIndicator(color: Color(colorAmbar)),
+          child: CircularProgressIndicator(color: context.colors.ambar),
         ),
       );
     }

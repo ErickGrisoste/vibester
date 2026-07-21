@@ -4,7 +4,7 @@ import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/screens/favorites/I_will_go_screen.dart';
 import 'package:mobile/screens/favorites/favorites_screen.dart';
 import 'package:mobile/screens/favorites/notifications_tab.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/divider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
@@ -41,9 +41,9 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
     int eventosConfirmados = event.favorites.length;
 
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       appBar: AppBar(
-        backgroundColor: Color(colorNavy),
+        backgroundColor: context.colors.navy,
         elevation: 0,
         centerTitle: true,
         automaticallyImplyLeading: false,
@@ -54,7 +54,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
         ),
       ),
       body: RefreshIndicator(
-        color: Color(colorBrasa),
+        color: context.colors.brasa,
         onRefresh: () => Future.wait([
           context.read<PlaceListProvider>().fetchPlaces(force: true),
           context.read<EventsListProvider>().fetchEvents(force: true),
@@ -114,7 +114,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                 height: 70,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(15),
-                  color: Color(colorNavy),
+                  color: context.colors.navy,
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -129,13 +129,13 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: Color(colorBrasa),
+                                color: context.colors.brasa,
                                 width: 1,
                               ),
                             ),
                             child: Icon(
                               Icons.favorite_outline,
-                              color: Color(colorBrasa),
+                              color: context.colors.brasa,
                               fontWeight: FontWeight(20),
                             ),
                           ),
@@ -190,7 +190,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: Color(colorBrasa),
+                                color: context.colors.brasa,
                                 width: 1,
                               ),
                             ),
@@ -198,7 +198,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                               angle: -0.5,
                               child: FaIcon(
                                 FontAwesomeIcons.ticket,
-                                color: Color(colorBrasa),
+                                color: context.colors.brasa,
                                 size: 21,
                               ),
                             ),
@@ -283,7 +283,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                                 Container(
                                   height: 3,
                                   width: 24,
-                                  color: Color(colorBrasa),
+                                  color: context.colors.brasa,
                                 )
                               else
                                 const SizedBox(height: 2),

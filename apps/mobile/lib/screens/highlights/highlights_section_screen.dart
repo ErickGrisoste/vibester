@@ -7,7 +7,7 @@ import 'package:mobile/providers/events/events_list_provider.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/screens/highlights/category_highlights_section.dart';
 import 'package:mobile/service/location/location_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/location_satate.dart';
 import 'package:mobile/widgets/cards/highlights/close_to_you.dart';
 import 'package:mobile/widgets/cards/highlights/exclusive_offers.dart';
@@ -155,9 +155,9 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
     final eventsProvider = context.watch<EventsListProvider>();
 
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       body: RefreshIndicator(
-        color: Color(colorAmbar),
+        color: context.colors.ambar,
         onRefresh: () => Future.wait([
           context.read<EventsListProvider>().fetchFeaturedEvents(force: true),
           context.read<EventsListProvider>().fetchWeekEvents(force: true),
@@ -172,9 +172,9 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                 child:
                     eventsProvider.isLoadingFeatured &&
                         eventsProvider.featuredEvents.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: CircularProgressIndicator(
-                          color: Color(colorAmbar),
+                          color: context.colors.ambar,
                         ),
                       )
                     : eventsProvider.featuredEvents.isEmpty
@@ -252,9 +252,9 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                       child:
                           eventsProvider.isLoadingWeek &&
                               eventsProvider.weekEvents.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: CircularProgressIndicator(
-                                color: Color(colorAmbar),
+                                color: context.colors.ambar,
                               ),
                             )
                           : eventsProvider.weekEvents.isEmpty
@@ -355,11 +355,11 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                     builder: (context, snapshot) {
                       if (localizacaoFuture != null &&
                           snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
+                        return Center(
                           child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
+                            padding: const EdgeInsets.symmetric(vertical: 24),
                             child: CircularProgressIndicator(
-                              color: Color(colorAmbar),
+                              color: context.colors.ambar,
                             ),
                           ),
                         );

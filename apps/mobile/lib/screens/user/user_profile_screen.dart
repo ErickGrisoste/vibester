@@ -11,7 +11,7 @@ import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/screens/events/favorites_events_screen.dart';
 import 'package:mobile/screens/highlights/property_highlights_screen.dart';
 import 'package:mobile/screens/places/favorite_places_screen.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/divider.dart';
 import 'package:mobile/utils/editable_text_field.dart';
 import 'package:mobile/widgets/cards/users/profile_avatar.dart';
@@ -90,7 +90,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
 
     if (user == null) {
       return Scaffold(
-        backgroundColor: Color(colorNoturno),
+        backgroundColor: context.colors.noturno,
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -98,12 +98,12 @@ class UserProfileScreenState extends State<UserProfileScreen>
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: Color(colorNavy),
+        backgroundColor: context.colors.navy,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            color: Color(colorNavy),
+            color: context.colors.navy,
             boxShadow: [
               BoxShadow(
                 color: Colors.white.withOpacity(0.1),
@@ -149,7 +149,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
         ),
         centerTitle: true,
       ),
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       body: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification.depth == 0 &&
@@ -161,8 +161,8 @@ class UserProfileScreenState extends State<UserProfileScreen>
           return false;
         },
         child: RefreshIndicator(
-          color: Color(colorAmbar),
-          backgroundColor: Color(colorNavy),
+          color: context.colors.ambar,
+          backgroundColor: context.colors.navy,
           onRefresh: _onRefresh,
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) => [
@@ -364,7 +364,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                     unselectedLabelColor: Colors.white54,
                     labelColor: Colors.white,
                     dividerColor: Colors.transparent,
-                    indicatorColor: Color(colorBrasa),
+                    indicatorColor: context.colors.brasa,
                     indicatorPadding: EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 6,
@@ -380,7 +380,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                       Tab(text: 'CHECK-IN'),
                     ],
                   ),
-                  color: Color(colorNoturno),
+                  color: context.colors.noturno,
                 ),
               ),
             ],

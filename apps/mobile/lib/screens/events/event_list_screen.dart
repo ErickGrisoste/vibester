@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/providers/events/events_list_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/utils/app_progress_indicator.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/event/event_card.dart';
 import 'package:provider/provider.dart';
 
@@ -28,14 +28,14 @@ class _EventListScreenState extends State<EventListScreen> {
 
     if (provider.isLoading) {
       return Scaffold(
-        backgroundColor: Color(colorNoturno),
+        backgroundColor: context.colors.noturno,
         body: const Center(child: AppProgressIndicator()),
       );
     }
 
     if (provider.error != null) {
       return Scaffold(
-        backgroundColor: Color(colorNoturno),
+        backgroundColor: context.colors.noturno,
         body: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
@@ -74,9 +74,9 @@ class _EventListScreenState extends State<EventListScreen> {
 
     final event = provider.events;
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       body: RefreshIndicator(
-        color: Color(colorAmbar),
+        color: context.colors.ambar,
         onRefresh: () =>
             context.read<EventsListProvider>().fetchEvents(force: true),
         child: ListView.builder(

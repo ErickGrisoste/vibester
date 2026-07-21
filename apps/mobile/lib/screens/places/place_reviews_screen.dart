@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/models/place/place_model.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/event/review_card.dart';
 import 'package:mobile/widgets/indicators/review_indicator.dart';
 
@@ -31,8 +31,8 @@ class _PlaceReviewsScreenState extends State<PlaceReviewsScreen> {
         height: 40,
         child: FloatingActionButton(
           backgroundColor: selecionado
-              ? Color(colorAmbar)
-              : Color(colorNoturno),
+              ? context.colors.ambar
+              : context.colors.noturno,
           onPressed: () {
             setState(() {
               _filtroSelecionado = index;
@@ -54,7 +54,7 @@ class _PlaceReviewsScreenState extends State<PlaceReviewsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       body: SingleChildScrollView(
         child: Column(
           children: [

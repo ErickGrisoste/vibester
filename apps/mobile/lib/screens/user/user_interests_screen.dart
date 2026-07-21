@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/user/interest_model.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/primary_button.dart';
 
 class UserInterestsScreen extends StatefulWidget {
@@ -23,14 +23,14 @@ class _UserInterestsScreenState extends State<UserInterestsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Color(colorDarkGrey),
+      backgroundColor: context.colors.darkGrey,
       appBar: AppBar(
         foregroundColor: Colors.white,
         title: Text(
           'Seus interesses',
           style: GoogleFonts.inter(color: Colors.white),
         ),
-        backgroundColor: Color(colorDarkGrey),
+        backgroundColor: context.colors.darkGrey,
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -41,7 +41,7 @@ class _UserInterestsScreenState extends State<UserInterestsScreen> {
               'O que você curte?',
               style: GoogleFonts.inter(
                 fontSize: 22,
-                color: Color(colorAmbar),
+                color: context.colors.ambar,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -64,10 +64,10 @@ class _UserInterestsScreenState extends State<UserInterestsScreen> {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Color(colorAmbar)),
+                      border: Border.all(color: context.colors.ambar),
                       color: interest.selected
-                          ? Color(colorAmbar)
-                          : Color(colorDarkGrey),
+                          ? context.colors.ambar
+                          : context.colors.darkGrey,
                       borderRadius: BorderRadius.circular(30),
                     ),
                     child: Row(

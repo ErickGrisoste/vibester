@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/models/place/place_model.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/indicators/category_indicator.dart';
 import 'package:mobile/widgets/indicators/movement_indicator.dart';
 import 'package:mobile/widgets/indicators/price_indicator.dart';
@@ -16,11 +16,11 @@ class PlaceCardForFavorites extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Card(
-        color: Color(colorNoturno),
+        color: context.colors.noturno,
         margin: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: Color(colorGrey).withAlpha(80), width: 1),
+          side: BorderSide(color: context.colors.grey.withAlpha(80), width: 1),
         ),
         child: Stack(
           children: [
@@ -34,7 +34,7 @@ class PlaceCardForFavorites extends StatelessWidget {
                     height: 86,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Color(colorAmbar), width: 2),
+                      border: Border.all(color: context.colors.ambar, width: 2),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(3),
@@ -44,7 +44,7 @@ class PlaceCardForFavorites extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Color(colorNoturno),
+                            color: context.colors.noturno,
                             width: 0,
                           ),
                         ),
@@ -106,11 +106,11 @@ class PlaceCardForFavorites extends StatelessWidget {
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: Color(colorAmbar), width: 1),
+                      border: Border.all(color: context.colors.ambar, width: 1),
                     ),
                     child: Icon(
                       Icons.star_outline,
-                      color: Color(colorAmbar),
+                      color: context.colors.ambar,
                       size: 16,
                     ),
                   ),
@@ -124,11 +124,11 @@ class PlaceCardForFavorites extends StatelessWidget {
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Color(colorAmbar), width: 1),
+                  border: Border.all(color: context.colors.ambar, width: 1),
                 ),
                 child: Icon(
                   Icons.arrow_forward_ios,
-                  color: Color(colorAmbar),
+                  color: context.colors.ambar,
                   size: 16,
                 ),
               ),

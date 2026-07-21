@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class PrimaryButton extends StatefulWidget {
   final String label;
@@ -29,21 +29,21 @@ class _PrimaryButtonState extends State<PrimaryButton> {
       width: 350,
       height: 60,
       decoration: BoxDecoration(
-        color: widget.state.color,
+        color: widget.state.color(context),
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
-            color: Color(colorAmbar).withOpacity(0.5),
+            color: context.colors.ambar.withOpacity(0.5),
             blurRadius: 12,
             spreadRadius: 1,
           ),
           BoxShadow(
-            color: Color(colorAmbar).withOpacity(0.3),
+            color: context.colors.ambar.withOpacity(0.3),
             blurRadius: 20,
             spreadRadius: 1,
           ),
           BoxShadow(
-            color: Color(colorAmbar).withOpacity(0.15),
+            color: context.colors.ambar.withOpacity(0.15),
             blurRadius: 30,
             spreadRadius: 1,
           ),
@@ -84,10 +84,10 @@ enum ButtonState {
   success,
   error;
 
-  Color get color => switch (this) {
-    ButtonState.idle => Color(colorAmbar),
+  Color color(BuildContext context) => switch (this) {
+    ButtonState.idle => context.colors.ambar,
     ButtonState.loading => const Color(0xFFFFAA00),
-    ButtonState.success => Color(colorNavy),
+    ButtonState.success => context.colors.navy,
     ButtonState.error => const Color(0xFFF44336),
   };
 

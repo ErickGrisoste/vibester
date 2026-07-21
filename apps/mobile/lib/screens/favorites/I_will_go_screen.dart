@@ -3,7 +3,7 @@ import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/providers/events/events_list_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/event/i_will_go_event_card.dart';
 import 'package:provider/provider.dart';
 
@@ -35,7 +35,7 @@ class _IWillGoScreenState extends State<IWillGoScreen> {
         .watch<EventsListProvider>()
         .checkIns;
     return ColoredBox(
-      color: Color(colorNoturno),
+      color: context.colors.noturno,
       child: ListView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),

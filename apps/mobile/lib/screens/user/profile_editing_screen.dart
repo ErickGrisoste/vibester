@@ -5,7 +5,7 @@ import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/user/user_service.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/users/editing_avatar.dart';
 import 'package:mobile/widgets/buttons/primary_button.dart';
 import 'package:provider/provider.dart';
@@ -95,10 +95,10 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(colorDarkGrey),
+      backgroundColor: context.colors.darkGrey,
       appBar: AppBar(
         title: Text('Informações pessoais'),
-        backgroundColor: Color(colorDarkGrey),
+        backgroundColor: context.colors.darkGrey,
         foregroundColor: Colors.white,
         titleTextStyle: GoogleFonts.inter(fontSize: 20),
       ),
@@ -115,7 +115,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                 child: Text(
                   'NOME',
                   style: GoogleFonts.inter(
-                    color: Color(colorGrey),
+                    color: context.colors.grey,
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
                   ),
@@ -130,7 +130,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
 
                   textInputAction: TextInputAction.next,
                   style: const TextStyle(color: Colors.white),
-                  cursorColor: Color(colorAmbar),
+                  cursorColor: context.colors.ambar,
 
                   inputFormatters: [LengthLimitingTextInputFormatter(50)],
 
@@ -154,8 +154,8 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: Color(colorAmbar),
+                      borderSide: BorderSide(
+                        color: context.colors.ambar,
                         width: 1.3,
                       ),
                     ),
@@ -191,7 +191,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                 child: Text(
                   'BIO',
                   style: GoogleFonts.inter(
-                    color: Color(colorGrey),
+                    color: context.colors.grey,
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
                   ),
@@ -208,7 +208,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                   expands: true,
                   textInputAction: TextInputAction.done,
                   style: const TextStyle(color: Colors.white),
-                  cursorColor: Color(colorAmbar),
+                  cursorColor: context.colors.ambar,
 
                   inputFormatters: [LengthLimitingTextInputFormatter(150)],
 
@@ -231,8 +231,8 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: Color(colorAmbar),
+                      borderSide: BorderSide(
+                        color: context.colors.ambar,
                         width: 1.3,
                       ),
                     ),

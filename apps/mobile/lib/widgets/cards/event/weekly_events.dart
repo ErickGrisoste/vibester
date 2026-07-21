@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/utils/app_progress_indicator.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class WeeklyEvents extends StatefulWidget {
   final EventModel evento;
@@ -32,13 +32,13 @@ class _WeeklyEventsState extends State<WeeklyEvents> {
         padding: const EdgeInsets.symmetric(horizontal: 17.0),
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(color: Color(colorBrasa), width: 1.3),
+            border: Border.all(color: context.colors.brasa, width: 1.3),
             borderRadius: BorderRadius.circular(30),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(29),
             child: Container(
-              color: Color(colorNavy),
+              color: context.colors.navy,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -78,7 +78,7 @@ class _WeeklyEventsState extends State<WeeklyEvents> {
                           children: [
                             Icon(
                               Icons.calendar_month,
-                              color: Color(colorAmbar),
+                              color: context.colors.ambar,
                               size: 22,
                             ),
                             const SizedBox(width: 6),

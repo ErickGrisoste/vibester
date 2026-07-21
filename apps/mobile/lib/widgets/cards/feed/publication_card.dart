@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/feed/publication_model.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/divider.dart';
 import 'package:mobile/widgets/indicators/like_indicator.dart';
 
@@ -97,14 +97,14 @@ class PublicationCard extends StatelessWidget {
                                 children: [
                                   Icon(
                                     Icons.location_on_outlined,
-                                    color: Color(colorBrasa),
+                                    color: context.colors.brasa,
                                     size: 16,
                                   ),
                                   SizedBox(width: 3),
                                   Text(
                                     publication.location!,
                                     style: GoogleFonts.inter(
-                                      color: Color(colorBrasa).withAlpha(150),
+                                      color: context.colors.brasa.withAlpha(150),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),

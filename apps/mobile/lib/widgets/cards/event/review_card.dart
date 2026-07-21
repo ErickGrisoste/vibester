@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class ReviewCard extends StatelessWidget {
   final String nomeUsuario;
@@ -21,7 +21,7 @@ class ReviewCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
-      color: Color(colorNavy),
+      color: context.colors.navy,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -33,7 +33,7 @@ class ReviewCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: Color(colorAmbar),
+                  backgroundColor: context.colors.ambar,
                   child: Icon(Icons.person, color: Colors.white),
                 ),
                 const SizedBox(width: 12),
@@ -50,7 +50,7 @@ class ReviewCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      _buildStars(avaliacao),
+                      _buildStars(context, avaliacao),
                     ],
                   ),
                 ),
@@ -81,7 +81,7 @@ class ReviewCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStars(double rating) {
+  Widget _buildStars(BuildContext context, double rating) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (i) {
@@ -94,7 +94,7 @@ class ReviewCard extends StatelessWidget {
         } else {
           icon = Icons.star_border;
         }
-        return Icon(icon, color: Color(colorBrasa), size: 16);
+        return Icon(icon, color: context.colors.brasa, size: 16);
       }),
     );
   }

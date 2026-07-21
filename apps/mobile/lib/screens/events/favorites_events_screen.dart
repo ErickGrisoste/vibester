@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/providers/events/events_list_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/event/event_card.dart';
 import 'package:provider/provider.dart';
 
@@ -84,10 +84,10 @@ class _FavoritesEventsScreenState extends State<FavoritesEventsScreen>
           );
 
     return Scaffold(
-      backgroundColor: Color(colorNoturno),
+      backgroundColor: context.colors.noturno,
       body: widget.showRefreshIndicator
           ? RefreshIndicator(
-              color: Color(colorAmbar),
+              color: context.colors.ambar,
               onRefresh: () =>
                   context.read<EventsListProvider>().fetchEvents(force: true),
               child: list,

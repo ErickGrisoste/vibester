@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/models/event/event_model.dart';
-import 'package:mobile/utils/colors.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/app_progress_indicator.dart';
 
 class EventCard extends StatelessWidget {
@@ -59,7 +59,7 @@ class EventCard extends StatelessWidget {
                         "pt_BR",
                       ).format(event.dataDoEvento).toUpperCase(),
                       style: TextStyle(
-                        color: Color(colorBrasa),
+                        color: context.colors.brasa,
                         fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
@@ -90,7 +90,7 @@ class EventCard extends StatelessWidget {
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: Color(colorBrasa),
+                        color: context.colors.brasa,
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Row(
