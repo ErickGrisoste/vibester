@@ -24,7 +24,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: user-service
-          image: ghcr.io/felipesantos979/vibester-user-service:latest
+          image: ghcr.io/victormarchidev/vibester-user-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3003

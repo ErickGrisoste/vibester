@@ -110,6 +110,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Normalize image owner casing
+        run: echo "IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/vibester-auth-service" >> "$GITHUB_ENV"
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -141,11 +144,14 @@ jobs:
           echo "${{ secrets.VPS_KUBECONFIG }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
 
+      - name: Normalize image owner casing
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Deploy
         run: |
           kubectl apply -f apps/services/auth-service/k8s/
           kubectl set image deployment/auth-service \
-            auth-service=ghcr.io/${{ github.repository_owner }}/vibester-auth-service:${{ github.sha }}
+            auth-service=ghcr.io/${{ env.OWNER_LC }}/vibester-auth-service:${{ github.sha }}
           kubectl rollout status deployment/auth-service --timeout=300s || {
             echo "--- Pod describe ---"
             kubectl describe pod -l app=auth-service

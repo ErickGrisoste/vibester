@@ -22,7 +22,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: notification-service
-          image: ghcr.io/felipesantos979/vibester-notification-service:latest
+          image: ghcr.io/victormarchidev/vibester-notification-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3005

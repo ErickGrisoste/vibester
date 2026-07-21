@@ -29,7 +29,7 @@ spec:
             secretName: astra-secure-connect-bundle
       containers:
         - name: post-service
-          image: ghcr.io/felipesantos979/vibester-post-service:latest
+          image: ghcr.io/victormarchidev/vibester-post-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

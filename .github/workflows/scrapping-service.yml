@@ -48,6 +48,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Normalize image owner casing
+        run: echo "IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/vibester-scrapping-service" >> "$GITHUB_ENV"
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -76,8 +79,11 @@ jobs:
           echo "${{ secrets.VPS_KUBECONFIG }}" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
 
+      - name: Normalize image owner casing
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Deploy
         run: |
           kubectl set image deployment/scrapping-service \
-            scrapping-service=ghcr.io/${{ github.repository_owner }}/vibester-scrapping-service:${{ github.sha }}
+            scrapping-service=ghcr.io/${{ env.OWNER_LC }}/vibester-scrapping-service:${{ github.sha }}
           kubectl rollout status deployment/scrapping-service --timeout=120s

@@ -24,7 +24,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: feed-service
-          image: ghcr.io/felipesantos979/vibester-feed-service:latest
+          image: ghcr.io/victormarchidev/vibester-feed-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3006

@@ -25,7 +25,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: scrapping-service
-          image: ghcr.io/felipesantos979/vibester-scrapping-service:latest
+          image: ghcr.io/victormarchidev/vibester-scrapping-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
