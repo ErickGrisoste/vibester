@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "0a44ca7d-fbb0-4655-90ea-1b277d5d8d28",
     "name": "Vibester Payment Service",
-    "description": "Collection para testar o microsservico Go payment-service. O servico cria um checkout hospedado na AbacatePay e persiste a cobranca no Postgres com status PENDING.",
+    "description": "Collection para testar o microsservico payment-service (Node.js/TypeScript + Fastify). O servico cria um checkout hospedado na AbacatePay, persiste a cobranca no Postgres com status PENDING e recebe a confirmacao via webhook.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -17,6 +17,18 @@
       "value": "prod_xxx",
       "type": "string",
       "description": "ID de um produto ja cadastrado na AbacatePay."
+    },
+    {
+      "key": "jwtToken",
+      "value": "",
+      "type": "string",
+      "description": "Token JWT emitido pelo auth-service (mesmo JWT_SECRET), necessario para POST /checkout."
+    },
+    {
+      "key": "webhookSecret",
+      "value": "your_dev_mode_webhook_secret_here",
+      "type": "string",
+      "description": "Deve bater com ABACATEPAY_WEBHOOK_SECRET configurado no servico."
     }
   ],
   "item": [
@@ -33,11 +45,16 @@
                 "key": "Content-Type",
                 "value": "application/json",
                 "description": "Formato do corpo enviado para a API."
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwtToken}}",
+                "description": "Token JWT obrigatorio nesta rota."
               }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1,\n  \"methods\": [\"PIX\", \"CARD\"]\n}",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 1,\n  \"methods\": [\"PIX\", \"CREDIT_CARD\"]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -53,7 +70,7 @@
                 "checkout"
               ]
             },
-            "description": "Cria um checkout na AbacatePay usando um produto existente, salva a cobranca no Postgres e retorna a URL hospedada de pagamento.\n\nCampos do body:\n- productId: obrigatorio. ID do produto na AbacatePay.\n- quantity: obrigatorio. Quantidade maior que zero.\n- methods: opcional. Lista de metodos aceitos, como PIX e CARD."
+            "description": "Cria um checkout na AbacatePay usando um produto existente, salva a cobranca no Postgres e retorna a URL hospedada de pagamento.\n\nCampos do body:\n- productId: obrigatorio. ID do produto na AbacatePay.\n- quantity: obrigatorio. Quantidade maior que zero.\n- methods: opcional. Lista de metodos aceitos (PIX, CREDIT_CARD).\n\nRequer header Authorization: Bearer <JWT> (mesmo secret usado pelo auth-service)."
           },
           "response": [
             {
@@ -61,38 +78,25 @@
               "originalRequest": {
                 "method": "POST",
                 "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
                 ],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"productId\": \"prod_xxx\",\n  \"quantity\": 1,\n  \"methods\": [\"PIX\", \"CARD\"]\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
+                  "raw": "{\n  \"productId\": \"prod_xxx\",\n  \"quantity\": 1,\n  \"methods\": [\"PIX\", \"CREDIT_CARD\"]\n}",
+                  "options": { "raw": { "language": "json" } }
                 },
                 "url": {
                   "raw": "{{baseUrl}}/checkout",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "checkout"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["checkout"]
                 }
               },
               "status": "OK",
               "code": 200,
               "_postman_previewlanguage": "json",
               "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json; charset=utf-8"
-                }
+                { "key": "Content-Type", "value": "application/json; charset=utf-8" }
               ],
               "body": "{\n  \"url\": \"https://pay.abacatepay.com/checkout/checkout_xxx\"\n}"
             },
@@ -101,80 +105,203 @@
               "originalRequest": {
                 "method": "POST",
                 "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
                 ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"productId\": \"prod_xxx\",\n  \"quantity\": 0\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
+                  "options": { "raw": { "language": "json" } }
                 },
                 "url": {
                   "raw": "{{baseUrl}}/checkout",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "checkout"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["checkout"]
                 }
               },
               "status": "Bad Request",
               "code": 400,
               "_postman_previewlanguage": "json",
               "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json; charset=utf-8"
-                }
+                { "key": "Content-Type", "value": "application/json; charset=utf-8" }
               ],
-              "body": "{\n  \"error\": \"invalid request\"\n}"
+              "body": "{\n  \"error\": \"body/productId must be string\"\n}"
+            },
+            {
+              "name": "401 - Token ausente ou invalido",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"productId\": \"prod_xxx\",\n  \"quantity\": 1\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/checkout",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["checkout"]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+              ],
+              "body": "{\n  \"error\": \"Token de autenticação inválido ou ausente\"\n}"
             },
             {
               "name": "500 - Erro ao salvar pagamento",
               "originalRequest": {
                 "method": "POST",
                 "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
-                  }
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
                 ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"productId\": \"prod_xxx\",\n  \"quantity\": 1\n}",
-                  "options": {
-                    "raw": {
-                      "language": "json"
-                    }
-                  }
+                  "options": { "raw": { "language": "json" } }
                 },
                 "url": {
                   "raw": "{{baseUrl}}/checkout",
-                  "host": [
-                    "{{baseUrl}}"
-                  ],
-                  "path": [
-                    "checkout"
-                  ]
+                  "host": ["{{baseUrl}}"],
+                  "path": ["checkout"]
                 }
               },
               "status": "Internal Server Error",
               "code": 500,
               "_postman_previewlanguage": "json",
               "header": [
-                {
-                  "key": "Content-Type",
-                  "value": "application/json; charset=utf-8"
-                }
+                { "key": "Content-Type", "value": "application/json; charset=utf-8" }
               ],
-              "body": "{\n  \"error\": \"failed to save payment\"\n}"
+              "body": "{\n  \"error\": \"Falha ao salvar pagamento\"\n}"
+            },
+            {
+              "name": "502 - Falha ao comunicar com o AbacatePay",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"productId\": \"prod_xxx\",\n  \"quantity\": 1\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/checkout",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["checkout"]
+                }
+              },
+              "status": "Bad Gateway",
+              "code": 502,
+              "_postman_previewlanguage": "json",
+              "header": [
+                { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+              ],
+              "body": "{\n  \"error\": \"AbacatePay retornou status 500: ...\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Webhook AbacatePay",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"billing.paid\",\n  \"data\": {\n    \"id\": \"bill_abc123\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/webhook/abacatepay?webhookSecret={{webhookSecret}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["webhook", "abacatepay"],
+              "query": [{ "key": "webhookSecret", "value": "{{webhookSecret}}" }]
+            },
+            "description": "Recebido da AbacatePay para confirmar (billing.paid) ou reportar falha (billing.failed/billing.expired) de um pagamento. Atualiza o status de PENDING para PAID/FAILED e publica evento Kafka.\n\nATENÇÃO: o mecanismo de validação (secret via querystring) e os nomes de evento assumidos aqui ainda não foram confirmados contra a documentação oficial da AbacatePay — ver CLAUDE.md do serviço."
+          },
+          "response": [
+            {
+              "name": "200 - Webhook processado",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": \"billing.paid\",\n  \"data\": {\n    \"id\": \"bill_abc123\"\n  }\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/webhook/abacatepay?webhookSecret={{webhookSecret}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["webhook", "abacatepay"],
+                  "query": [{ "key": "webhookSecret", "value": "{{webhookSecret}}" }]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+              ],
+              "body": "{\n  \"received\": true\n}"
+            },
+            {
+              "name": "401 - Secret invalido",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": \"billing.paid\",\n  \"data\": {\n    \"id\": \"bill_abc123\"\n  }\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/webhook/abacatepay?webhookSecret=wrong",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["webhook", "abacatepay"],
+                  "query": [{ "key": "webhookSecret", "value": "wrong" }]
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "header": [
+                { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+              ],
+              "body": "{\n  \"error\": \"Secret de webhook inválido\"\n}"
+            },
+            {
+              "name": "404 - Pagamento nao encontrado",
+              "originalRequest": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"event\": \"billing.paid\",\n  \"data\": {\n    \"id\": \"bill_desconhecido\"\n  }\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/webhook/abacatepay?webhookSecret={{webhookSecret}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["webhook", "abacatepay"],
+                  "query": [{ "key": "webhookSecret", "value": "{{webhookSecret}}" }]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                { "key": "Content-Type", "value": "application/json; charset=utf-8" }
+              ],
+              "body": "{\n  \"error\": \"Pagamento não encontrado para o externalId informado\"\n}"
             }
           ]
         }

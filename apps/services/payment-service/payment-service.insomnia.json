@@ -1,0 +1,109 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-07-29T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v8",
+  "resources": [
+    {
+      "_id": "wrk_payment_service",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "Payment Service (local)",
+      "description": "Rotas do payment-service rodando via docker-compose",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_base_payment_service",
+      "_type": "environment",
+      "parentId": "wrk_payment_service",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:8080",
+        "jwt_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE3ODUyODYzNjV9.1v_aPA5vO3aZXWjjYGu-1gs8Q3b0NYTrJfeblfJVu0s",
+        "webhook_secret": "change-me"
+      },
+      "dataPropertyOrder": {
+        "&": ["base_url", "jwt_token", "webhook_secret"]
+      },
+      "color": null,
+      "isPrivate": false,
+      "metaSortKey": 0
+    },
+    {
+      "_id": "req_health",
+      "_type": "request",
+      "parentId": "wrk_payment_service",
+      "name": "Health Check",
+      "description": "",
+      "method": "GET",
+      "url": "{{ _.base_url }}/health",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {},
+      "metaSortKey": -3,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_checkout",
+      "_type": "request",
+      "parentId": "wrk_payment_service",
+      "name": "Criar Checkout",
+      "description": "Requer JWT válido (mesmo secret configurado em JWT_SECRET no container).",
+      "method": "POST",
+      "url": "{{ _.base_url }}/checkout",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"productId\": \"prod_abc123\",\n  \"quantity\": 1,\n  \"methods\": [\"PIX\"]\n}"
+      },
+      "parameters": [],
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Authorization", "value": "Bearer {{ _.jwt_token }}" }
+      ],
+      "authentication": {},
+      "metaSortKey": -2,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    },
+    {
+      "_id": "req_webhook",
+      "_type": "request",
+      "parentId": "wrk_payment_service",
+      "name": "Webhook AbacatePay",
+      "description": "Simula callback da AbacatePay. Secret vai via querystring, não header.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/webhook/abacatepay",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"event\": \"billing.paid\",\n  \"data\": {\n    \"id\": \"bill_abc123\"\n  }\n}"
+      },
+      "parameters": [
+        { "name": "webhookSecret", "value": "{{ _.webhook_secret }}" }
+      ],
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "authentication": {},
+      "metaSortKey": -1,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global"
+    }
+  ]
+}
