@@ -52,8 +52,8 @@ class EventModel {
       dataDoEvento: json['startDate'] != null
           ? DateTime.parse(json['startDate'])
           : json['eventDate'] != null
-              ? DateTime.parse(json['eventDate'])
-              : DateTime.now(),
+          ? DateTime.parse(json['eventDate'])
+          : DateTime.now(),
       titulo: json['name'] ?? json['title'] ?? 'Evento sem título',
       categoria: json['category'] ?? 'Sem categoria',
       localizacao: json['location'] ?? 'Local não informado',
@@ -65,8 +65,9 @@ class EventModel {
       longitude: (json['longitude'] ?? 0).toDouble(),
       distanceKm: (json['distanceKm'] ?? 0).toDouble(),
       organizador: json['organizer'] ?? '',
-      dataFimEvento:
-          json['endDate'] != null ? DateTime.parse(json['endDate']) : null,
+      dataFimEvento: json['endDate'] != null
+          ? DateTime.parse(json['endDate'])
+          : null,
       ticketLink: json['ticketLink'] ?? '',
       emDestaque: json['isFeatured'] ?? false,
     );
@@ -96,7 +97,7 @@ class EventModel {
     );
   }
 
-//Dart pra json, é o contrario do de cima, pra quando for mandar pra API
+  //Dart pra json, é o contrario do de cima, pra quando for mandar pra API
   Map<String, dynamic> toJson() {
     return {
       'title': titulo,

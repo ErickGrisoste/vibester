@@ -4,11 +4,13 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["tests/integration/**/*.spec.ts"],
+    include: ["tests/integration-real/**/*.spec.ts"],
     setupFiles: ["tests/setup/vitest.integration.setup.ts"],
     testTimeout: 30000,
     hookTimeout: 30000,
-    sequence: { concurrent: false },
     reporters: ["verbose"],
+    // Testes de integração reais rodam em sequência para evitar conflitos de dados
+    pool: "forks",
+    fileParallelism: false,
   },
 });

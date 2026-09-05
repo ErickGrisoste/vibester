@@ -1,3 +1,22 @@
+export enum MediaType {
+    IMAGE = "IMAGE",
+    VIDEO = "VIDEO",
+}
+
+export interface MediaItem {
+    url: string;
+    type: MediaType;
+    // Capa do vídeo, gerada no dispositivo antes do upload. Sempre undefined em IMAGE.
+    thumbnailUrl?: string;
+}
+
+// Linha da UDT media_item como o driver do Cassandra devolve/espera.
+export interface MediaItemRow {
+    url: string;
+    type: string;
+    thumbnail_url: string | null;
+}
+
 export interface Post {
     postId: string;
     userId: string;
@@ -8,6 +27,9 @@ export interface Post {
     establishmentName?: string;
     establishmentLogo?: string;
     establishmentCategory?: string;
+    media: MediaItem[];
+    // Mantido por compatibilidade com clientes que ainda leem imageUrls.
+    // Derivado de `media`, contém apenas os itens IMAGE.
     imageUrls: string[];
     caption: string;
     tags?: string[];
@@ -31,7 +53,7 @@ export interface CreatePostInput {
     establishmentCategory?: string;
     caption: string;
     tags?: string[];
-    imageUrls: string[];
+    media: MediaItem[];
 }
 
 export interface UpdatePostInput {
@@ -39,22 +61,22 @@ export interface UpdatePostInput {
     caption: string;
 }
 
-export interface CreatePostData {
-  userId: string;
-  establishmentId?: string;
-  caption: string;
-  imageUrls: string[];
-}
-
 export interface PresignedUrlItem {
   uploadUrl: string;
   key: string;
   publicUrl: string;
+  type: MediaType;
+  contentType: string;
+}
+
+export interface UploadFileInput {
+  type: MediaType;
+  contentType: string;
 }
 
 export interface GeneratePresignedUrlsInput {
   userId: string;
-  count: number;
+  files: UploadFileInput[];
 }
 
 export interface PaginatedPosts {

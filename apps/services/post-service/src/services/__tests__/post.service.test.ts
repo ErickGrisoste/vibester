@@ -14,7 +14,7 @@ vi.mock("../../kafka/producer", () => ({
 import { PostService } from "../post.service";
 import { PostRepository } from "../../repository/post.repository";
 import { LikeRepository } from "../../repository/like.repository";
-import { Post, CreatePostInput, UpdatePostInput } from "../../types/post.types";
+import { Post, CreatePostInput, UpdatePostInput, MediaType } from "../../types/post.types";
 
 function createMockPostRepository() {
   return {
@@ -49,6 +49,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
   return {
     postId: "post-1",
     userId: "user-1",
+    media: [{ url: "https://img.example.com/1.jpg", type: MediaType.IMAGE }],
     imageUrls: ["https://img.example.com/1.jpg"],
     caption: "Hello world",
     totalLikes: 0,
@@ -76,7 +77,7 @@ describe("PostService", () => {
     it("should create a post without establishmentId", async () => {
       const input: CreatePostInput = {
         userId: "user-1",
-        imageUrls: ["https://img.example.com/1.jpg"],
+        media: [{ url: "https://img.example.com/1.jpg", type: MediaType.IMAGE }],
         caption: "Test caption",
       };
 
@@ -85,7 +86,8 @@ describe("PostService", () => {
       expect(result.postId).toBeDefined();
       expect(result.userId).toBe(input.userId);
       expect(result.caption).toBe(input.caption);
-      expect(result.imageUrls).toEqual(input.imageUrls);
+      expect(result.media).toEqual(input.media);
+      expect(result.imageUrls).toEqual(["https://img.example.com/1.jpg"]);
       expect(result.totalLikes).toBe(0);
       expect(result.totalComments).toBe(0);
       expect(result.isDeleted).toBe(false);
@@ -100,7 +102,7 @@ describe("PostService", () => {
       const input: CreatePostInput = {
         userId: "user-1",
         establishmentId: "est-1",
-        imageUrls: ["https://img.example.com/1.jpg"],
+        media: [{ url: "https://img.example.com/1.jpg", type: MediaType.IMAGE }],
         caption: "At the bar",
       };
 

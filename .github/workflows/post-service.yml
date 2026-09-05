@@ -53,16 +53,37 @@ jobs:
         working-directory: apps/services/post-service
         run: npm install
 
-      - name: Start test services (Redis)
+      - name: Start test services (Redis + Cassandra)
         working-directory: apps/services/post-service
         run: docker compose -f docker-compose.test.yml up -d --wait
-        timeout-minutes: 2
+        timeout-minutes: 5
+
+      - name: Build
+        working-directory: apps/services/post-service
+        run: npm run build
+
+      - name: Run migrations
+        working-directory: apps/services/post-service
+        run: npm run migrate
+        env:
+          ASTRA_KEYSPACE: post_service_test
+          CASSANDRA_CONTACT_POINTS: 127.0.0.1
+          CASSANDRA_LOCAL_DATA_CENTER: datacenter1
 
       - name: Run integration tests
         working-directory: apps/services/post-service
         run: npm run test:integration
         env:
           REDIS_URL: redis://localhost:6379
+          ASTRA_KEYSPACE: post_service_test
+          CASSANDRA_CONTACT_POINTS: 127.0.0.1
+          CASSANDRA_LOCAL_DATA_CENTER: datacenter1
+          KAFKA_BROKERS: localhost:9092
+          R2_ACCOUNT_ID: test-account
+          R2_ACCESS_KEY_ID: test-key
+          R2_SECRET_ACCESS_KEY: test-secret
+          R2_BUCKET_NAME: test-bucket
+          R2_PUBLIC_URL: https://test.r2.dev
 
       - name: Stop test services
         if: always()

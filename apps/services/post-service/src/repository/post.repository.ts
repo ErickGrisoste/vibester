@@ -1,10 +1,13 @@
 import { Post, PaginatedPosts } from "../types/post.types";
 import { BaseRepository } from "./base.repository";
 import { PostCursor, encodeCursor } from "../utils/cursor";
+import { toLegacyImageUrls, toMediaItems, toMediaRows } from "../utils/media";
 
 export class PostRepository extends BaseRepository {
 
     private mapRow(row: any): Post {
+        const media = toMediaItems(row.media, row.image_urls);
+
         return {
             postId: row.post_id,
             userId: row.user_id,
@@ -15,7 +18,8 @@ export class PostRepository extends BaseRepository {
             establishmentName: row.establishment_name,
             establishmentLogo: row.establishment_logo,
             establishmentCategory: row.establishment_category,
-            imageUrls: row.image_urls,
+            media,
+            imageUrls: toLegacyImageUrls(media),
             caption: row.caption,
             tags: row.tags,
             totalLikes: row.total_likes,
@@ -40,6 +44,7 @@ export class PostRepository extends BaseRepository {
                     establishment_logo,
                     establishment_category,
                     image_urls,
+                    media,
                     caption,
                     tags,
                     total_likes,
@@ -47,7 +52,7 @@ export class PostRepository extends BaseRepository {
                     is_deleted,
                     created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             `,
             [
                 post.postId,
@@ -60,6 +65,7 @@ export class PostRepository extends BaseRepository {
                 post.establishmentLogo ?? null,
                 post.establishmentCategory ?? null,
                 post.imageUrls,
+                toMediaRows(post.media),
                 post.caption,
                 post.tags ?? null,
                 post.totalLikes,
@@ -85,13 +91,14 @@ export class PostRepository extends BaseRepository {
                     establishment_logo,
                     establishment_category,
                     image_urls,
+                    media,
                     caption,
                     tags,
                     total_likes,
                     total_comments,
                     is_deleted
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             `,
             [
                 post.userId,
@@ -105,6 +112,7 @@ export class PostRepository extends BaseRepository {
                 post.establishmentLogo ?? null,
                 post.establishmentCategory ?? null,
                 post.imageUrls,
+                toMediaRows(post.media),
                 post.caption,
                 post.tags ?? null,
                 post.totalLikes,
@@ -131,13 +139,14 @@ export class PostRepository extends BaseRepository {
                     establishment_logo,
                     establishment_category,
                     image_urls,
+                    media,
                     caption,
                     tags,
                     total_likes,
                     total_comments,
                     is_deleted
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             `,
             [
                 post.establishmentId,
@@ -151,6 +160,7 @@ export class PostRepository extends BaseRepository {
                 post.establishmentLogo ?? null,
                 post.establishmentCategory ?? null,
                 post.imageUrls,
+                toMediaRows(post.media),
                 post.caption,
                 post.tags ?? null,
                 post.totalLikes,

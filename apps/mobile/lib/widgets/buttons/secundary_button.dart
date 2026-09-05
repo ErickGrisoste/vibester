@@ -36,12 +36,12 @@ class SecundaryButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white),
+            Icon(icon, color: context.colors.textPrimary),
             SizedBox(width: 8),
             Text(
               label,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.colors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),

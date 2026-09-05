@@ -33,6 +33,7 @@ class _CloseToYouState extends State<CloseToYou> {
     });
 
     if (latitudeAtual == null || longitudeAtual == null) {
+      if (!mounted) return;
       setState(() {
         _erro =
             'Não foi possível acessar sua localização. Verifique se o GPS '
@@ -47,17 +48,21 @@ class _CloseToYouState extends State<CloseToYou> {
         latitude: latitudeAtual!,
         longitude: longitudeAtual!,
       );
+      if (!mounted) return;
       setState(() {
         _places = places;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _erro = 'Não foi possível carregar os estabelecimentos próximos.';
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -76,12 +81,16 @@ class _CloseToYouState extends State<CloseToYou> {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.location_off, color: Colors.white38, size: 40),
+          Icon(
+            Icons.location_off,
+            color: context.colors.textDisabled,
+            size: 40,
+          ),
           const SizedBox(height: 12),
           Text(
             _erro!,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white38, fontSize: 14),
+            style: TextStyle(color: context.colors.textDisabled, fontSize: 14),
           ),
           const SizedBox(height: 12),
           TextButton(
@@ -96,12 +105,12 @@ class _CloseToYouState extends State<CloseToYou> {
     }
 
     if (_places.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 24),
+          padding: const EdgeInsets.symmetric(vertical: 24),
           child: Text(
             'Nenhum estabelecimento encontrado perto de você',
-            style: TextStyle(color: Colors.white38, fontSize: 14),
+            style: TextStyle(color: context.colors.textDisabled, fontSize: 14),
           ),
         ),
       );
@@ -163,10 +172,10 @@ class _CloseToYouState extends State<CloseToYou> {
                               width: 50,
                               child: place.profileImage.isEmpty
                                   ? Container(
-                                      color: Colors.white12,
-                                      child: const Icon(
+                                      color: context.colors.darkGrey,
+                                      child: Icon(
                                         Icons.storefront,
-                                        color: Colors.white38,
+                                        color: context.colors.textDisabled,
                                       ),
                                     )
                                   : CachedNetworkImage(
@@ -176,10 +185,10 @@ class _CloseToYouState extends State<CloseToYou> {
                                       fadeOutDuration: Duration.zero,
                                       errorWidget: (context, error, stack) {
                                         return Container(
-                                          color: Colors.white12,
-                                          child: const Icon(
+                                          color: context.colors.darkGrey,
+                                          child: Icon(
                                             Icons.storefront,
-                                            color: Colors.white38,
+                                            color: context.colors.textDisabled,
                                           ),
                                         );
                                       },
@@ -197,7 +206,7 @@ class _CloseToYouState extends State<CloseToYou> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: context.colors.textPrimary,
                                   fontSize: 23,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -215,21 +224,21 @@ class _CloseToYouState extends State<CloseToYou> {
                                   Text(
                                     '${place.avaliacao}',
                                     style: TextStyle(
-                                      color: Colors.white54,
+                                      color: context.colors.textMuted,
                                       fontSize: 15,
                                     ),
                                   ),
                                   SizedBox(width: 8),
                                   Icon(
                                     Icons.circle,
-                                    color: Colors.white38,
+                                    color: context.colors.textDisabled,
                                     size: 8,
                                   ),
                                   SizedBox(width: 8),
                                   Text(
                                     '${place.distancia?.toStringAsFixed(0) ?? "?"}m',
                                     style: TextStyle(
-                                      color: Colors.white54,
+                                      color: context.colors.textMuted,
                                       fontSize: 15,
                                     ),
                                   ),

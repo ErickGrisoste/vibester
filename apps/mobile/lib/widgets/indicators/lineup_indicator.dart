@@ -47,7 +47,10 @@ class LineupIndicator extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 artista.nome,
-                style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+                style: GoogleFonts.inter(
+                  color: context.colors.textPrimary,
+                  fontSize: 13,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ],

@@ -15,4 +15,9 @@ export const env = {
     keyspace: process.env.ASTRA_KEYSPACE!,
     kafka_brokers: process.env.KAFKA_BROKERS!,
     jwt_secret: process.env.JWT_SECRET!,
+    // Opcionais: usados só para apontar o driver para um Cassandra local (docker-compose.test.yml
+    // em CI, ou um Cassandra de dev local) em vez do Astra Cloud. Quando ausentes, o client
+    // (src/config/cassandra.ts) usa o caminho padrão de produção (secureConnectBundle + astra_token).
+    cassandra_contact_points: process.env.CASSANDRA_CONTACT_POINTS,
+    cassandra_local_datacenter: process.env.CASSANDRA_LOCAL_DATACENTER,
 }

@@ -49,6 +49,30 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit-test
 
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: event_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,15 +87,22 @@ jobs:
       - name: Install dependencies
         working-directory: apps/services/event-service
         env:
-          DATABASE_URL: postgresql://u:p@localhost:5432/db
+          DATABASE_URL: postgresql://test:test@localhost:5432/event_test_db
         run: npm ci
 
-      - name: Run integration tests with coverage
+      - name: Run migrations
+        working-directory: apps/services/event-service
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/event_test_db
+        run: npx prisma migrate deploy
+
+      - name: Run integration tests
         working-directory: apps/services/event-service
         env:
           JWT_SECRET: ci-test-secret
-          DATABASE_URL: postgresql://u:p@localhost:5432/db
-        run: npm run test:coverage
+          DATABASE_URL: postgresql://test:test@localhost:5432/event_test_db
+          REDIS_URL: redis://localhost:6379
+        run: npm run test:integration
 
   build-and-push:
     name: Build & Push

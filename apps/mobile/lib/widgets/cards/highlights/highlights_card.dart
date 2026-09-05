@@ -35,9 +35,9 @@ class HighlightsCard extends StatelessWidget {
             child: imageUrl.isEmpty
                 ? Container(
                     color: Colors.white12,
-                    child: const Icon(
+                    child: Icon(
                       Icons.image_not_supported_outlined,
-                      color: Colors.white38,
+                      color: context.colors.textDisabled,
                     ),
                   )
                 : CachedNetworkImage(
@@ -65,9 +65,9 @@ class HighlightsCard extends StatelessWidget {
                       debugPrint('Erro ao carregar imagem ($imageUrl): $error');
                       return Container(
                         color: Colors.white12,
-                        child: const Icon(
+                        child: Icon(
                           Icons.broken_image_outlined,
-                          color: Colors.white38,
+                          color: context.colors.textDisabled,
                         ),
                       );
                     },

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CommentService } from "../comment.service";
 import { CommentRepository } from "../../repository/comment.repository";
 import { PostRepository } from "../../repository/post.repository";
-import { Post } from "../../types/post.types";
+import { Post, MediaType } from "../../types/post.types";
 import { Comment, CreateCommentInput, UpdateCommentInput } from "../../types/comment.type";
 
 vi.mock("../../kafka/producer", () => ({
@@ -37,7 +37,7 @@ function createMockPostRepo() {
 
 function makePost(o: Partial<Post> = {}): Post {
   return {
-    postId: "post-1", userId: "user-1", imageUrls: ["img.jpg"],
+    postId: "post-1", userId: "user-1", media: [{ url: "img.jpg", type: MediaType.IMAGE }], imageUrls: ["img.jpg"],
     caption: "Hi", totalLikes: 0, totalComments: 5,
     isDeleted: false, createdAt: new Date("2026-01-01"), ...o,
   };

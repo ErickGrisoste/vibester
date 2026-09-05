@@ -25,14 +25,10 @@ spec:
           image: ghcr.io/victormarchidev/vibester-notification-service:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 3005
+            - containerPort: 3006
           env:
-            - name: APP_PORT
-              value: "3005"
             - name: KAFKA_BROKERS
               value: "kafka:9092"
-            - name: TEMPLATES_DIR
-              value: "/app/internal/templates"
             - name: USER_SERVICE_URL
               value: "http://user-service:3003"
             - name: POST_SERVICE_URL
@@ -44,6 +40,8 @@ spec:
                 name: notification-db-secret
             - secretRef:
                 name: smtp-secret
+            - configMapRef:
+                name: redis-env
           resources:
             requests:
               cpu: "100m"
@@ -54,14 +52,14 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 3005
+              port: 3006
             initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 6
           livenessProbe:
             httpGet:
               path: /health
-              port: 3005
+              port: 3006
             initialDelaySeconds: 20
             periodSeconds: 30
             failureThreshold: 3

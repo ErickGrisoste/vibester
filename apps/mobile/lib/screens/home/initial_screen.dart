@@ -36,7 +36,7 @@ class _InitialScreenState extends State<InitialScreen> {
                       TextSpan(
                         style: GoogleFonts.inter(
                           fontSize: 32,
-                          color: Colors.white,
+                          color: context.colors.textPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                         children: [
@@ -80,7 +80,7 @@ class _InitialScreenState extends State<InitialScreen> {
                   child: Text(
                     'COMEÇAR AGORA',
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -98,7 +98,7 @@ class _InitialScreenState extends State<InitialScreen> {
                 child: Text(
                   'JÁ TENHO UMA CONTA',
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.colors.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -108,7 +108,7 @@ class _InitialScreenState extends State<InitialScreen> {
                 textAlign: TextAlign.center,
                 TextSpan(
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.colors.textPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),

@@ -61,14 +61,14 @@ class _PrimaryButtonState extends State<PrimaryButton> {
                     widget.label,
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                     ),
                   )
                 : Text(
                     widget.state.label,
                     style: GoogleFonts.inter(
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                     ),
                   ),
           ),
@@ -88,7 +88,7 @@ enum ButtonState {
     ButtonState.idle => context.colors.ambar,
     ButtonState.loading => const Color(0xFFFFAA00),
     ButtonState.success => context.colors.navy,
-    ButtonState.error => const Color(0xFFF44336),
+    ButtonState.error => context.colors.error,
   };
 
   String get label => switch (this) {

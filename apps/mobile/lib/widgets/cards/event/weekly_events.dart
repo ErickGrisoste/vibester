@@ -66,7 +66,7 @@ class _WeeklyEventsState extends State<WeeklyEvents> {
                         Text(
                           widget.evento.titulo,
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: context.colors.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
@@ -87,7 +87,7 @@ class _WeeklyEventsState extends State<WeeklyEvents> {
                                   .format(widget.evento.dataDoEvento)
                                   .toUpperCase(),
                               style: GoogleFonts.inter(
-                                color: Colors.white54,
+                                color: context.colors.textMuted,
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                               ),

@@ -64,7 +64,7 @@ class _PostPhotoPickerState extends State<PostPhotoPicker> {
           decoration: BoxDecoration(
             color: context.colors.darkGrey.withAlpha(40),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white10, width: 1.5),
+            border: Border.all(color: context.colors.border, width: 1.5),
           ),
           child: _photo == null
               ? Column(

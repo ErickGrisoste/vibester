@@ -50,7 +50,7 @@ class _FavoritePlacesScreenState extends State<FavoritePlacesScreen>
                 child: Text(
                   'Nenhum lugar marcado como favorito',
                   style: TextStyle(
-                    color: Colors.white38,
+                    color: context.colors.textDisabled,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                   ),

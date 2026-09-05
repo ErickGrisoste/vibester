@@ -1,6 +1,5 @@
-import React from 'react';
 import { motion } from 'framer-motion';
-import { TrendingUp, Users, Clock, DollarSign, Activity, BarChart2 } from 'lucide-react';
+import { Users, Clock, DollarSign, Activity, BarChart2 } from 'lucide-react';
 import VibeFlowChart from '../components/VibeFlowChart';
 
 export default function Analytics() {

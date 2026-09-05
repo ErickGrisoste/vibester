@@ -191,6 +191,38 @@ class UserService {
     }
   }
 
+  Future<String> generateShareLink(String accountId) async {
+    try {
+      final response = await ApiClient.dio.post(
+        ApiEndpoints.generateShareLink(),
+        data: {'accountId': accountId},
+      );
+      return response.data['shareUrl'] as String;
+    } on DioException catch (e) {
+      final mensagem =
+          e.response?.data?['message'] ??
+          'Erro ao gerar link de compartilhamento';
+      throw Exception(mensagem);
+    }
+  }
+
+  // Retorna o accountId do perfil apontado pelo token, ou null se o link
+  // estiver expirado/inválido (404 do backend).
+  Future<String?> resolveShareToken(String token) async {
+    try {
+      final response = await ApiClient.dio.get(
+        ApiEndpoints.resolveShareLink(token),
+      );
+      return response.data['accountId'] as String?;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      final mensagem =
+          e.response?.data?['message'] ??
+          'Erro ao abrir link de compartilhamento';
+      throw Exception(mensagem);
+    }
+  }
+
   Future<List<UploadUrlResult>> _getUploadUrls({
     required String userId,
     required int count,

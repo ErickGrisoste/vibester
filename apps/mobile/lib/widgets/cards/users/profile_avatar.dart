@@ -56,7 +56,11 @@ class ProfileAvatar extends StatelessWidget {
               radius: 48,
               backgroundImage: _imageProvider,
               child: _imageProvider == null
-                  ? Icon(Icons.camera_alt, color: Colors.white, size: 50)
+                  ? Icon(
+                      Icons.camera_alt,
+                      color: context.colors.textPrimary,
+                      size: 50,
+                    )
                   : null,
             ),
           ),

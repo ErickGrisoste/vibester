@@ -23,7 +23,9 @@ class EventService {
   }
 
   Future<List<EventModel>> getEventsWeek({DateTime? date}) async {
-    final dataFormatada = DateFormat('yyyy-MM-dd').format(date ?? DateTime.now());
+    final dataFormatada = DateFormat(
+      'yyyy-MM-dd',
+    ).format(date ?? DateTime.now());
 
     final response = await ApiClient.dio.get(
       ApiEndpoints.eventsWeek(dataFormatada),
@@ -59,7 +61,9 @@ class EventService {
   }
 
   Future<List<EventModel>> getUserCheckIns(String userId) async {
-    final response = await ApiClient.dio.get(ApiEndpoints.eventCheckins(userId));
+    final response = await ApiClient.dio.get(
+      ApiEndpoints.eventCheckins(userId),
+    );
     final List data = response.data;
     return data.map((json) => EventModel.fromJson(json)).toList();
   }
@@ -78,7 +82,10 @@ class EventService {
     }
   }
 
-  Future<void> checkIn({required String eventId, required String userId}) async {
+  Future<void> checkIn({
+    required String eventId,
+    required String userId,
+  }) async {
     try {
       await ApiClient.dio.post(
         ApiEndpoints.eventCheckin(eventId),
@@ -91,7 +98,10 @@ class EventService {
     }
   }
 
-  Future<void> checkOut({required String eventId, required String userId}) async {
+  Future<void> checkOut({
+    required String eventId,
+    required String userId,
+  }) async {
     try {
       await ApiClient.dio.delete(
         ApiEndpoints.eventCheckin(eventId),

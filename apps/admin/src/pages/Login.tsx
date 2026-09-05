@@ -1,22 +1,43 @@
-import React from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Lock, Mail } from 'lucide-react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Lock, Mail, Loader2, CheckCircle2 } from 'lucide-react';
 import VibesterLogo from '../assets/VIBESTER.svg';
+import { loginApi } from '../api/auth';
+import { useAuth } from '../contexts/AuthContext';
+
+import ErrorState from '../components/ErrorState';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const justVerified = (location.state as { verified?: boolean })?.verified;
 
-  const handleLogin = (e: React.FormEvent) => {
+  const { login } = useAuth();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/dashboard');
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await loginApi({ email, password });
+      await login({ authId: res.authId, token: res.token, accountId: res.accountId });
+      navigate('/dashboard');
+    } catch (err) {
+      setError((err as Error).message ?? 'Credenciais inválidas.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex h-screen w-full bg-bg-dark text-white overflow-hidden">
-      {/* Left Side - Visual/Brand */}
       <div className="hidden lg:flex flex-col flex-1 relative bg-gradient-to-br from-bg-dark to-bg-card p-12 overflow-hidden justify-between border-r border-border-subtle">
-        {/* Glow Effects */}
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-brand-fire/20 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-brand-fire/10 rounded-full blur-[150px] pointer-events-none"></div>
         
@@ -47,7 +68,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Side - Form */}
       <div className="flex-1 flex items-center justify-center p-8 relative z-10">
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
@@ -60,6 +80,17 @@ export default function Login() {
             <p className="text-gray-400">Insira suas credenciais para gerenciar sua Vibe.</p>
           </div>
 
+          {justVerified && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3 mb-6"
+            >
+              <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+              <p className="text-sm text-green-400">E-mail verificado! Faça login para continuar.</p>
+            </motion.div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300">E-mail Corporativo</label>
@@ -70,6 +101,8 @@ export default function Login() {
                 <input 
                   type="email" 
                   required
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError(null); }}
                   className="w-full bg-bg-card border border-border-subtle rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-brand-fire focus:ring-1 focus:ring-brand-fire transition-all duration-300"
                   placeholder="admin@seubar.com.br"
                 />
@@ -88,17 +121,24 @@ export default function Login() {
                 <input 
                   type="password" 
                   required
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(null); }}
                   className="w-full bg-bg-card border border-border-subtle rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-brand-fire focus:ring-1 focus:ring-brand-fire transition-all duration-300"
                   placeholder="••••••••"
                 />
               </div>
             </div>
 
+            {error && (
+              <ErrorState error={error} compact />
+            )}
+
             <button 
               type="submit"
-              className="w-full bg-brand-fire hover:bg-[#ff571a] text-white py-3.5 rounded-xl font-bold text-lg shadow-[0_0_20px_rgba(255,69,0,0.3)] hover:shadow-[0_0_30px_rgba(255,69,0,0.5)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0"
+              disabled={loading}
+              className="w-full bg-brand-fire hover:bg-[#ff571a] disabled:opacity-60 disabled:cursor-not-allowed text-white py-3.5 rounded-xl font-bold text-lg shadow-[0_0_20px_rgba(255,69,0,0.3)] hover:shadow-[0_0_30px_rgba(255,69,0,0.5)] transition-all duration-300 transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2"
             >
-              Entrar no Radar
+              {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> Entrando...</> : 'Entrar no Radar'}
             </button>
           </form>
 

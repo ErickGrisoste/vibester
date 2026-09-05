@@ -70,7 +70,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       context.read<UserProvider>().setUser(usuarioLogado);
 
-      Navigator.pushNamed(context, AppRoutes.home);
+      // Limpa toda a pilha do fluxo de login: a home passa a ser a unica
+      // rota, entao o botao voltar do Android nao retorna para o login.
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.home,
+        (route) => false,
+      );
     } catch (e) {
       debugPrint(e.toString());
 
@@ -105,7 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 'Entrar com e-mail',
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.colors.textPrimary,
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                 ),
@@ -135,24 +141,24 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: TextFormField(
                       controller: _emailOuUsuarioController,
                       textInputAction: TextInputAction.next,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: context.colors.textPrimary),
                       cursorColor: context.colors.ambar,
                       inputFormatters: [LengthLimitingTextInputFormatter(320)],
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: const Color(0xFF141414),
+                        fillColor: context.colors.darkGrey,
                         prefixIcon: const Icon(Icons.email_outlined),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        errorStyle: const TextStyle(
-                          color: Colors.redAccent,
+                        errorStyle: TextStyle(
+                          color: context.colors.error,
                           fontSize: 12,
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.white10,
+                          borderSide: BorderSide(
+                            color: context.colors.border,
                             width: 1.3,
                           ),
                         ),
@@ -165,15 +171,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.redAccent,
+                          borderSide: BorderSide(
+                            color: context.colors.error,
                             width: 1.3,
                           ),
                         ),
                         focusedErrorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.redAccent,
+                          borderSide: BorderSide(
+                            color: context.colors.error,
                             width: 1.3,
                           ),
                         ),
@@ -211,24 +217,24 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _senhaController,
                       obscureText: true,
                       textInputAction: TextInputAction.done,
-                      style: const TextStyle(color: Colors.white),
+                      style: TextStyle(color: context.colors.textPrimary),
                       cursorColor: context.colors.ambar,
                       inputFormatters: [LengthLimitingTextInputFormatter(20)],
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: const Color(0xFF141414),
+                        fillColor: context.colors.darkGrey,
                         prefixIcon: const Icon(Icons.lock_outline),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        errorStyle: const TextStyle(
-                          color: Colors.redAccent,
+                        errorStyle: TextStyle(
+                          color: context.colors.error,
                           fontSize: 12,
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.white10,
+                          borderSide: BorderSide(
+                            color: context.colors.border,
                             width: 1.3,
                           ),
                         ),
@@ -241,15 +247,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.redAccent,
+                          borderSide: BorderSide(
+                            color: context.colors.error,
                             width: 1.3,
                           ),
                         ),
                         focusedErrorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.redAccent,
+                          borderSide: BorderSide(
+                            color: context.colors.error,
                             width: 1.3,
                           ),
                         ),
@@ -291,7 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Text(
                         'Esqueci minha senha',
                         style: GoogleFonts.inter(
-                          color: Colors.red,
+                          color: context.colors.error,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

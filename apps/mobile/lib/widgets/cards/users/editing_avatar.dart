@@ -98,7 +98,11 @@ class _EditableAvatarState extends State<EditableAvatar> {
               radius: widget.radius > 0 ? widget.radius : 48,
               backgroundImage: _provider,
               child: _provider == null
-                  ? const Icon(Icons.camera_alt, color: Colors.white, size: 50)
+                  ? Icon(
+                      Icons.camera_alt,
+                      color: context.colors.textPrimary,
+                      size: 50,
+                    )
                   : null,
             ),
           ),

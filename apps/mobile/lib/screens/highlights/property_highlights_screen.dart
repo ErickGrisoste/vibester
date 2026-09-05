@@ -113,12 +113,16 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.wifi_off, color: Colors.white38, size: 48),
+                    Icon(
+                      Icons.wifi_off,
+                      color: context.colors.textDisabled,
+                      size: 48,
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       _erro!,
-                      style: const TextStyle(
-                        color: Colors.white38,
+                      style: TextStyle(
+                        color: context.colors.textDisabled,
                         fontSize: 16,
                       ),
                     ),
@@ -158,10 +162,10 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       'Nenhuma foto ainda',
                       style: TextStyle(
-                        color: Colors.white38,
+                        color: context.colors.textDisabled,
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                       ),

@@ -73,7 +73,7 @@ class _HotPlacesScreenState extends State<HotPlacesScreen> {
                     Text(
                       'Populares Agora',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: context.colors.textPrimary,
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
@@ -82,7 +82,10 @@ class _HotPlacesScreenState extends State<HotPlacesScreen> {
                     Text.rich(
                       TextSpan(
                         text: 'Os locais mais movimentados da cidade ',
-                        style: TextStyle(color: Colors.white54, fontSize: 14),
+                        style: TextStyle(
+                          color: context.colors.textMuted,
+                          fontSize: 14,
+                        ),
                         children: [
                           TextSpan(
                             text: 'ao vivo!',
@@ -121,7 +124,7 @@ class _HotPlacesScreenState extends State<HotPlacesScreen> {
                     Text(
                       'Nenhum lugar encontrado',
                       style: TextStyle(
-                        color: Colors.white38,
+                        color: context.colors.textDisabled,
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                       ),
@@ -129,7 +132,10 @@ class _HotPlacesScreenState extends State<HotPlacesScreen> {
                     const SizedBox(height: 4),
                     Text(
                       'Tente buscar por outro nome ou categoria',
-                      style: TextStyle(color: Colors.white24, fontSize: 13),
+                      style: TextStyle(
+                        color: context.colors.textDisabled,
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),

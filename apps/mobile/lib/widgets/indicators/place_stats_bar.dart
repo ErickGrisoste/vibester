@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/divider.dart';
 
 class PlaceStatsBar extends StatelessWidget {
@@ -52,8 +53,8 @@ class _StatItem extends StatelessWidget {
           children: [
             Text(
               value,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: context.colors.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -67,8 +68,8 @@ class _StatItem extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(
-            color: Colors.white54,
+          style: TextStyle(
+            color: context.colors.textMuted,
             fontSize: 11,
             letterSpacing: 1.2,
             fontWeight: FontWeight.w500,

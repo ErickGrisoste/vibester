@@ -1,0 +1,24 @@
+services:
+  # Infra usada pelos testes de integração reais (tests/integration-real), nunca pelo dev
+  # local (docker-compose.yml). Só Cassandra: `ioredis`/`ioredis-mock` estão no package.json
+  # mas não são usados em nenhum lugar do src (ver CLAUDE.md deste serviço) — o papel de
+  # cache/TTL aqui é do próprio Cassandra (TTL nativo), então não há nada de Redis para
+  # testar contra infra real neste serviço.
+  cassandra-test:
+    image: cassandra:4.1
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: feed-service-test
+      CASSANDRA_DC: datacenter1
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+      HEAP_NEWSIZE: 128M
+      MAX_HEAP_SIZE: 512M
+    healthcheck:
+      # cqlsh só responde depois que o cluster terminou o bootstrap; Cassandra é lento
+      # para subir (30-60s+ mesmo em single-node), então damos uma folga generosa.
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s

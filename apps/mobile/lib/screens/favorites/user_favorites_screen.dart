@@ -86,7 +86,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                             "Sua Vibe",
                             style: TextStyle(
                               fontSize: 22,
-                              color: Colors.white,
+                              color: context.colors.textPrimary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -98,7 +98,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                         Text(
                           "Lugares que você curte e eventos interessados",
                           style: TextStyle(
-                            color: Colors.white38,
+                            color: context.colors.textDisabled,
                             fontSize: 12.5,
                             fontWeight: FontWeight.bold,
                           ),
@@ -150,7 +150,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                                     Text(
                                       lugaresFavoritos.toString(),
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: context.colors.textPrimary,
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -158,7 +158,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                                     Text(
                                       " LUGARES",
                                       style: TextStyle(
-                                        color: Colors.white38,
+                                        color: context.colors.textDisabled,
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -168,7 +168,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                                 Text(
                                   "FAVORITOS",
                                   style: TextStyle(
-                                    color: Colors.white38,
+                                    color: context.colors.textDisabled,
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -214,7 +214,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                                     Text(
                                       eventosConfirmados.toString(),
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: context.colors.textPrimary,
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -222,7 +222,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                                     Text(
                                       " EVENTOS",
                                       style: TextStyle(
-                                        color: Colors.white38,
+                                        color: context.colors.textDisabled,
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -232,7 +232,7 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                                 Text(
                                   "CONFIRMADOS",
                                   style: TextStyle(
-                                    color: Colors.white38,
+                                    color: context.colors.textDisabled,
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -270,8 +270,8 @@ class _UserFavoritesScreenState extends State<UserFavoritesScreen> {
                                 label,
                                 style: TextStyle(
                                   color: isActive
-                                      ? Colors.white
-                                      : Colors.white38,
+                                      ? context.colors.textPrimary
+                                      : context.colors.textDisabled,
                                   fontWeight: isActive
                                       ? FontWeight.bold
                                       : FontWeight.normal,

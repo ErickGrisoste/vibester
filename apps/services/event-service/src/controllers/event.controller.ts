@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { ZodTypeProvider } from "@fastify/type-provider-zod";
 import { z } from "zod";
 import { CreateEventService } from "../services/createEvent.service.js";
+import { GetAllEventsService } from "../services/getAllEvents.service.js";
 import { ListEventsService } from "../services/listEvents.service.js";
 import { GetEventDetailsService } from "../services/getEventDetails.service.js";
 import { ToggleFeaturedService } from "../services/toggleFeatured.service.js";
@@ -15,6 +16,7 @@ import { CheckUserCheckInService } from "../services/checkUserCheckIn.service.js
 
 const toggleFeaturedService = new ToggleFeaturedService();
 const eventService = new CreateEventService();
+const allEventsService = new GetAllEventsService();
 const listEventsService = new ListEventsService();
 const detailsService = new GetEventDetailsService();
 const byEstablishmentService = new GetEventsByEstablishmentService();
@@ -149,6 +151,26 @@ export async function eventRoutes(app: FastifyInstance) {
         } catch (error) {
             request.log.error(error);
             return reply.status(500).send({ message: "Error creating event" });
+        }
+    });
+
+    router.get("/", {
+        schema: {
+            tags: ["Events"],
+            summary: "Listar todos os eventos",
+            description: "Retorna todos os eventos cadastrados, ordenados por data de início.",
+            response: {
+                200: z.array(eventDetailsSchema),
+                500: errorSchema,
+            },
+        },
+    }, async (request, reply) => {
+        try {
+            const events = await allEventsService.get();
+            return reply.status(200).send(events);
+        } catch (error) {
+            request.log.error(error);
+            return reply.status(500).send({ message: "Error listing events" });
         }
     });
 

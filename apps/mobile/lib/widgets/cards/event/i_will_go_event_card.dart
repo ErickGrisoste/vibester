@@ -155,7 +155,7 @@ class IWillGoEventCard extends StatelessWidget {
                                             maxLines: 1,
                                             style: TextStyle(
                                               fontSize: 12,
-                                              color: Colors.white,
+                                              color: context.colors.textPrimary,
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
@@ -170,7 +170,7 @@ class IWillGoEventCard extends StatelessWidget {
                                               .toUpperCase(),
                                           style: TextStyle(
                                             fontSize: 13,
-                                            color: Colors.white38,
+                                            color: context.colors.textDisabled,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),

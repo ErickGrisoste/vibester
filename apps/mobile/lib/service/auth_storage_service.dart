@@ -5,6 +5,7 @@ import 'package:mobile/models/user/user_model.dart';
 class AuthStorageService {
   static const _storage = FlutterSecureStorage();
   static const _sessionKey = 'user_session';
+  static const _onboardingKey = 'onboarding_pendente';
 
   static Future<void> saveSession(UserModel user) async {
     final json = jsonEncode({
@@ -53,7 +54,24 @@ class AuthStorageService {
     }
   }
 
+  /// Marcado ao entrar no onboarding e apagado no "Comecar". Se o usuario
+  /// fechar o app no meio, a marca sobrevive e ele volta para o onboarding.
+  /// Contas antigas nunca tiveram a chave gravada, entao continuam indo
+  /// direto para a home.
+  static Future<void> marcarOnboardingPendente() async {
+    await _storage.write(key: _onboardingKey, value: 'true');
+  }
+
+  static Future<void> concluirOnboarding() async {
+    await _storage.delete(key: _onboardingKey);
+  }
+
+  static Future<bool> onboardingPendente() async {
+    return await _storage.read(key: _onboardingKey) == 'true';
+  }
+
   static Future<void> clearSession() async {
     await _storage.delete(key: _sessionKey);
+    await _storage.delete(key: _onboardingKey);
   }
 }

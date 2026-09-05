@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/user/interest_model.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/primary_button.dart';
 
@@ -25,10 +26,10 @@ class _UserInterestsScreenState extends State<UserInterestsScreen> {
     return Scaffold(
       backgroundColor: context.colors.darkGrey,
       appBar: AppBar(
-        foregroundColor: Colors.white,
+        foregroundColor: context.colors.textPrimary,
         title: Text(
           'Seus interesses',
-          style: GoogleFonts.inter(color: Colors.white),
+          style: GoogleFonts.inter(color: context.colors.textPrimary),
         ),
         backgroundColor: context.colors.darkGrey,
       ),
@@ -48,7 +49,7 @@ class _UserInterestsScreenState extends State<UserInterestsScreen> {
             const SizedBox(height: 6),
             Text(
               'Selecione um ou mais interesses.',
-              style: GoogleFonts.inter(color: Colors.grey),
+              style: GoogleFonts.inter(color: context.colors.textSecondary),
             ),
             const SizedBox(height: 24),
             Wrap(
@@ -81,7 +82,7 @@ class _UserInterestsScreenState extends State<UserInterestsScreen> {
                         Text(
                           interest.label,
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: context.colors.textPrimary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -96,8 +97,20 @@ class _UserInterestsScreenState extends State<UserInterestsScreen> {
               width: double.infinity,
               child: PrimaryButton(
                 label: 'Continuar',
-                onPressed: () {
-                  Navigator.pushNamed(context, AppRoutes.home);
+                onPressed: () async {
+                  // Marca o onboarding como pendente antes de abri-lo, para
+                  // que ele reapareca se o app for fechado no meio.
+                  await AuthStorageService.marcarOnboardingPendente();
+                  if (!mounted) return;
+
+                  // Fim do fluxo de cadastro: remove register, email-confirm,
+                  // profile-edit e esta tela da pilha. O onboarding passa a
+                  // ser a unica rota; a home so vem depois do "Comecar".
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    AppRoutes.onboarding,
+                    (route) => false,
+                  );
                 },
               ),
             ),

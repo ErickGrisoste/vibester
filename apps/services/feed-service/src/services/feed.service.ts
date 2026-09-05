@@ -16,6 +16,7 @@ import { EventAttendeesRepository } from "../repositories/attendees_by_event.rep
 import { EventsByUserRepository } from "../repositories/events_by_user.repository";
 import { PostLikedEvent } from "../schema/events/post-liked.schema";
 import { PostUnlikedEvent } from "../schema/events/post-unliked.schema";
+import { MediaItem, toMediaItems } from "../utils/media";
 
 type EventFeedItemPayload = Extract<
     FeedItemPayload,
@@ -41,11 +42,17 @@ export class FeedService {
     async getFeedByUser(userId: string, limit: number, cursor?: Date) {
         const result = await this.feedRepository.findByUser(userId, limit, cursor);
 
-        const items = result.rows;
+        // A UDT volta em snake_case do driver; o restante da linha já é
+        // snake_case por contrato dessa rota, mas `media` é campo novo e sai
+        // camelCase para bater com o formato do post-service.
+        const items = result.rows.map((row) => ({
+            ...row,
+            media: toMediaItems(row.media, row.image_urls) ?? null,
+        }));
 
         return {
             items,
-            nextCursor: items.length > 0 ? items[items.length - 1].created_at : null
+            nextCursor: result.rows.length > 0 ? result.rows[result.rows.length - 1].created_at : null
         };
     }
 
@@ -184,6 +191,7 @@ export class FeedService {
                         title: feedItem.title,
                         content: feedItem.content,
                         imageUrls: feedItem.imageUrls,
+                        media: feedItem.media,
                         tags: feedItem.tags,
 
                         totalLikes: feedItem.totalLikes ?? 0,
@@ -266,6 +274,7 @@ export class FeedService {
             establishmentCategory: feedItem.establishmentCategory,
 
             imageUrls: feedItem.imageUrls ?? [],
+            media: feedItem.media,
             caption: feedItem.content,
             tags: feedItem.tags,
 
@@ -296,6 +305,7 @@ export class FeedService {
             title: payload.title,
             content: payload.content,
             imageUrls: payload.imageUrls,
+            media: payload.media as MediaItem[] | undefined,
             tags: payload.tags ? [...payload.tags] : undefined,
 
             totalLikes: payload.totalLikes ?? 0,
@@ -328,6 +338,7 @@ export class FeedService {
             title: payload.title,
             content: payload.content,
             imageUrls: payload.imageUrls,
+            media: payload.media as MediaItem[] | undefined,
             tags: payload.tags ? [...payload.tags] : undefined,
 
             totalLikes: payload.totalLikes ?? 0,
@@ -360,6 +371,7 @@ export class FeedService {
             title: payload.title,
             content: payload.content,
             imageUrls: payload.imageUrls,
+            media: payload.media as MediaItem[] | undefined,
             tags: payload.tags ? [...payload.tags] : undefined,
 
             totalLikes: payload.totalLikes ?? 0,
@@ -402,6 +414,7 @@ export class FeedService {
             title: payload.title,
             content: payload.content,
             imageUrls: payload.imageUrls,
+            media: payload.media as MediaItem[] | undefined,
             tags: payload.tags ? [...payload.tags] : undefined,
 
             totalLikes: payload.totalLikes ?? 0,
@@ -468,6 +481,7 @@ export class FeedService {
             title: feedItem.title,
             content: feedItem.content,
             imageUrls: feedItem.imageUrls,
+            media: feedItem.media,
             tags: feedItem.tags,
 
             totalLikes: feedItem.totalLikes ?? 0,
@@ -517,6 +531,7 @@ export class FeedService {
             establishmentCategory: row.establishment_category,
 
             imageUrls: row.image_urls,
+            media: toMediaItems(row.media, row.image_urls),
             caption: row.caption,
             tags: row.tags,
 
@@ -591,6 +606,7 @@ export class FeedService {
             // conteúdo
             content: post.caption,
             imageUrls: post.imageUrls,
+            media: post.media,
             tags: post.tags,
 
             // estatísticas
@@ -783,6 +799,7 @@ export class FeedService {
             title: undefined,
             content: undefined,
             imageUrls: undefined,
+            media: undefined,
             tags: undefined,
 
             // estatísticas de posts (não se aplicam a eventos)

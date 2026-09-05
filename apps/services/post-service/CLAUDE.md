@@ -15,7 +15,7 @@ O `post-service` é responsável exclusivamente por:
 - listagem paginada de posts por usuário e por estabelecimento;
 - curtidas (`PostLike`): curtir/descurtir e listar curtidas por post/usuário;
 - comentários (`Comment`): criar, listar, editar e remover (soft delete);
-- geração de URLs pré-assinadas para upload direto de imagens ao Cloudflare R2.
+- geração de URLs pré-assinadas para upload direto de mídia (imagem e vídeo) ao Cloudflare R2 — cada URL é assinada com o `contentType` do arquivo, ver [`docs/midias-no-post.md`](docs/midias-no-post.md).
 
 Ele **não** possui dados "vivos" de perfil de usuário ou de estabelecimento — cada post guarda uma cópia denormalizada (`userUsername`, `userProfilePicture`, `userVerified`, `establishmentName`, `establishmentLogo`, `establishmentCategory`) recebida no momento da criação, sem sincronização posterior. Se esses dados mudarem no `user-service`/`establishment-service`, os posts já criados **não** são atualizados automaticamente — não assuma que essas cópias estão sempre em dia.
 
@@ -32,7 +32,7 @@ Nunca adicione regras de negócio de autenticação, perfil, feed (agregação/r
 - Kafka (`kafkajs`) — **produtor apenas** (`src/kafka/producer.ts`, singleton lazy que faz `require("kafkajs")` dentro da função em vez de import no topo — não replique esse padrão sem necessidade, é inconsistente com o resto do arquivo que já usa `import type`); tópicos publicados: `posts` (`post.created`, `post.content.updated`, `post.deleted`, `post.stats.updated`), `post.liked`, `post.unliked`, `post.commented`. Sem consumidores.
 - `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` — geração de URLs pré-assinadas (PUT) para o cliente subir a imagem direto no R2 (`src/config/r2.ts`, `src/services/upload.service.ts`). É o único fluxo de upload de fato exposto por rota hoje.
 - `sharp` — usado só dentro de `UploadService.uploadImages` (redimensiona para 1080px e converte para `.webp`), mas **esse método não é chamado por nenhum controller/rota** — é código morto hoje (só há teste para `generatePresignedUrls`, não para `uploadImages`). Se for implementar upload via multipart no futuro, reaproveite esse método em vez de escrever um novo.
-- `zod` é usado para: validação de env (`src/config/env.ts`), validação de `params` dentro dos controllers (`postIdParamsSchema`, `userIdParamsSchema`, `establishmentIdParamsSchema`, `generateUploadUrlsSchema` em `src/schema/post.schema.ts`, chamados via `.parse()`). O **body** das rotas de escrita é validado via **JSON Schema puro do Fastify** em `routes.ts` (não Zod) — estilo misto, diferente tanto do `auth-service` (só JSON Schema) quanto do `user-service` (só Zod). `createPostSchema` em `src/schema/post.schema.ts` existe mas **não é usado em lugar nenhum** (parece resquício de um design anterior baseado em `multipart/form-data`, com `userVerified` como string `"true"`/`"false"` e `tags` como string separada por vírgula) — não assuma que ele valida a rota `POST /posts`.
+- `zod` é usado para: validação de env (`src/config/env.ts`), validação de `params` dentro dos controllers (`postIdParamsSchema`, `userIdParamsSchema`, `establishmentIdParamsSchema`, `generateUploadUrlsSchema` em `src/schema/post.schema.ts`, chamados via `.parse()`). O body das rotas de escrita passa por **duas camadas**: primeiro o JSON Schema do Fastify em `routes.ts` (forma e tipos), depois Zod no controller para as regras que o JSON Schema não expressa — em `POST /posts` e `POST /posts/upload-url`, `createPostSchema`/`generateUploadUrlsSchema` validam o vínculo entre campos (`media` **ou** `imageUrls`, `contentType` compatível com `type`), que a URL da mídia pertence ao bucket, e normalizam o formato legado para o novo. Ao mexer num, confira o outro: o Fastify roda antes e um `required` desatualizado rejeita o payload antes do Zod ver.
 - Vitest para testes (unit co-localizado em `__tests__` + integration em `tests/integration`), `ioredis-mock` disponível como dependência de teste.
 
 Não introduza um ORM alternativo, outro cliente Redis/Kafka/S3, nem volte a usar PostgreSQL/Prisma neste serviço sem alinhar com o time — reutilize o que já existe.
@@ -50,10 +50,12 @@ src/
   repository/    base.repository.ts (wrapper de execute() com prepared statements),
                  post.repository.ts, like.repository.ts, comment.repository.ts     → um método por tabela denormalizada/query
   errors/        http.error.ts                                                    → HttpError(message, statusCode)
+                 error.handler.ts                                                 → setErrorHandler compartilhado (server.ts e helper de teste)
   kafka/         producer.ts                                                      → singleton lazy, produtor apenas
-  schema/        post.schema.ts                                                   → schemas Zod usados só para params (ver Stack)
+  schema/        post.schema.ts                                                   → schemas Zod de params e do body de POST /posts e /posts/upload-url (ver Stack)
   types/         post.types.ts, comment.type.ts (singular — inconsistente, cuidado ao criar arquivo novo), like.types.ts
   utils/         cursor.ts                                                        → cursor opaco (base64url) para paginação keyset de posts
+                 media.ts                                                         → conversão UDT media_item <-> domínio + fallback de image_urls legado
   routes.ts                                                                       → registra todas as rotas + schema JSON Schema completo por rota
   server.ts                                                                       → bootstrap Fastify, plugins, error handler global, connect/disconnect de infra
 migrations/      V00N__*.cql                                                      → schema do Cassandra, versionado manualmente

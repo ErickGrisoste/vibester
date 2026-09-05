@@ -73,7 +73,13 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
           ),
         ),
       );
-      Navigator.pushNamed(context, AppRoutes.login);
+      // Fallback de erro: descarta register e email-confirm, deixando
+      // apenas a tela inicial abaixo do login.
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.login,
+        ModalRoute.withName(AppRoutes.initialScreen),
+      );
     }
   }
 
@@ -147,11 +153,11 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
 
     final errorTheme = defaultTheme.copyWith(
       decoration: defaultTheme.decoration!.copyWith(
-        border: Border.all(color: Colors.red, width: 2),
-        color: Colors.red.withOpacity(0.08),
+        border: Border.all(color: context.colors.error, width: 2),
+        color: context.colors.error.withOpacity(0.08),
         boxShadow: [
           BoxShadow(
-            color: Colors.red.withOpacity(0.25),
+            color: context.colors.error.withOpacity(0.25),
             blurRadius: 8,
             spreadRadius: 1,
           ),
@@ -175,7 +181,7 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
             Text(
               'Verifique seu email',
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.colors.textPrimary,
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
               ),

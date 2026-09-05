@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
@@ -68,6 +69,25 @@ class UserProfileScreenState extends State<UserProfileScreen>
     }
   }
 
+  Future<void> _shareProfile() async {
+    final accountId = context.read<UserProvider>().user?.accountId;
+    if (accountId == null) return;
+
+    try {
+      final shareUrl = await _userService.generateShareLink(accountId);
+      await Share.share(
+        'Confira meu perfil no Vibester: $shareUrl',
+        subject: 'Meu perfil no Vibester',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
   Future<void> _onRefresh() async {
     await _fetchProfile();
 
@@ -106,7 +126,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
             color: context.colors.navy,
             boxShadow: [
               BoxShadow(
-                color: Colors.white.withOpacity(0.1),
+                color: context.colors.border.withOpacity(0.1),
                 blurRadius: 10,
                 offset: const Offset(0, 3),
               ),
@@ -138,7 +158,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                 child: Text(
                   user.nomeUsuario,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.colors.textPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -184,7 +204,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                         child: Text(
                           '${user.nome}',
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: context.colors.textPrimary,
                             fontSize: 35,
                             fontWeight: FontWeight.bold,
                           ),
@@ -213,7 +233,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                     Text(
                       user.bio,
                       style: GoogleFonts.inter(
-                        color: Colors.white70,
+                        color: context.colors.textSecondary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -228,7 +248,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                             Text(
                               user.seguidores.toString(),
                               style: GoogleFonts.inter(
-                                color: Colors.white,
+                                color: context.colors.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 18,
                               ),
@@ -236,7 +256,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                             Text(
                               'SEGUIDORES',
                               style: GoogleFonts.inter(
-                                color: Colors.white70,
+                                color: context.colors.textSecondary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 10,
                               ),
@@ -251,7 +271,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                             Text(
                               user.seguindo.toString(),
                               style: GoogleFonts.inter(
-                                color: Colors.white,
+                                color: context.colors.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 18,
                               ),
@@ -259,7 +279,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                             Text(
                               'SEGUINDO',
                               style: GoogleFonts.inter(
-                                color: Colors.white70,
+                                color: context.colors.textSecondary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 10,
                               ),
@@ -274,7 +294,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                             Text(
                               user.eventosVisitados.toString(),
                               style: GoogleFonts.inter(
-                                color: Colors.white,
+                                color: context.colors.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 18,
                               ),
@@ -282,7 +302,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                             Text(
                               'EVENTOS',
                               style: GoogleFonts.inter(
-                                color: Colors.white70,
+                                color: context.colors.textSecondary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 10,
                               ),
@@ -308,7 +328,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                             child: Container(
                               decoration: BoxDecoration(
                                 border: Border.all(
-                                  color: Colors.white,
+                                  color: context.colors.textPrimary,
                                   width: 1,
                                 ),
                                 borderRadius: BorderRadius.circular(50),
@@ -319,7 +339,7 @@ class UserProfileScreenState extends State<UserProfileScreen>
                                 child: Text(
                                   'Configurações',
                                   style: GoogleFonts.inter(
-                                    color: Colors.white,
+                                    color: context.colors.textPrimary,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -330,21 +350,34 @@ class UserProfileScreenState extends State<UserProfileScreen>
 
                         SizedBox(width: 14),
 
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.white, width: 1),
-                            borderRadius: BorderRadius.all(Radius.circular(50)),
-                          ),
-                          height: 30,
-                          width: 150,
-                          child: Center(
-                            child: Text(
-                              'Compartilhar perfil',
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                        Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(50),
+                          child: InkWell(
+                            onTap: _shareProfile,
+                            borderRadius: BorderRadius.circular(50),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: context.colors.textPrimary,
+                                  width: 1,
+                                ),
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(50),
+                                ),
                               ),
-                              textAlign: TextAlign.center,
+                              height: 30,
+                              width: 150,
+                              child: Center(
+                                child: Text(
+                                  'Compartilhar perfil',
+                                  style: GoogleFonts.inter(
+                                    color: context.colors.textPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -361,8 +394,8 @@ class UserProfileScreenState extends State<UserProfileScreen>
                 delegate: _StickyTabBarDelegate(
                   TabBar(
                     controller: _tabController,
-                    unselectedLabelColor: Colors.white54,
-                    labelColor: Colors.white,
+                    unselectedLabelColor: context.colors.textMuted,
+                    labelColor: context.colors.textPrimary,
                     dividerColor: Colors.transparent,
                     indicatorColor: context.colors.brasa,
                     indicatorPadding: EdgeInsets.symmetric(
@@ -402,10 +435,14 @@ class UserProfileScreenState extends State<UserProfileScreen>
                         ),
                       ),
                       Center(
-                        child: FavoritePlacesScreen(showRefreshIndicator: false),
+                        child: FavoritePlacesScreen(
+                          showRefreshIndicator: false,
+                        ),
                       ),
                       Center(
-                        child: FavoritesEventsScreen(showRefreshIndicator: false),
+                        child: FavoritesEventsScreen(
+                          showRefreshIndicator: false,
+                        ),
                       ),
                     ],
                   ),

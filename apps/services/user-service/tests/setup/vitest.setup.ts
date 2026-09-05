@@ -9,5 +9,9 @@ vi.mock('../../src/config/env', () => ({
     databaseUrl: 'postgresql://user:pass@localhost:5432/test',
     profileServiceUrl: 'http://localhost:3001',
     kafkaBrokers: 'localhost:9092',
+    rateLimitFollowMax: 60,
+    rateLimitShareMax: 30,
+    webBaseUrl: 'https://vibester.com.br',
+    shareLinkTtlSeconds: 86400,
   },
 }));

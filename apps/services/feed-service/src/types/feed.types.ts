@@ -1,3 +1,5 @@
+import { MediaItem } from "../utils/media";
+
 export enum FeedItemType {
     USER_POST = "USER_POST",
     ESTABLISHMENT_POST = "ESTABLISHMENT_POST",
@@ -45,6 +47,7 @@ export interface FeedItem {
     title?: string;
     content?: string;
     imageUrls?: string[];
+    media?: MediaItem[];
     tags?: string[];
 
     // estatísticas
@@ -91,6 +94,7 @@ export interface UpdatePostContentEvent {
     createdAt: string;
     caption?: string;
     imageUrls?: string[];
+    media?: MediaItem[];
     tags?: string[];
 }
 

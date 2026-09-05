@@ -5,9 +5,19 @@ import 'package:mobile/theme/app_colors.dart';
 class AppTheme {
   AppTheme._();
 
-  static final ThemeData light = ThemeData(
-    textTheme: GoogleFonts.interTextTheme(),
+  static final ThemeData dark = ThemeData(
+    brightness: Brightness.dark,
+    textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
     fontFamily: GoogleFonts.inter().fontFamily,
-    extensions: const [AppColors.defaultColors],
+    scaffoldBackgroundColor: AppColors.dark.noturno,
+    extensions: const [AppColors.dark],
+  );
+
+  static final ThemeData light = ThemeData(
+    brightness: Brightness.light,
+    textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
+    fontFamily: GoogleFonts.inter().fontFamily,
+    scaffoldBackgroundColor: AppColors.light.noturno,
+    extensions: const [AppColors.light],
   );
 }

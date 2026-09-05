@@ -55,11 +55,7 @@ class _NewPublicationScreenState extends State<NewPublicationScreen> {
       appBar: AppBar(
         actions: <Widget>[
           IconButton(
-            icon: Icon(
-              Icons.add_circle,
-              color: context.colors.ambar,
-              size: 30,
-            ),
+            icon: Icon(Icons.add_circle, color: context.colors.ambar, size: 30),
             onPressed: () async {
               if (!_formKey.currentState!.validate()) return;
               if (user == null) return;
@@ -73,7 +69,7 @@ class _NewPublicationScreenState extends State<NewPublicationScreen> {
           style: GoogleFonts.inter(fontWeight: FontWeight.bold),
         ),
         backgroundColor: context.colors.noturno,
-        foregroundColor: Colors.white,
+        foregroundColor: context.colors.textPrimary,
       ),
       body: Form(
         key: _formKey,

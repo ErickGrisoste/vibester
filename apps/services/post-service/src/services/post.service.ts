@@ -10,6 +10,7 @@ import { redis, cacheAside } from "../config/redis";
 import { HttpError } from "../errors/http.error";
 import { producer } from "../kafka/producer";
 import { decodeCursor } from "../utils/cursor";
+import { toLegacyImageUrls } from "../utils/media";
 
 const POSTS_TOPIC = "posts";
 
@@ -42,7 +43,8 @@ export class PostService {
             establishmentName: input.establishmentName,
             establishmentLogo: input.establishmentLogo,
             establishmentCategory: input.establishmentCategory,
-            imageUrls: input.imageUrls,
+            media: input.media,
+            imageUrls: toLegacyImageUrls(input.media),
             caption: input.caption,
             tags: input.tags,
             totalLikes: 0,
@@ -78,6 +80,7 @@ export class PostService {
                     establishmentLogo: post.establishmentLogo,
                     establishmentCategory: post.establishmentCategory,
                     content: post.caption,
+                    media: post.media,
                     imageUrls: post.imageUrls,
                     tags: post.tags,
                     totalLikes: 0,

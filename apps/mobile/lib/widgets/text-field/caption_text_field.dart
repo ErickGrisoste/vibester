@@ -46,7 +46,7 @@ class _CaptionTextFieldState extends State<CaptionTextField> {
         Text(
           'Legenda',
           style: TextStyle(
-            color: Colors.white70,
+            color: context.colors.textSecondary,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -59,39 +59,36 @@ class _CaptionTextFieldState extends State<CaptionTextField> {
           focusNode: _focusNode,
           maxLength: widget.maxLength,
           maxLines: 5,
-          cursorColor: Colors.white54,
+          cursorColor: context.colors.textMuted,
           minLines: 4,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: context.colors.textPrimary,
             fontSize: 14,
             height: 1.5,
           ),
           decoration: InputDecoration(
             hintText: 'Compartilhe sua experiência...',
-            hintStyle: TextStyle(color: Colors.white.withOpacity(0.35)),
+            hintStyle: TextStyle(color: context.colors.textDisabled),
             counterText: '',
             contentPadding: const EdgeInsets.all(16),
             filled: true,
             fillColor: context.colors.noturno,
-            errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            errorStyle: TextStyle(color: context.colors.error, fontSize: 12),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Colors.white10, width: 1.3),
+              borderSide: BorderSide(color: context.colors.border, width: 1.3),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: BorderSide(
-                color: context.colors.ambar,
-                width: 1.3,
-              ),
+              borderSide: BorderSide(color: context.colors.ambar, width: 1.3),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 1.3),
+              borderSide: BorderSide(color: context.colors.error, width: 1.3),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 1.3),
+              borderSide: BorderSide(color: context.colors.error, width: 1.3),
             ),
           ),
           validator: (value) {
@@ -110,10 +107,10 @@ class _CaptionTextFieldState extends State<CaptionTextField> {
             duration: const Duration(milliseconds: 200),
             style: TextStyle(
               color: remaining == 0
-                  ? Colors.redAccent
+                  ? context.colors.error
                   : remaining <= 20
                   ? Colors.orangeAccent
-                  : Colors.white38,
+                  : context.colors.textDisabled,
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),

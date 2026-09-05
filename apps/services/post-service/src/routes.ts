@@ -27,6 +27,17 @@ const postSchema = {
         establishmentLogo: { type: "string", nullable: true },
         establishmentCategory: { type: "string", nullable: true },
         imageUrls: { type: "array", items: { type: "string", format: "uri" } },
+        media: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    url: { type: "string", format: "uri" },
+                    type: { type: "string", enum: ["IMAGE", "VIDEO"] },
+                    thumbnailUrl: { type: "string", format: "uri", nullable: true },
+                },
+            },
+        },
         caption: { type: "string" },
         tags: { type: "array", items: { type: "string" }, nullable: true },
         totalLikes: { type: "integer" },
@@ -169,10 +180,24 @@ export async function routes(app: FastifyInstance) {
             description: "Retorna URLs temporárias (5 min) para o cliente fazer PUT direto no Cloudflare R2, sem passar pela VPS. Após o upload, use as publicUrls no corpo de POST /posts.",
             body: {
                 type: "object",
-                required: ["userId", "count"],
+                required: ["userId"],
                 properties: {
                     userId: { type: "string", format: "uuid", description: "ID do usuário que fará o upload" },
-                    count: { type: "integer", minimum: 1, maximum: 20, description: "Quantidade de imagens (máx 20)" },
+                    files: {
+                        type: "array",
+                        minItems: 1,
+                        maxItems: 10,
+                        description: "Um item por arquivo, com o tipo e o content-type reais. A URL é assinada com esse content-type.",
+                        items: {
+                            type: "object",
+                            required: ["type", "contentType"],
+                            properties: {
+                                type: { type: "string", enum: ["IMAGE", "VIDEO"] },
+                                contentType: { type: "string", description: "Ex.: image/jpeg, video/mp4" },
+                            },
+                        },
+                    },
+                    count: { type: "integer", minimum: 1, maximum: 10, description: "Legado: N imagens JPEG. Use `files`." },
                 },
             },
             response: {
@@ -184,6 +209,8 @@ export async function routes(app: FastifyInstance) {
                             uploadUrl: { type: "string", description: "URL pré-assinada para PUT (expira em 5 min)" },
                             key: { type: "string", description: "Chave do objeto no bucket" },
                             publicUrl: { type: "string", description: "URL pública final após upload" },
+                            type: { type: "string", enum: ["IMAGE", "VIDEO"] },
+                            contentType: { type: "string", description: "Content-type com que a URL foi assinada" },
                         },
                     },
                 },
@@ -200,7 +227,7 @@ export async function routes(app: FastifyInstance) {
             summary: "Criar post",
             body: {
                 type: "object",
-                required: ["userId", "imageUrls"],
+                required: ["userId"],
                 properties: {
                     userId: { type: "string", format: "uuid" },
                     userUsername: { type: "string", maxLength: 50 },
@@ -210,7 +237,20 @@ export async function routes(app: FastifyInstance) {
                     establishmentName: { type: "string", maxLength: 100 },
                     establishmentLogo: { type: "string", format: "uri" },
                     establishmentCategory: { type: "string", maxLength: 50 },
-                    imageUrls: { type: "array", items: { type: "string", format: "uri" }, minItems: 1, maxItems: 20 },
+                    media: {
+                    type: "array",
+                    maxItems: 10,
+                    items: {
+                        type: "object",
+                        required: ["url", "type"],
+                        properties: {
+                            url: { type: "string", format: "uri" },
+                            type: { type: "string", enum: ["IMAGE", "VIDEO"] },
+                            thumbnailUrl: { type: "string", format: "uri", nullable: true },
+                        },
+                    },
+                    },
+                    imageUrls: { type: "array", items: { type: "string", format: "uri" }, minItems: 1, maxItems: 10, description: "Legado: só imagens. Use `media`." },
                     caption: { type: "string", maxLength: 2000 },
                     tags: { type: "array", items: { type: "string" }, maxItems: 20 },
                 },

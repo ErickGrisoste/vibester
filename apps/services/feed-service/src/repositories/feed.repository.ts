@@ -1,5 +1,6 @@
 import { FeedItem, UpdatePostContentEvent } from "../types/feed.types";
 import { BaseRepository } from "./base.repository";
+import { toMediaRows } from "../utils/media";
 
 export class FeedRepository extends BaseRepository {
 
@@ -36,6 +37,7 @@ export class FeedRepository extends BaseRepository {
                     title,
                     content,
                     image_urls,
+                    media,
                     tags,
 
                     total_likes,
@@ -46,7 +48,7 @@ export class FeedRepository extends BaseRepository {
                     is_deleted,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 USING TTL ?;
             `,
             [
@@ -79,6 +81,7 @@ export class FeedRepository extends BaseRepository {
                 feedItem.title,
                 feedItem.content,
                 feedItem.imageUrls,
+                toMediaRows(feedItem.media),
                 feedItem.tags,
 
                 feedItem.totalLikes,
@@ -100,12 +103,13 @@ export class FeedRepository extends BaseRepository {
                 UPDATE feed_keyspace.feed_by_user
                 SET
                     content = ?,
-                    image_urls = ?
+                    image_urls = ?,
+                    media = ?
                 WHERE user_id = ?
                     AND created_at = ?
                     AND item_id = ?;
             `,
-            [contentUpdated.caption, contentUpdated.imageUrls, userId, createdAt, contentUpdated.postId]
+            [contentUpdated.caption, contentUpdated.imageUrls, toMediaRows(contentUpdated.media), userId, createdAt, contentUpdated.postId]
         );
     }
 

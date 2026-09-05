@@ -34,7 +34,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               Text(
                 'Recuperar Vibe',
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.colors.textPrimary,
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                 ),
@@ -64,24 +64,24 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     width: 350,
                     child: TextFormField(
                       obscureText: true,
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: context.colors.textPrimary),
                       cursorColor: context.colors.ambar,
                       textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: Color(0xFF141414),
+                        fillColor: context.colors.darkGrey,
                         prefixIcon: Icon(Icons.lock_outline),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        errorStyle: const TextStyle(
-                          color: Colors.redAccent,
+                        errorStyle: TextStyle(
+                          color: context.colors.error,
                           fontSize: 12,
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.white10,
+                          borderSide: BorderSide(
+                            color: context.colors.border,
                             width: 1.3,
                           ),
                         ),
@@ -94,15 +94,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.redAccent,
+                          borderSide: BorderSide(
+                            color: context.colors.error,
                             width: 1.3,
                           ),
                         ),
                         focusedErrorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.redAccent,
+                          borderSide: BorderSide(
+                            color: context.colors.error,
                             width: 1.3,
                           ),
                         ),
@@ -138,23 +138,23 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     width: 350,
                     child: TextFormField(
                       obscureText: true,
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: context.colors.textPrimary),
                       cursorColor: context.colors.ambar,
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: Color(0xFF141414),
+                        fillColor: context.colors.darkGrey,
                         prefixIcon: Icon(Icons.lock_outline),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        errorStyle: const TextStyle(
-                          color: Colors.redAccent,
+                        errorStyle: TextStyle(
+                          color: context.colors.error,
                           fontSize: 12,
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.white10,
+                          borderSide: BorderSide(
+                            color: context.colors.border,
                             width: 1.3,
                           ),
                         ),
@@ -167,15 +167,15 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.redAccent,
+                          borderSide: BorderSide(
+                            color: context.colors.error,
                             width: 1.3,
                           ),
                         ),
                         focusedErrorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(18),
-                          borderSide: const BorderSide(
-                            color: Colors.redAccent,
+                          borderSide: BorderSide(
+                            color: context.colors.error,
                             width: 1.3,
                           ),
                         ),
@@ -203,7 +203,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         label: 'Confirmar Senha',
                         onPressed: () {
                           if (!_formKey.currentState!.validate()) return;
-                          Navigator.pushNamed(context, AppRoutes.login);
+                          // A tela de login ja esta na pilha (login ->
+                          // recover -> reset); volta ate ela em vez de
+                          // empilhar uma segunda instancia.
+                          Navigator.popUntil(
+                            context,
+                            ModalRoute.withName(AppRoutes.login),
+                          );
                         },
                       ),
                     ),

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Search, MoreVertical, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
 const mockReservations = [

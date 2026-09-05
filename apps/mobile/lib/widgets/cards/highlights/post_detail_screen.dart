@@ -48,12 +48,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
     try {
       if (curtiaAntes) {
-        await _postService.unlikePost(postId: _highlight.postId, userId: userId);
+        await _postService.unlikePost(
+          postId: _highlight.postId,
+          userId: userId,
+        );
       } else {
         await _postService.likePost(postId: _highlight.postId, userId: userId);
       }
     } catch (e) {
-      final is409 = e.toString().contains('409') ||
+      final is409 =
+          e.toString().contains('409') ||
           e.toString().contains('already liked') ||
           e.toString().contains('already unliked');
       // 409 significa que o backend já está no estado pra onde tentamos ir
@@ -108,13 +112,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         backgroundColor: context.colors.noturno,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: context.colors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Publicação',
           style: GoogleFonts.inter(
-            color: Colors.white,
+            color: context.colors.textPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -128,10 +132,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             child: imagens.isEmpty
                 ? Container(
                     color: Colors.white12,
-                    child: const Center(
+                    child: Center(
                       child: Icon(
                         Icons.image_not_supported_outlined,
-                        color: Colors.white38,
+                        color: context.colors.textDisabled,
                         size: 48,
                       ),
                     ),
@@ -154,9 +158,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             errorWidget: (context, url, error) {
                               return Container(
                                 color: Colors.white12,
-                                child: const Icon(
+                                child: Icon(
                                   Icons.broken_image_outlined,
-                                  color: Colors.white38,
+                                  color: context.colors.textDisabled,
                                 ),
                               );
                             },
@@ -207,30 +211,30 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             : Icons.favorite_outline,
                         color: highlight.curtidoPeloUsuario
                             ? context.colors.brasa
-                            : Colors.white70,
+                            : context.colors.textSecondary,
                         size: 22,
                       ),
                     ),
                     const SizedBox(width: 6),
                     Text(
                       '${highlight.totalCurtidas}',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: context.colors.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const SizedBox(width: 20),
-                    const Icon(
+                    Icon(
                       Icons.mode_comment_outlined,
-                      color: Colors.white70,
+                      color: context.colors.textSecondary,
                       size: 20,
                     ),
                     const SizedBox(width: 6),
                     Text(
                       '${highlight.totalComentarios}',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: context.colors.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
@@ -244,8 +248,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 if (highlight.legenda.isNotEmpty)
                   Text(
                     highlight.legenda,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
                       fontSize: 15,
                       height: 1.4,
                     ),
@@ -255,7 +259,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   const SizedBox(height: 12),
                   Text(
                     dataFormatada,
-                    style: const TextStyle(color: Colors.white38, fontSize: 13),
+                    style: TextStyle(
+                      color: context.colors.textDisabled,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
               ],

@@ -1,0 +1,35 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  type        String   @db.VarChar(50)
+  recipientId String   @map("recipient_id") @db.VarChar(255)
+  actorId     String   @map("actor_id") @db.VarChar(255)
+  refId       String   @map("ref_id") @db.VarChar(255)
+  content     String?  @db.Text
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([recipientId, read, createdAt(sort: Desc)], map: "idx_notifications_recipient_read_created")
+  @@index([recipientId, type, refId], map: "idx_notifications_recipient_type_ref")
+  @@map("notifications")
+}
+
+model TwoFactorCode {
+  id        String   @id @default(uuid())
+  email     String   @db.VarChar(255)
+  code      String   @db.VarChar(10)
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([email, used, expiresAt], map: "idx_two_factor_codes_email_used")
+  @@map("two_factor_codes")
+}

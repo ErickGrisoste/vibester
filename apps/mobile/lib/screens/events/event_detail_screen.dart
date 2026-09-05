@@ -158,7 +158,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       onPressed: () {
                         //Ação de compartilhar
                       },
-                      icon: const Icon(Icons.share, color: Colors.white),
+                      icon: Icon(
+                        Icons.share,
+                        color: context.colors.textPrimary,
+                      ),
                     ),
                   ),
                 ),
@@ -198,7 +201,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
                               //possivel sombra (teste)
                               shadows: [
-                                Shadow(color: context.colors.brasa, blurRadius: 5),
+                                Shadow(
+                                  color: context.colors.brasa,
+                                  blurRadius: 5,
+                                ),
                               ],
                             ),
                           ),
@@ -278,7 +284,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                 "pt_BR",
                               ).format(_event.dataDoEvento),
                               style: GoogleFonts.inter(
-                                color: Colors.white,
+                                color: context.colors.textPrimary,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -287,7 +293,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       ),
 
                       // Linha divisória
-                      Container(width: 1, height: 40, color: Colors.white12),
+                      Container(
+                        width: 1,
+                        height: 40,
+                        color: context.colors.border,
+                      ),
 
                       Expanded(
                         child: Padding(
@@ -307,7 +317,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               Text(
                                 _event.localizacao,
                                 style: GoogleFonts.inter(
-                                  color: Colors.white,
+                                  color: context.colors.textPrimary,
                                   fontWeight: FontWeight.bold,
                                 ),
                                 maxLines: 2,
@@ -367,7 +377,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   child: Text(
                     "Line-up",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 20,
                     ),
@@ -384,7 +394,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   child: Text(
                     "Sobre o Evento",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 20,
                     ),
@@ -396,7 +406,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   child: Text(
                     "Informações importantes",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -417,7 +427,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               _event.informacoes,
               textAlign: TextAlign.left,
               style: GoogleFonts.inter(
-                color: Colors.white,
+                color: context.colors.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -438,7 +448,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   child: Text(
                     "Localização",
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 20,
                     ),
@@ -456,7 +466,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   child: Text(
                     _event.localizacao,
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),

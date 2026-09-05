@@ -58,6 +58,7 @@ src/
   schema/events/ um schema Zod por payload de evento Kafka (post-created, post-deleted, post-liked/unliked, post-content/stats-updated,
                  follow, event-confirmance, event-unconfirmance, kafka-event → envelope genérico {eventId, eventType, occurredAt, data})
   types/         feed.types.ts (FeedItem, FeedItemType), post.types.ts (Post), event.type.ts (Event)
+  utils/         media.ts                                → conversão UDT media_item <-> domínio + fallback de image_urls legado
   routes.ts      /health + GET /feed/:userId (schema JSON Schema, onRequest com jwtVerify + checagem de dono)
   server.ts      bootstrap Fastify, CORS aberto, JWT, swagger, inicia o KafkaConsumer antes do listen
   generate-spec.ts  script standalone (não referenciado em package.json scripts) que gera o JSON do OpenAPI para um arquivo
@@ -77,6 +78,8 @@ tests/
 3. Se o dado vem de um evento Kafka novo: crie um schema Zod em `src/schema/events/<evento>.schema.ts`, registre o handler em `src/kafka/consumer.ts` — decida explicitamente se ele entra no `topics`/`handlers` (convenção de envelope genérico `{eventId, eventType, occurredAt, data}` sobre um tópico de domínio, ex. `posts`, `users`) ou em `directTopicHandlers` (convenção de tópico próprio por evento com o payload cru, ex. `post.liked`). **Hoje as duas convenções coexistem e até se sobrepõem** (`user.followed`/`user.unfollowed` são tratados tanto como `eventType` dentro do tópico `users` quanto como tópicos próprios em `directTopicHandlers`) — ao adicionar um evento novo, confirme com o serviço produtor qual convenção ele realmente usa antes de escolher uma das duas.
 4. Lógica de negócio nova entra em `FeedService` (`src/services/feed.service.ts`) — é uma classe única com todos os handlers; TTL de qualquer item novo deve passar por `FeedTtlService.getTtl`/`calculateEventTTL` (`src/services/ttl_service.ts`), nunca hardcode um TTL novo solto num repository.
 5. Se a mudança afeta o formato do item de feed, atualize `feedItemSchema` em `routes.ts` (resposta HTTP) e o schema Zod correspondente em `src/schema/events/post-created.schema.ts` — os dois precisam ficar coerentes com `FeedItem` (`src/types/feed.types.ts`).
+
+   > **Campo novo vindo de outro serviço: este serviço vai primeiro.** O schema de evento é um `z.discriminatedUnion`, que **descarta campo desconhecido em silêncio** — sem erro, sem log. Se o produtor (ex.: `post-service`) começar a publicar um campo antes deste serviço saber lê-lo, o dado some sem deixar rastro. O mesmo vale na saída: o `feedItemSchema` de `routes.ts` é usado pelo Fastify para serializar a resposta, então campo ausente ali é removido do JSON, mesmo estando na linha do Cassandra.
 6. Toda feature nova precisa de: teste unitário do service em `tests/unit` (mockando `getCassandraClient`) e, se mexer na rota, teste de integração em `tests/integration/feed.integration.spec.ts`.
 
 ---

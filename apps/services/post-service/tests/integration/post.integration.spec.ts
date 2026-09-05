@@ -77,7 +77,7 @@ describe('post-service — HTTP Integration', () => {
         url: '/posts',
         payload: {
           userId: USER_ID,
-          imageUrls: ['https://example.com/img.jpg'],
+          imageUrls: ['https://test.r2.dev/posts/img.jpg'],
           caption: 'Test post',
           establishmentId: ESTAB_ID,
         },
@@ -98,7 +98,7 @@ describe('post-service — HTTP Integration', () => {
         url: '/posts',
         payload: {
           userId: USER_ID,
-          imageUrls: ['https://example.com/img.jpg'],
+          imageUrls: ['https://test.r2.dev/posts/img.jpg'],
           caption: longCaption,
         },
       });
@@ -111,10 +111,112 @@ describe('post-service — HTTP Integration', () => {
         url: '/posts',
         payload: {
           userId: USER_ID,
-          imageUrls: ['https://example.com/img.jpg'],
+          imageUrls: ['https://test.r2.dev/posts/img.jpg'],
           caption: 'a'.repeat(2001),
         },
       });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('aceita post misto de imagem e vídeo preservando a ordem', async () => {
+      const media = [
+        { url: 'https://test.r2.dev/posts/a.jpg', type: 'IMAGE' },
+        { url: 'https://test.r2.dev/posts/b.mp4', type: 'VIDEO', thumbnailUrl: 'https://test.r2.dev/posts/b.jpg' },
+        { url: 'https://test.r2.dev/posts/c.jpg', type: 'IMAGE' },
+      ];
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: { userId: USER_ID, media, caption: 'noite boa' },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.payload);
+      expect(body.media).toEqual(media);
+      // image_urls continua sendo gravada para apps que ainda não leem media.
+      expect(body.imageUrls).toEqual([
+        'https://test.r2.dev/posts/a.jpg',
+        'https://test.r2.dev/posts/c.jpg',
+      ]);
+    });
+
+    it('aceita post só de vídeo', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+          userId: USER_ID,
+          media: [{ url: 'https://test.r2.dev/posts/b.mp4', type: 'VIDEO' }],
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(JSON.parse(res.payload).imageUrls).toEqual([]);
+    });
+
+    it('converte imageUrls legado em media do tipo IMAGE', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: { userId: USER_ID, imageUrls: ['https://test.r2.dev/posts/a.jpg'] },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(JSON.parse(res.payload).media).toEqual([
+        { url: 'https://test.r2.dev/posts/a.jpg', type: 'IMAGE' },
+      ]);
+    });
+
+    it('rejeita mídia hospedada fora do bucket', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+          userId: USER_ID,
+          media: [{ url: 'https://evil.example.com/a.jpg', type: 'IMAGE' }],
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejeita tipo de mídia desconhecido', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+          userId: USER_ID,
+          media: [{ url: 'https://test.r2.dev/posts/a.gif', type: 'GIF' }],
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejeita post sem nenhuma mídia', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: { userId: USER_ID, caption: 'só texto' },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejeita mais de 10 mídias', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+          userId: USER_ID,
+          media: Array.from({ length: 11 }, (_, i) => ({
+            url: `https://test.r2.dev/posts/${i}.jpg`,
+            type: 'IMAGE',
+          })),
+        },
+      });
+
       expect(res.statusCode).toBe(400);
     });
   });

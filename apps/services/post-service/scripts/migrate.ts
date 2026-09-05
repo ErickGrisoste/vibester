@@ -8,21 +8,51 @@ const BUNDLE_PATH = process.env.ASTRA_SECURE_CONNECT_BUNDLE;
 const CLIENT_ID = process.env.ASTRA_CLIENT_ID;
 const CLIENT_SECRET = process.env.ASTRA_CLIENT_SECRET;
 
-if (!KEYSPACE) throw new Error("ASTRA_KEYSPACE não definida");
-if (!BUNDLE_PATH) throw new Error("ASTRA_BUNDLE_PATH não definida");
-if (!CLIENT_ID) throw new Error("ASTRA_CLIENT_ID não definida");
-if (!CLIENT_SECRET) throw new Error("ASTRA_CLIENT_SECRET não definida");
+// CASSANDRA_CONTACT_POINTS presente => cluster OSS local/CI (docker-compose), sem Astra.
+const CONTACT_POINTS = process.env.CASSANDRA_CONTACT_POINTS;
+const LOCAL_DATA_CENTER = process.env.CASSANDRA_LOCAL_DATA_CENTER || "datacenter1";
+const IS_LOCAL = Boolean(CONTACT_POINTS);
 
-const client = new Client({
-    cloud: {
-        secureConnectBundle: BUNDLE_PATH,
-    },
-    credentials: {
-        username: CLIENT_ID,
-        password: CLIENT_SECRET,
-    },
-    keyspace: KEYSPACE,
-});
+if (!KEYSPACE) throw new Error("ASTRA_KEYSPACE não definida");
+
+if (!IS_LOCAL) {
+    if (!BUNDLE_PATH) throw new Error("ASTRA_SECURE_CONNECT_BUNDLE não definida");
+    if (!CLIENT_ID) throw new Error("ASTRA_CLIENT_ID não definida");
+    if (!CLIENT_SECRET) throw new Error("ASTRA_CLIENT_SECRET não definida");
+}
+
+const contactPoints = () => CONTACT_POINTS!.split(",").map((cp) => cp.trim());
+
+async function ensureKeyspace() {
+    // Só necessário em cluster local — no Astra o keyspace já é provisionado externamente.
+    const bootstrapClient = new Client({
+        contactPoints: contactPoints(),
+        localDataCenter: LOCAL_DATA_CENTER,
+    });
+
+    await bootstrapClient.connect();
+    await bootstrapClient.execute(
+        `CREATE KEYSPACE IF NOT EXISTS ${KEYSPACE} WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};`
+    );
+    await bootstrapClient.shutdown();
+}
+
+const client = IS_LOCAL
+    ? new Client({
+        contactPoints: contactPoints(),
+        localDataCenter: LOCAL_DATA_CENTER,
+        keyspace: KEYSPACE,
+    })
+    : new Client({
+        cloud: {
+            secureConnectBundle: BUNDLE_PATH!,
+        },
+        credentials: {
+            username: CLIENT_ID!,
+            password: CLIENT_SECRET!,
+        },
+        keyspace: KEYSPACE,
+    });
 
 async function ensureMigrationTable() {
     await client.execute(
@@ -56,6 +86,10 @@ async function registerMigration(version: string) {
 }
 
 async function run() {
+    if (IS_LOCAL) {
+        await ensureKeyspace();
+    }
+
     await client.connect();
     console.log(KEYSPACE);
 

@@ -71,7 +71,7 @@ const floatingTextVariants = {
     opacity: 0,
     filter: "blur(10px)",
     scale: 0.95,
-    transition: { duration: 0.5, ease: [0.55, 0, 1, 0.45] },
+    transition: { duration: 0.5, ease: [0.55, 0, 1, 0.45] as const },
   },
 };
 
@@ -81,13 +81,13 @@ const screenVariants = {
     opacity: 1,
     scale: 1,
     filter: "blur(0px)",
-    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const },
   },
   exit: {
     opacity: 0,
     scale: 0.94,
     filter: "blur(8px)",
-    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
   },
 };
 

@@ -37,7 +37,7 @@ class _CategoryHighlightsSectionState extends State<CategoryHighlightsSection> {
                   Text(
                     interest.label,
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),

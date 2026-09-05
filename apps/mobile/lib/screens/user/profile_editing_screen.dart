@@ -99,7 +99,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
       appBar: AppBar(
         title: Text('Informações pessoais'),
         backgroundColor: context.colors.darkGrey,
-        foregroundColor: Colors.white,
+        foregroundColor: context.colors.textPrimary,
         titleTextStyle: GoogleFonts.inter(fontSize: 20),
       ),
       body: Form(
@@ -129,7 +129,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                   controller: _nomeController,
 
                   textInputAction: TextInputAction.next,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: context.colors.textPrimary),
                   cursorColor: context.colors.ambar,
 
                   inputFormatters: [LengthLimitingTextInputFormatter(50)],
@@ -141,14 +141,14 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    errorStyle: const TextStyle(
-                      color: Colors.redAccent,
+                    errorStyle: TextStyle(
+                      color: context.colors.error,
                       fontSize: 12,
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: Colors.white10,
+                      borderSide: BorderSide(
+                        color: context.colors.border,
                         width: 1.3,
                       ),
                     ),
@@ -161,15 +161,15 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                     ),
                     errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: Colors.redAccent,
+                      borderSide: BorderSide(
+                        color: context.colors.error,
                         width: 1.3,
                       ),
                     ),
                     focusedErrorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: Colors.redAccent,
+                      borderSide: BorderSide(
+                        color: context.colors.error,
                         width: 1.3,
                       ),
                     ),
@@ -207,7 +207,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                   maxLines: null,
                   expands: true,
                   textInputAction: TextInputAction.done,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: context.colors.textPrimary),
                   cursorColor: context.colors.ambar,
 
                   inputFormatters: [LengthLimitingTextInputFormatter(150)],
@@ -218,14 +218,14 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    errorStyle: const TextStyle(
-                      color: Colors.redAccent,
+                    errorStyle: TextStyle(
+                      color: context.colors.error,
                       fontSize: 12,
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: Colors.white10,
+                      borderSide: BorderSide(
+                        color: context.colors.border,
                         width: 1.3,
                       ),
                     ),
@@ -238,15 +238,15 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                     ),
                     errorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: Colors.redAccent,
+                      borderSide: BorderSide(
+                        color: context.colors.error,
                         width: 1.3,
                       ),
                     ),
                     focusedErrorBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(
-                        color: Colors.redAccent,
+                      borderSide: BorderSide(
+                        color: context.colors.error,
                         width: 1.3,
                       ),
                     ),

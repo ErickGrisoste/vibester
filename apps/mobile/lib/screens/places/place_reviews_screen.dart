@@ -23,8 +23,8 @@ class _PlaceReviewsScreenState extends State<PlaceReviewsScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.all(Radius.circular(19)),
         border: selecionado
-            ? Border.all(color: Colors.white24, width: 0)
-            : Border.all(color: Colors.white24, width: 2),
+            ? Border.all(color: context.colors.border, width: 0)
+            : Border.all(color: context.colors.border, width: 2),
       ),
       child: SizedBox(
         width: 100,
@@ -42,7 +42,9 @@ class _PlaceReviewsScreenState extends State<PlaceReviewsScreen> {
             label,
             style: TextStyle(
               fontSize: 10,
-              color: selecionado ? Colors.white : Colors.white54,
+              color: selecionado
+                  ? context.colors.textPrimary
+                  : context.colors.textMuted,
               fontWeight: FontWeight.bold,
             ),
           ),

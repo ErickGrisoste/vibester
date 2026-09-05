@@ -200,6 +200,68 @@ describe('user-service — HTTP Integration', () => {
     });
   });
 
+  describe('POST /users/share', () => {
+    it('retorna 201 com token, shareUrl e expiresAt, e incrementa shareCount', async () => {
+      mockUserProfile.update.mockResolvedValue(makeProfile({ shareCount: 1 }));
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/users/share',
+        payload: { accountId: USER_ID },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.payload);
+      expect(body).toHaveProperty('token');
+      expect(body).toHaveProperty('shareUrl');
+      expect(body.shareUrl).toContain(body.token);
+      expect(mockUserProfile.update).toHaveBeenCalledWith({
+        where: { userID: USER_ID },
+        data: { shareCount: { increment: 1 } },
+      });
+
+      const stored = await redis.get(`share:token:${body.token}`);
+      expect(stored).toBe(USER_ID);
+    });
+
+    it('retorna 500 quando o perfil não existe', async () => {
+      mockUserProfile.update.mockRejectedValue(new Error('Record to update not found.'));
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/users/share',
+        payload: { accountId: NOT_FOUND_ID },
+      });
+
+      expect(res.statusCode).toBe(500);
+    });
+  });
+
+  describe('GET /users/share/:token', () => {
+    const SHARE_TOKEN = 'e1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
+
+    it('retorna 200 com o perfil quando o token é válido', async () => {
+      await redis.set(`share:token:${SHARE_TOKEN}`, USER_ID, 'EX', 86400);
+      mockUserProfile.findUnique.mockResolvedValue(makeProfile());
+
+      const res = await app.inject({ method: 'GET', url: `/users/share/${SHARE_TOKEN}` });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toHaveProperty('accountId', USER_ID);
+    });
+
+    it('retorna 404 quando o token não existe/expirou', async () => {
+      const res = await app.inject({ method: 'GET', url: `/users/share/${SHARE_TOKEN}` });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it('não conflita com a rota /users/profile/:accountId', async () => {
+      mockUserProfile.findUnique.mockResolvedValue(makeProfile());
+      const res = await app.inject({ method: 'GET', url: `/users/profile/${USER_ID}` });
+      expect(res.statusCode).toBe(200);
+    });
+  });
+
   describe('PUT /users/profile/info', () => {
     it('atualiza nome e username e retorna 200', async () => {
       mockUserProfile.update.mockResolvedValue(

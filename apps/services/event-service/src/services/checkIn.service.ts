@@ -19,7 +19,7 @@ export class CheckInService {
                 if (error.code === "P2002") {
                     throw new Error("Usuário já fez check-in neste evento");
                 }
-                if (error.code === "P2025") {
+                if (error.code === "P2025" || error.code === "P2003") {
                     throw new Error("Evento não encontrado");
                 }
             }

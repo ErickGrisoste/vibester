@@ -153,8 +153,8 @@ class _PersonalInformationSettingsScreenState
                 ),
                 child: Text(
                   'Alterar $titulo',
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: context.colors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -171,16 +171,16 @@ class _PersonalInformationSettingsScreenState
                   focusNode: focusNode,
                   autofocus: true,
                   maxLength: maxCaracteres,
-                  style: const TextStyle(color: Colors.white),
+                  style: TextStyle(color: context.colors.textPrimary),
                   cursorColor: context.colors.ambar,
                   decoration: InputDecoration(
-                    enabledBorder: const UnderlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white38),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: context.colors.border),
                     ),
                     focusedBorder: UnderlineInputBorder(
                       borderSide: BorderSide(color: context.colors.ambar),
                     ),
-                    counterStyle: const TextStyle(color: Colors.white38),
+                    counterStyle: TextStyle(color: context.colors.textDisabled),
                   ),
                 ),
               ),
@@ -195,6 +195,9 @@ class _PersonalInformationSettingsScreenState
                         onSalvar(controller.text);
                         Navigator.pop(context);
                       },
+                      // Fundo/rótulo do botão de confirmação ficam fixos
+                      // (verde + branco) para manter contraste, independente
+                      // do tema ativo.
                       style: TextButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
@@ -217,8 +220,10 @@ class _PersonalInformationSettingsScreenState
                         focusNode.unfocus();
                         Navigator.pop(context);
                       },
+                      // Rótulo fica fixo em branco para manter contraste
+                      // sobre o fundo de erro (que também varia por tema).
                       style: TextButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
+                        backgroundColor: context.colors.error,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 24,
@@ -256,7 +261,7 @@ class _PersonalInformationSettingsScreenState
                 Text(
                   label,
                   style: GoogleFonts.inter(
-                    color: Colors.white,
+                    color: context.colors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -267,7 +272,7 @@ class _PersonalInformationSettingsScreenState
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    color: Colors.white60,
+                    color: context.colors.textMuted,
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                   ),
@@ -275,7 +280,11 @@ class _PersonalInformationSettingsScreenState
               ],
             ),
           ),
-          const Icon(Icons.edit_outlined, color: Colors.white38, size: 18),
+          Icon(
+            Icons.edit_outlined,
+            color: context.colors.textDisabled,
+            size: 18,
+          ),
           const SizedBox(width: 5),
         ],
       ),
@@ -284,7 +293,7 @@ class _PersonalInformationSettingsScreenState
 
   Widget _divider() => Container(
     margin: const EdgeInsets.only(left: 5, right: 5),
-    color: Colors.white38,
+    color: context.colors.border,
     width: double.infinity,
     height: 1,
   );
@@ -299,7 +308,7 @@ class _PersonalInformationSettingsScreenState
         appBar: AppBar(
           title: const Text('Informações pessoais'),
           backgroundColor: context.colors.noturno,
-          foregroundColor: Colors.white,
+          foregroundColor: context.colors.textPrimary,
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -314,7 +323,7 @@ class _PersonalInformationSettingsScreenState
           style: GoogleFonts.inter(fontWeight: FontWeight.bold),
         ),
         backgroundColor: context.colors.noturno,
-        foregroundColor: Colors.white,
+        foregroundColor: context.colors.textPrimary,
       ),
       backgroundColor: context.colors.noturno,
       body: SingleChildScrollView(
@@ -329,7 +338,7 @@ class _PersonalInformationSettingsScreenState
               decoration: BoxDecoration(
                 color: cardColor,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white38, width: 1),
+                border: Border.all(color: context.colors.border, width: 1),
               ),
               child: Column(
                 children: [
@@ -349,8 +358,8 @@ class _PersonalInformationSettingsScreenState
                   const SizedBox(height: 8),
                   Text(
                     user.nome,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
@@ -369,7 +378,7 @@ class _PersonalInformationSettingsScreenState
                   Text(
                     'DADOS',
                     style: GoogleFonts.inter(
-                      color: Colors.white54,
+                      color: context.colors.textMuted,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -387,7 +396,7 @@ class _PersonalInformationSettingsScreenState
               decoration: BoxDecoration(
                 color: cardColor,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white38, width: 1),
+                border: Border.all(color: context.colors.border, width: 1),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -451,7 +460,7 @@ class _PersonalInformationSettingsScreenState
                   Text(
                     'INFORMAÇÕES DA CONTA',
                     style: GoogleFonts.inter(
-                      color: Colors.white54,
+                      color: context.colors.textMuted,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -469,7 +478,7 @@ class _PersonalInformationSettingsScreenState
               decoration: BoxDecoration(
                 color: cardColor,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white38, width: 1),
+                border: Border.all(color: context.colors.border, width: 1),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -47,7 +47,8 @@ class HighlightModel {
 
   // A primeira imagem da lista, usada pelo HighlightsCard
   // Fica vazia se a lista de imagens estiver vazia, pra não estourar erro
-  String get imagemEmDestaque => imagensUrls.isNotEmpty ? imagensUrls.first : '';
+  String get imagemEmDestaque =>
+      imagensUrls.isNotEmpty ? imagensUrls.first : '';
 
   HighlightModel copyWith({int? totalCurtidas, bool? curtidoPeloUsuario}) {
     return HighlightModel(
