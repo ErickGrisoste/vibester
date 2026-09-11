@@ -37,7 +37,7 @@ function fullCreatePayload(overrides: Record<string, unknown> = {}) {
     userUsername: "test-user",
     userProfilePicture: "https://example.com/avatar.jpg",
     userVerified: false,
-    imageUrls: ["https://example.com/img.jpg"],
+    imageUrls: ["https://test.r2.dev.com/img.jpg"],
     caption: "Test post",
     establishmentId: ESTAB_ID,
     establishmentName: "Test Bar",
