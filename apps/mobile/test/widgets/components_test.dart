@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/theme/app_colors.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/app_theme.dart';
+import 'package:mobile/utils/event_time.dart';
 import 'package:mobile/utils/username.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
 import 'package:mobile/widgets/cards/event/event_poster_card.dart';
@@ -64,7 +66,8 @@ void main() {
           size: TestScreens.small,
         );
 
-        expect(find.text('Festival Subsolo'), findsOneWidget);
+        // O nome do rolê vai em caixa alta nas três variantes.
+        expect(find.text('FESTIVAL SUBSOLO'), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
@@ -129,6 +132,105 @@ void main() {
       );
       expect(find.text('ROLANDO AGORA'), findsNothing);
       expect(find.text('HOJE'), findsNothing);
+    });
+
+    testWidgets(
+      'no trilho, o cartaz é um retângulo deitado que cabe junto com o '
+      'cabeçalho da seção e deixa o próximo espiar',
+      (tester) async {
+        await pumpComponent(
+          tester,
+          Builder(
+            builder: (context) => EventPosterCard(
+              event: evento(),
+              width: EventPosterCard.railWidth(context),
+              hero: false,
+            ),
+          ),
+        );
+
+        final card = tester.getSize(find.byType(EventPosterCard));
+
+        expect(card.width, greaterThan(card.height));
+        expect(
+          card.width / card.height,
+          closeTo(EventPosterCard.posterAspect, 0.01),
+        );
+        // O card antigo (retrato 3:4 a 76% da largura) passava de 450pt de
+        // altura numa tela de 844 — sozinho ele já empurrava o cabeçalho da
+        // seção pra fora do campo de visão.
+        expect(card.height, lessThan(TestScreens.medium.height * 0.3));
+        // Sobra faixa à direita: é o próximo cartaz aparecendo que diz que o
+        // trilho anda pro lado.
+        expect(
+          card.width + AppSpacing.screen,
+          lessThan(TestScreens.medium.width - 40),
+        );
+      },
+    );
+
+    testWidgets('a moldura acompanha a urgência do evento', (tester) async {
+      final agora = DateTime.now();
+
+      Iterable<Color> moldurasDe(WidgetTester tester) => tester
+          .widgetList<DecoratedBox>(find.byType(DecoratedBox))
+          .map((box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .map((decoration) => decoration.border?.top.color)
+          .nonNulls;
+
+      await pumpComponent(
+        tester,
+        EventPosterCard(
+          event: evento(
+            inicio: agora.subtract(const Duration(minutes: 30)),
+            fim: agora.add(const Duration(hours: 2)),
+          ),
+          hero: false,
+        ),
+      );
+      expect(moldurasDe(tester), contains(AppColors.dark.brasa));
+
+      await pumpComponent(
+        tester,
+        EventPosterCard(
+          event: evento(inicio: agora.add(const Duration(days: 3))),
+          hero: false,
+        ),
+      );
+      // Fora da urgência a moldura continua colorida, em âmbar de meia força.
+      expect(
+        moldurasDe(tester),
+        contains(AppColors.dark.ambar.withValues(alpha: 0.55)),
+      );
+    });
+
+    testWidgets('com selo de urgência, a legenda fica com hora e local', (
+      tester,
+    ) async {
+      final agora = DateTime.now();
+      final rolando = evento(
+        inicio: agora.subtract(const Duration(minutes: 30)),
+        fim: agora.add(const Duration(hours: 2)),
+      );
+
+      await pumpComponent(tester, EventPosterCard(event: rolando, hero: false));
+
+      // Quem diz "é agora" é o selo, não a legenda.
+      expect(find.text('ROLANDO AGORA'), findsOneWidget);
+      expect(find.text('${rolando.timeLabel}  ·  MARINGÁ'), findsOneWidget);
+      expect(find.textContaining('HOJE'), findsNothing);
+    });
+
+    testWidgets('a legenda do cartaz nunca traz data', (tester) async {
+      final futuro = evento(
+        inicio: DateTime.now().add(const Duration(days: 3)),
+      );
+
+      await pumpComponent(tester, EventPosterCard(event: futuro, hero: false));
+
+      expect(find.text('${futuro.timeLabel}  ·  MARINGÁ'), findsOneWidget);
+      expect(find.textContaining(futuro.dayLabel), findsNothing);
     });
 
     testWidgets('título longo trunca em vez de estourar', (tester) async {

@@ -124,6 +124,15 @@ void main() {
       expect(e.metaLine(includeLocation: false), 'HOJE  ·  22:30');
     });
 
+    test('sem o dia, quando o card já o afirmou por um selo', () {
+      final e = evento(
+        inicio: DateTime(agora.year, agora.month, agora.day, 22, 30),
+        local: 'Maringá',
+      );
+
+      expect(e.metaLine(includeDay: false), '22:30  ·  MARINGÁ');
+    });
+
     test('omite o local quando a API não mandou', () {
       final e = evento(
         inicio: DateTime(agora.year, agora.month, agora.day, 20, 0),

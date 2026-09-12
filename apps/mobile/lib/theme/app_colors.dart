@@ -81,6 +81,24 @@ class AppColors extends ThemeExtension<AppColors> {
     ],
   );
 
+  /// Véu de cor de marca sobre a base de uma foto, aplicado **por cima** do
+  /// [photoScrim].
+  ///
+  /// O scrim sozinho é preto: garante contraste, mas deixa todo card com a
+  /// mesma base cinza-escura, seja qual for a foto. Este véu devolve a
+  /// temperatura da marca à parte inferior do cartaz — é o mesmo efeito de
+  /// tinta atravessando papel de lambe-lambe — sem tocar no topo da imagem,
+  /// onde a foto ainda precisa aparecer limpa.
+  ///
+  /// Vem depois do scrim de propósito: a legibilidade do texto continua sendo
+  /// garantida pelo preto, e a cor entra como camada, não como substituta.
+  LinearGradient photoTint(Color accent) => LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    stops: const [0.35, 1.0],
+    colors: [accent.withValues(alpha: 0.0), accent.withValues(alpha: 0.30)],
+  );
+
   /// Cor de "ao vivo / acontecendo agora". É [brasa] — a única cor quente
   /// urgente da paleta — isolada num nome semântico pra não ser usada como
   /// decoração genérica.

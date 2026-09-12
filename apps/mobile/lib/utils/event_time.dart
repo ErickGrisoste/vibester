@@ -43,8 +43,12 @@ extension EventTime on EventModel {
   String get timeLabel => DateFormat('HH:mm').format(dataDoEvento);
 
   /// Linha de metadado completa de card: 'HOJE · 22:00 · MARINGÁ'.
-  String metaLine({bool includeLocation = true}) => [
-    dayLabel,
+  ///
+  /// O dia sai da linha (`includeDay: false`) quando a composição já o
+  /// afirmou de outro jeito — o card do trilho, por exemplo, cola um selo
+  /// "HOJE"/"ROLANDO AGORA" no canto e não repete isso embaixo.
+  String metaLine({bool includeDay = true, bool includeLocation = true}) => [
+    if (includeDay) dayLabel,
     timeLabel,
     if (includeLocation && localizacao.isNotEmpty) localizacao.toUpperCase(),
   ].join('  ·  ');

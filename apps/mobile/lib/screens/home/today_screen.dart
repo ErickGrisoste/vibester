@@ -247,10 +247,10 @@ class _TodayScreenState extends State<TodayScreen> {
             onActionTap: () =>
                 Navigator.pushNamed(context, AppRoutes.eventList),
           ),
-          // O cartaz acompanha a largura da tela (com um pouco do próximo
-          // aparecendo na borda, que é o que convida a arrastar) em vez de
-          // 300px fixos, que em aparelho estreito não deixam espaço pro
-          // "espia" e em tela larga ficam pequenos demais.
+          // O cartaz acompanha a largura da tela (com o próximo aparecendo
+          // pela metade na borda, que é o que convida a arrastar) em vez de
+          // uma largura fixa em pixel, que em aparelho estreito não deixa
+          // espaço pro "espia" e em tela larga fica pequena demais.
           _HeroRail(items: items, hero: index == 1),
         ],
       ),
@@ -266,13 +266,12 @@ class _HeroRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = (MediaQuery.of(context).size.width * 0.76).clamp(
-      240.0,
-      340.0,
-    );
+    // Largura e altura vêm do próprio card: o trilho não tem opinião sobre o
+    // tamanho do cartaz, só reserva a altura que ele declara.
+    final width = EventPosterCard.railWidth(context);
 
     return SizedBox(
-      height: width * 4 / 3,
+      height: EventPosterCard.railHeight(context),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screen),
@@ -663,8 +662,18 @@ class _WeekCarousel extends StatefulWidget {
 }
 
 class _WeekCarouselState extends State<_WeekCarousel> {
-  static const _viewportFraction = 0.95;
-  static const _cardGap = AppSpacing.sm;
+  /// Fração da viewport que cada página ocupa. É o valor que faz o cartaz da
+  /// semana sair com a mesma largura do cartaz dos trilhos
+  /// (`EventPosterCard.railWidth`, 74% da tela) — a semana é a mesma fileira
+  /// de opções das outras seções, só que andando sozinha. O que sobra à
+  /// direita é o próximo cartaz espiando.
+  static const _viewportFraction = 0.82;
+
+  /// Teto de largura do cartaz. O `viewportFraction` é relativo à tela, e sem
+  /// isso o card viraria um pôster de 600pt em tablet.
+  static const _maxCardWidth = 340.0;
+
+  static const _cardGap = AppSpacing.md;
   static const _interval = Duration(seconds: 4);
   static const _transition = Duration(milliseconds: 700);
 
@@ -723,15 +732,15 @@ class _WeekCarouselState extends State<_WeekCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    // Mesma conta de largura do trilho comum (`_HeroRail`), só que a partir
-    // do que sobra depois da margem lateral padrão de tela: o primeiro card
-    // encosta no mesmo lugar que todo o resto do conteúdo, e o `viewportFraction`
-    // abaixo de 1 é o que deixa o próximo espiar na borda direita.
+    // A conta parte do que sobra depois da margem lateral padrão de tela: o
+    // primeiro card encosta no mesmo lugar que todo o resto do conteúdo, e o
+    // `viewportFraction` abaixo de 1 é o que deixa o próximo espiar na borda
+    // direita. A proporção do cartaz é a mesma do card em qualquer trilho.
     final pageWidth =
         (MediaQuery.sizeOf(context).width - AppSpacing.screen) *
         _viewportFraction;
-    final cardWidth = pageWidth - _cardGap;
-    final cardHeight = cardWidth * 4 / 3;
+    final cardWidth = math.min(pageWidth - _cardGap, _maxCardWidth);
+    final cardHeight = cardWidth / EventPosterCard.posterAspect;
 
     return SliverToBoxAdapter(
       child: Column(
@@ -1039,23 +1048,28 @@ class _HomeSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(height: AppSpacing.xl),
-        Padding(
+        const SizedBox(height: AppSpacing.xl),
+        const Padding(
           padding: EdgeInsets.symmetric(horizontal: AppSpacing.screen),
           child: VibesterSkeleton(width: 180, height: 26),
         ),
-        SizedBox(height: AppSpacing.lg),
-        _RailSkeleton(height: 400, itemWidth: 300),
-        SizedBox(height: AppSpacing.xxl),
-        Padding(
+        const SizedBox(height: AppSpacing.lg),
+        // Mesma medida do cartaz de verdade: quando os dados chegam, a
+        // página não pula.
+        _RailSkeleton(
+          height: EventPosterCard.railHeight(context),
+          itemWidth: EventPosterCard.railWidth(context),
+        ),
+        const SizedBox(height: AppSpacing.xxl),
+        const Padding(
           padding: EdgeInsets.symmetric(horizontal: AppSpacing.screen),
           child: VibesterSkeleton(width: 140, height: 26),
         ),
-        SizedBox(height: AppSpacing.lg),
-        _RailSkeleton(height: 250, itemWidth: 190),
+        const SizedBox(height: AppSpacing.lg),
+        const _RailSkeleton(height: 250, itemWidth: 190),
       ],
     );
   }
