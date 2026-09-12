@@ -114,6 +114,37 @@ describe("mapDomainEvent", () => {
         expect(mapDomainEvent("post.liked", "texto", KAFKA_TS)).toBeNull();
     });
 
+    it("preenche authorId com o postOwnerId, que é o que habilita afinidade", () => {
+        const interaction = mapDomainEvent(
+            "post.liked",
+            { postId: POST, postOwnerId: "dono-do-post", likedByUserId: LIKER },
+            KAFKA_TS
+        );
+
+        expect(interaction?.authorId).toBe("dono-do-post");
+    });
+
+    it("no follow o autor é o próprio seguido", () => {
+        const interaction = mapDomainEvent(
+            "user.followed",
+            { followerId: LIKER, followingId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc" },
+            KAFKA_TS
+        );
+
+        expect(interaction?.authorId).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+        expect(interaction?.itemId).toBe(interaction?.authorId);
+    });
+
+    it("deixa authorId null quando o produtor não informa, em vez de inventar", () => {
+        const interaction = mapDomainEvent(
+            "post.commented",
+            { postId: POST, commentedByUserId: LIKER },
+            KAFKA_TS
+        );
+
+        expect(interaction?.authorId).toBeNull();
+    });
+
     it("ignora createdAt inválido e cai no timestamp da mensagem", () => {
         const interaction = mapDomainEvent(
             "post.liked",

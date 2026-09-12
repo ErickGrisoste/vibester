@@ -16,6 +16,7 @@ function buildBatch(events: Partial<InteractionBatchInput["events"][number]>[]):
             itemId: event.itemId ?? "post-1",
             itemType: event.itemType ?? "POST",
             occurredAt: event.occurredAt ?? "2026-09-11T23:04:12.512Z",
+            authorId: event.authorId,
             position: event.position,
             dwellMs: event.dwellMs,
             source: event.source,
@@ -92,6 +93,23 @@ describe("InteractionService.ingest", () => {
             source: "FEED",
             sessionId: SESSION_ID,
         });
+    });
+
+    it("propaga o authorId enviado pelo cliente", async () => {
+        const { service, publish } = buildService();
+
+        await service.ingest(ACCOUNT_ID, buildBatch([{ authorId: "autor-1" }]));
+
+        expect(publish.mock.calls[0]![1][0]!.authorId).toBe("autor-1");
+    });
+
+    it("grava authorId null quando o cliente não envia, sem impedir a ingestão", async () => {
+        const { service, publish } = buildService();
+
+        const result = await service.ingest(ACCOUNT_ID, buildBatch([{}]));
+
+        expect(result.accepted).toBe(1);
+        expect(publish.mock.calls[0]![1][0]!.authorId).toBeNull();
     });
 
     it("normaliza occurredAt para ISO em UTC", async () => {

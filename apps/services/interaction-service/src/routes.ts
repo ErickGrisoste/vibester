@@ -28,6 +28,13 @@ const interactionEventJsonSchema = {
         },
         itemId: { type: "string", minLength: 1, maxLength: 64 },
         itemType: { type: "string", enum: [...ITEM_TYPES] },
+        authorId: {
+            type: "string",
+            minLength: 1,
+            maxLength: 64,
+            description:
+                "Autor do item. Necessário para calcular afinidade leitor-autor; sem ele o evento ainda é gravado, mas não alimenta afinidade.",
+        },
         occurredAt: {
             type: "string",
             description: "Data ISO 8601 do momento da captura no cliente.",

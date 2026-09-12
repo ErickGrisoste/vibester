@@ -8,15 +8,15 @@ import { toDayBucket } from "../utils/bucket";
 const INSERT_INTERACTION = `
     INSERT INTO interactions_by_user (
         user_id, day_bucket, occurred_at, event_id,
-        type, item_id, item_type, session_id,
+        type, item_id, item_type, author_id, session_id,
         feed_position, dwell_ms, source
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     USING TTL ?
 `;
 
 const SELECT_BY_USER_AND_DAY = `
     SELECT user_id, day_bucket, occurred_at, event_id, type, item_id, item_type,
-           session_id, feed_position, dwell_ms, source
+           author_id, session_id, feed_position, dwell_ms, source
     FROM interactions_by_user
     WHERE user_id = ? AND day_bucket = ?
     LIMIT ?
@@ -54,6 +54,7 @@ export class InteractionRepository extends BaseRepository {
             interaction.type,
             interaction.itemId,
             interaction.itemType,
+            interaction.authorId,
             interaction.sessionId,
             interaction.position,
             interaction.dwellMs,

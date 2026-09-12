@@ -45,6 +45,8 @@ export const clientInteractionEventSchema = z.object({
     itemId: itemIdSchema,
     itemType: z.enum(ITEM_TYPES),
     occurredAt: occurredAtSchema,
+    // Mesmo limite de itemId: id opaco curto, sem exigir uuid.
+    authorId: z.string().min(1).max(64).optional(),
     position: z.coerce.number().int().min(0).max(10_000).optional(),
     dwellMs: z.coerce.number().int().min(0).max(MAX_DWELL_MS).optional(),
     source: z.enum(INTERACTION_SOURCES).optional(),
@@ -77,6 +79,7 @@ export const normalizedInteractionSchema = z.object({
     occurredAt: z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
         message: "occurredAt inválido",
     }),
+    authorId: z.string().max(64).nullable().default(null),
     sessionId: z.string().max(64).nullable().default(null),
     position: z.number().int().nullable().default(null),
     dwellMs: z.number().int().nullable().default(null),

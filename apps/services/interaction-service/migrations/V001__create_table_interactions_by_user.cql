@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS interactions_by_user (
     type text,
     item_id text,
     item_type text,
+    author_id text,
     session_id text,
     feed_position int,
     dwell_ms int,

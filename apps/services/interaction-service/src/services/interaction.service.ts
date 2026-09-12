@@ -63,6 +63,7 @@ export class InteractionService {
                 itemId: event.itemId,
                 itemType: event.itemType,
                 occurredAt: new Date(event.occurredAt).toISOString(),
+                authorId: event.authorId ?? null,
                 sessionId: batch.sessionId,
                 position: event.position ?? null,
                 dwellMs: event.dwellMs ?? null,

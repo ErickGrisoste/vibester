@@ -61,6 +61,11 @@ export interface ClientInteractionEvent {
     itemId: string;
     itemType: ItemType;
     occurredAt: string;
+    /**
+     * Autor do item. Opcional, mas sem ele não há como calcular afinidade
+     * leitor → autor — ver a nota em `NormalizedInteraction`.
+     */
+    authorId?: string;
     position?: number;
     dwellMs?: number;
     source?: InteractionSource;
@@ -85,6 +90,20 @@ export interface NormalizedInteraction {
     itemId: string;
     itemType: ItemType;
     occurredAt: string;
+    /**
+     * Autor do item, quando conhecido. É o que permite calcular afinidade
+     * leitor → autor na fase 1.
+     *
+     * Para sinais do cliente, vem do próprio cliente — ele sabe qual autor
+     * renderizou. Aceitar esse campo do cliente é seguro o suficiente porque a
+     * afinidade é particionada por leitor: quem mentir só distorce o próprio feed,
+     * não o de outra pessoa, e não mexe em contador global (que é chaveado por
+     * `itemId`, não por autor).
+     *
+     * Para sinais derivados, vem do payload do serviço de origem (`postOwnerId`
+     * em post.liked/post.commented, `followingId` em user.followed).
+     */
+    authorId: string | null;
     sessionId: string | null;
     position: number | null;
     dwellMs: number | null;

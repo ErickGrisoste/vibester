@@ -37,6 +37,7 @@ export function isDomainTopic(topic: string): topic is DomainTopic {
  */
 interface DomainPayload {
     postId?: string;
+    postOwnerId?: string;
     userId?: string;
     likedByUserId?: string;
     commentedByUserId?: string;
@@ -70,16 +71,18 @@ export function mapDomainEvent(
 
     switch (topic) {
         case "post.liked":
-            return build("LIKE", firstPresent(payload.likedByUserId, payload.userId), payload.postId, "POST", occurredAt);
+            return build("LIKE", firstPresent(payload.likedByUserId, payload.userId), payload.postId, "POST", occurredAt, payload.postOwnerId);
 
         case "post.unliked":
-            return build("UNLIKE", firstPresent(payload.userId, payload.likedByUserId), payload.postId, "POST", occurredAt);
+            return build("UNLIKE", firstPresent(payload.userId, payload.likedByUserId), payload.postId, "POST", occurredAt, payload.postOwnerId);
 
         case "post.commented":
-            return build("COMMENT", firstPresent(payload.commentedByUserId, payload.userId), payload.postId, "POST", occurredAt);
+            return build("COMMENT", firstPresent(payload.commentedByUserId, payload.userId), payload.postId, "POST", occurredAt, payload.postOwnerId);
 
+        // No follow o item JÁ É o autor: seguir alguém é o sinal de afinidade mais
+        // direto que existe, e o "item" e o "autor" coincidem.
         case "user.followed":
-            return build("FOLLOW", payload.followerId, payload.followingId, "USER", occurredAt);
+            return build("FOLLOW", payload.followerId, payload.followingId, "USER", occurredAt, payload.followingId);
     }
 }
 
@@ -96,7 +99,8 @@ function build(
     userId: string | undefined,
     itemId: string | undefined,
     itemType: NormalizedInteraction["itemType"],
-    occurredAt: string
+    occurredAt: string,
+    authorId?: string
 ): NormalizedInteraction | null {
     if (!userId || !itemId) {
         return null;
@@ -110,6 +114,9 @@ function build(
         itemId,
         itemType,
         occurredAt,
+        // `postOwnerId` quando o produtor informa; null quando não. Afinidade só é
+        // calculada para o que tem autor conhecido.
+        authorId: authorId ?? null,
         // Eventos de domínio não pertencem a uma sessão de navegação, e não há
         // posição nem dwell: quem publicou não tem essa informação.
         sessionId: null,
