@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: interaction-service-worker
+  namespace: default
+  labels:
+    app: interaction-service-worker
+spec:
+  # ATENÇÃO antes de aumentar: o migrate roda no CMD do container quando
+  # MODE=worker. Com mais de uma réplica, duas aplicariam DDL ao mesmo tempo e o
+  # Cassandra entraria em desacordo de schema. Para escalar o worker, mova o
+  # migrate para um Job (ou initContainer único) antes de subir replicas.
+  # O consumer group já está pronto para isso: o groupId é fixo, então as
+  # partições se distribuem sozinhas entre réplicas.
+  replicas: 1
+  strategy:
+    # Recreate e não RollingUpdate: durante um rolling, a réplica nova entraria no
+    # consumer group antes de a antiga sair, forçando um rebalance a mais sem ganho
+    # nenhum — o worker não atende tráfego de entrada.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: interaction-service-worker
+  template:
+    metadata:
+      labels:
+        app: interaction-service-worker
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      # Folga para o consumidor terminar a mensagem em voo e fazer commit do offset
+      # antes de o pod morrer.
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: astra-bundle
+          secret:
+            secretName: astra-secure-connect-bundle
+      containers:
+        - name: interaction-service-worker
+          image: ghcr.io/victormarchidev/vibester-interaction-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3007
+          envFrom:
+            - secretRef:
+                name: interaction-service-secret
+          env:
+            - name: SERVICE_MODE
+              value: "worker"
+            - name: ASTRA_SECURE_CONNECT_BUNDLE
+              value: /etc/astra/secure-connect-bundle.zip
+          volumeMounts:
+            - name: astra-bundle
+              mountPath: /etc/astra
+              readOnly: true
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "640Mi"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3007
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3007
+            initialDelaySeconds: 45
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
