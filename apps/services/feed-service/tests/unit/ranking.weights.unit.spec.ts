@@ -27,7 +27,8 @@ describe("loadWeights", () => {
     });
 
     it("devolve o motivo da recusa, com o caminho do campo", () => {
-        const result = loadWeights({ ...DEFAULT_WEIGHTS, priorRate: 5 });
+        // priorRate agora é ponto por impressão, então 5 é válido; negativo não é.
+        const result = loadWeights({ ...DEFAULT_WEIGHTS, priorRate: -1 });
 
         expect(result.ok).toBe(false);
         if (!result.ok) {
@@ -64,23 +65,28 @@ describe("loadWeights", () => {
 });
 
 describe("DEFAULT_WEIGHTS", () => {
-    it("ancora os positivos em LIKE = 1", () => {
-        expect(DEFAULT_WEIGHTS.signals.LIKE).toBe(1);
+    it("usa a escala de teto 100, com LIKE em 60", () => {
+        expect(DEFAULT_WEIGHTS.signals.LIKE).toBe(60);
     });
 
-    it("mantém os positivos numa faixa comprimida de 1 a 5, exceto o check-in", () => {
-        const positivos = Object.entries(DEFAULT_WEIGHTS.signals)
-            .filter(([signal, peso]) => peso > 0 && signal !== "EVENT_CHECKIN")
-            .map(([, peso]) => peso);
-
-        for (const peso of positivos) {
-            expect(peso).toBeGreaterThanOrEqual(1);
-            expect(peso).toBeLessThanOrEqual(5);
+    it("respeita o teto: nenhum peso passa de 100 em módulo", () => {
+        for (const peso of Object.values(DEFAULT_WEIGHTS.signals)) {
+            expect(Math.abs(peso)).toBeLessThanOrEqual(100);
         }
     });
 
-    it("dá ao check-in o peso que rompe a faixa, por ser prova de comportamento real", () => {
-        expect(DEFAULT_WEIGHTS.signals.EVENT_CHECKIN).toBe(10);
+    it("mantém a ordem relativa do catálogo entre as ações de intenção", () => {
+        const { TICKET_CLICK, LIKE, SAVE, PROFILE_OPEN, DWELL } = DEFAULT_WEIGHTS.signals;
+
+        expect(TICKET_CLICK).toBeGreaterThan(LIKE);
+        expect(LIKE).toBeGreaterThan(SAVE);
+        expect(SAVE).toBeGreaterThan(PROFILE_OPEN);
+        expect(PROFILE_OPEN).toBeGreaterThan(DWELL);
+    });
+
+    it("coloca comentário e check-in no topo da escala", () => {
+        expect(DEFAULT_WEIGHTS.signals.COMMENT).toBe(100);
+        expect(DEFAULT_WEIGHTS.signals.EVENT_CHECKIN).toBe(100);
     });
 
     it("mantém IMPRESSION em zero, porque é denominador", () => {

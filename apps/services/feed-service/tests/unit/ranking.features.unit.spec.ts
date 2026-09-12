@@ -179,7 +179,7 @@ describe("RankingFeaturesService.buildItemFeatures", () => {
 
     it("deriva a afinidade dos contadores do autor com os pesos vigentes", async () => {
         (repo.findCountsByUser as ReturnType<typeof vi.fn>).mockResolvedValue({
-            [AUTOR]: { LIKE: 20 },
+            [AUTOR]: { COMMENT: 8 },
         });
 
         const features = await service.buildItemFeatures(
@@ -188,7 +188,7 @@ describe("RankingFeaturesService.buildItemFeatures", () => {
             AGORA
         );
 
-        // 20 pontos com saturação 20 = meia afinidade.
+        // 8 comentários × 100 = 800 pontos, com saturação 800 = meia afinidade.
         expect(features[0]!.affinity).toBeCloseTo(0.5, 5);
     });
 
@@ -203,7 +203,7 @@ describe("RankingFeaturesService.buildItemFeatures", () => {
         const comPesoOriginal = await service.buildItemFeatures(LEITOR, candidatos, AGORA);
         const comPesoNovo = await service.buildItemFeatures(LEITOR, candidatos, AGORA, {
             ...DEFAULT_WEIGHTS,
-            signals: { ...DEFAULT_WEIGHTS.signals, COMMENT: 10 },
+            signals: { ...DEFAULT_WEIGHTS.signals, COMMENT: 200 },
         });
 
         expect(comPesoNovo[0]!.affinity).toBeGreaterThan(comPesoOriginal[0]!.affinity);

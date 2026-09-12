@@ -8,20 +8,26 @@ import { SignalCounts, SignalType } from "./types";
  * ruído, a segunda é evidência — e a média crua não distingue as duas.
  *
  * A suavização puxa a taxa para uma média a priori da plataforma, com força
- * proporcional à falta de evidência. Com `priorRate = 0.08` e `priorWeight = 50`,
- * a MESMA taxa crua de 50% vira:
+ * proporcional à falta de evidência. A taxa é medida em **pontos ponderados por
+ * impressão** (escala de teto 100, onde `LIKE = 60`), não em fração.
  *
- * | ações / impressões | taxa crua | suavizada |
- * |--------------------|-----------|-----------|
- * | 1 / 2              | 50%       | ~9,6%     |
- * | 10 / 20            | 50%       | ~20%      |
- * | 50 / 100           | 50%       | ~36%      |
- * | 500 / 1.000        | 50%       | ~48%      |
- * | 5.000 / 10.000     | 50%       | ~49,8%    |
+ * Com `priorRate = 2,4` (4% de engajamento médio × 60) e `priorWeight = 30`, a MESMA
+ * proporção crua de "metade de quem viu curtiu" vira:
  *
- * Ou seja: só quem tem volume consegue reivindicar uma taxa alta. `priorWeight` é
- * literalmente "quantas impressões de crédito a priori" — 50 significa que um item
- * precisa de dezenas de impressões antes de a taxa dele dominar o palpite.
+ * | curtidas / impressões | pontos/impressão cru | suavizado | vezes a média |
+ * |-----------------------|----------------------|-----------|---------------|
+ * | 1 / 2                 | 30                   | 4,1       | **1,7×**      |
+ * | 10 / 20               | 30                   | 13,4      | 5,6×          |
+ * | 50 / 100              | 30                   | 23,6      | 9,9×          |
+ * | 500 / 1.000           | 30                   | 29,2      | 12,2×         |
+ * | 5.000 / 10.000        | 30                   | 29,9      | **12,5×**     |
+ *
+ * Ou seja: só quem tem volume consegue reivindicar qualidade alta. `priorWeight` é
+ * literalmente "quantas impressões de crédito a priori" — 30 significa que aos 30
+ * impressões o item passa a ser acreditado meio a meio com a média da plataforma.
+ *
+ * A suavização se desliga sozinha: com 10 mil impressões, as 30 fantasmas são 0,3%
+ * do total e desaparecem. Nunca é preciso desativá-la.
  */
 export interface SmoothingConfig {
     /** Taxa média da plataforma, usada como palpite inicial. */
@@ -86,4 +92,22 @@ export function recencyDecay(ageHours: number, halfLifeHours: number): number {
     const age = Math.max(0, ageHours);
 
     return Math.pow(0.5, age / halfLifeHours);
+}
+
+/**
+ * Qualidade do item em **múltiplos da média da plataforma**.
+ *
+ * Existe para tornar o score independente da escala dos pesos. Sem isso, trocar a
+ * régua dos sinais (de "âncora em 1" para "teto 100", por exemplo) multiplicaria o
+ * termo de engajamento por 60 e a afinidade — que vive em [0, 1] — viraria ruído
+ * irrelevante no score. Normalizando, um item médio vale 1 em qualquer escala.
+ *
+ * Leitura direta: 1 é média, 2 é o dobro da média, 0,5 é metade.
+ */
+export function qualityMultiple(smoothedRate: number, priorRate: number): number {
+    // Sem média a priori não há como normalizar; devolve a taxa crua em vez de dividir
+    // por zero, e quem configurou assim vai ver números fora de escala no breakdown.
+    if (priorRate <= 0) { return smoothedRate; }
+
+    return smoothedRate / priorRate;
 }

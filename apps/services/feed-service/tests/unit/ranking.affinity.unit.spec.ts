@@ -3,22 +3,23 @@ import { affinityFromCounts } from "../../src/ranking/affinity";
 import { DEFAULT_WEIGHTS } from "../../src/ranking/weights";
 
 const PESOS = DEFAULT_WEIGHTS.signals;
-const SATURACAO = 20;
+const SATURACAO = 800;
 
 describe("affinityFromCounts", () => {
     it("satura suavemente conforme os pontos crescem", () => {
-        // Com saturação 20, 20 pontos ponderados valem exatamente meia afinidade.
+        // Com saturação 800, 800 pontos valem exatamente meia afinidade — que na
+        // escala de teto 100 são 8 comentários.
         const casos = [
-            { pontos: 0, esperado: 0 },
-            { pontos: 5, esperado: 0.2 },
-            { pontos: 20, esperado: 0.5 },
-            { pontos: 60, esperado: 0.75 },
-            { pontos: 500, esperado: 0.9615 },
+            { comentarios: 0, esperado: 0 },
+            { comentarios: 2, esperado: 0.2 },
+            { comentarios: 8, esperado: 0.5 },
+            { comentarios: 24, esperado: 0.75 },
+            { comentarios: 200, esperado: 0.9615 },
         ];
 
-        for (const { pontos, esperado } of casos) {
-            // LIKE tem peso 1, então N curtidas = N pontos.
-            expect(affinityFromCounts({ LIKE: pontos }, PESOS, SATURACAO)).toBeCloseTo(esperado, 3);
+        for (const { comentarios, esperado } of casos) {
+            // COMMENT tem peso 100, então N comentários = 100N pontos.
+            expect(affinityFromCounts({ COMMENT: comentarios }, PESOS, SATURACAO)).toBeCloseTo(esperado, 3);
         }
     });
 
@@ -42,13 +43,14 @@ describe("affinityFromCounts", () => {
         expect(affinityFromCounts({}, PESOS, SATURACAO)).toBe(0);
     });
 
-    it("check-in em evento constrói afinidade dez vezes mais rápido que curtida", () => {
+    it("check-in constrói afinidade mais rápido que curtida, no teto da escala", () => {
         const comCheckin = affinityFromCounts({ EVENT_CHECKIN: 1 }, PESOS, SATURACAO);
         const comUmaCurtida = affinityFromCounts({ LIKE: 1 }, PESOS, SATURACAO);
-        const comDezCurtidas = affinityFromCounts({ LIKE: 10 }, PESOS, SATURACAO);
+        const comComentario = affinityFromCounts({ COMMENT: 1 }, PESOS, SATURACAO);
 
         expect(comCheckin).toBeGreaterThan(comUmaCurtida);
-        expect(comCheckin).toBeCloseTo(comDezCurtidas, 10);
+        // Na escala de teto 100 os dois empatam — check-in deixou de ser único.
+        expect(comCheckin).toBeCloseTo(comComentario, 10);
     });
 
     it("saldo negativo devolve 0 em vez de afinidade negativa", () => {

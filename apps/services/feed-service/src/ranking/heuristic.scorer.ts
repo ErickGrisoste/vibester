@@ -1,5 +1,5 @@
 import { ItemFeatures, RankingContext, ScoredItem, Scorer } from "./types";
-import { recencyDecay, smoothedEngagementRate, weightedActions } from "./engagement";
+import { qualityMultiple, recencyDecay, smoothedEngagementRate, weightedActions } from "./engagement";
 import { RankingWeights, getWeights } from "./weights";
 
 /**
@@ -7,7 +7,7 @@ import { RankingWeights, getWeights } from "./weights";
  *
  * Forma do score:
  *
- *   base  = engagementWeight × taxaSuavizada + affinityWeight × afinidade
+ *   base  = engagementWeight × qualidadeNormalizada + affinityWeight × afinidade
  *   score = base × decaimentoPorIdade
  *
  * O decaimento multiplica em vez de somar porque num app de vida noturna a
@@ -44,7 +44,9 @@ export class HeuristicScorer implements Scorer {
             priorWeight: this.weights.priorWeight,
         });
 
-        const engagement = this.weights.engagementWeight * rate;
+        // Normalizado pela média da plataforma: 1 = item médio. Ver qualityMultiple.
+        const quality = qualityMultiple(rate, this.weights.priorRate);
+        const engagement = this.weights.engagementWeight * quality;
         const affinity = this.weights.affinityWeight * item.affinity;
         const decay = recencyDecay(item.ageHours, this.weights.halfLifeHours);
 
@@ -58,6 +60,7 @@ export class HeuristicScorer implements Scorer {
             breakdown: {
                 weightedActions: actions,
                 smoothedRate: rate,
+                qualityMultiple: quality,
                 engagement,
                 affinity,
                 decay,

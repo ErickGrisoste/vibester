@@ -43,6 +43,7 @@ describe("HeuristicScorer", () => {
             "affinity",
             "decay",
             "engagement",
+            "qualityMultiple",
             "smoothedRate",
             "weightedActions",
         ]);
@@ -104,13 +105,23 @@ describe("HeuristicScorer", () => {
         expect(rejeitado.score).toBeLessThan(0);
     });
 
-    it("check-in em evento pesa mais que dez curtidas no score final", () => {
+    it("check-in pesa mais que a mesma quantidade de curtidas no score final", () => {
         const scorer = new HeuristicScorer(DEFAULT_WEIGHTS);
 
-        const comCheckin = scorer.score(item({ itemId: "a", signals: { EVENT_CHECKIN: 2 } }), CONTEXT);
+        const comCheckin = scorer.score(item({ itemId: "a", signals: { EVENT_CHECKIN: 10 } }), CONTEXT);
         const comLikes = scorer.score(item({ itemId: "b", signals: { LIKE: 10 } }), CONTEXT);
 
         expect(comCheckin.score).toBeGreaterThan(comLikes.score);
+    });
+
+    it("um item médio recebe qualidade normalizada perto de 1", () => {
+        // 100 impressões com 4% de curtidas = a média da plataforma.
+        const scorer = new HeuristicScorer(DEFAULT_WEIGHTS);
+
+        const medio = scorer.score(item({ impressions: 100, signals: { LIKE: 4 } }), CONTEXT);
+
+        expect(medio.breakdown.qualityMultiple).toBeGreaterThan(0.7);
+        expect(medio.breakdown.qualityMultiple).toBeLessThan(1.3);
     });
 
     it("congela os pesos na construção, para não comparar itens com réguas diferentes", () => {

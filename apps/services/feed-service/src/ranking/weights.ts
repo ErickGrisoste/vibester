@@ -11,19 +11,41 @@ import { SignalType } from "./types";
  *
  * ## Como estes números foram escolhidos
  *
- * Estágio 1, sem dado: chute ancorado em `LIKE = 1`, com faixa comprimida entre 1 e
- * 5 para os positivos. A faixa é estreita de propósito — errar dentro dela causa
- * pouco estrago, e nenhum dos números aqui é defensável ainda.
+ * Escala de **teto 100**, vinda do catálogo de ações do desenho do produto. O valor
+ * é "quanto aquela ação vale" numa régua em que o máximo é 100:
  *
- * Os negativos são desproporcionais por assimetria de custo: mostrar algo que a
- * pessoa pediu para não ver custa muito mais do que deixar de mostrar algo que ela
- * talvez gostasse.
+ * | Ação               | Peso | Por quê |
+ * |--------------------|------|---------|
+ * | `COMMENT`          | 100  | Exige digitar: "quero participar disso" |
+ * | `EVENT_CHECKIN`    | 100  | Apareceu no lugar. O único sinal que prova que o app fez alguém sair de casa |
+ * | `TICKET_CLICK`     |  80  | Intenção de compra |
+ * | `LIKE`             |  60  | Um toque: "ok, gostei" |
+ * | `SAVE`             |  50  | "Quero isso depois" — num app de rolê, quase um "vou nesse lugar" |
+ * | `TAP_DETAIL`       |  40  | Abriu o item |
+ * | `PROFILE_OPEN`     |  40  | "Quem é essa pessoa?" |
+ * | `FOLLOW`           |  40  | Mexe no grafo, não só no gosto |
+ * | `DWELL`            |  20  | Passou de ~5s no item: atenção sem compromisso |
+ * | `DIRECTIONS_CLICK` |  20  | Abriu o mapa — quase um check-in adiantado |
  *
- * `EVENT_CHECKIN = 10` rompe a faixa de propósito: é o único sinal que prova que o
- * app fez alguém sair de casa. Nenhum feed genérico tem isso.
+ * Negativos são desproporcionais por assimetria de custo: mostrar algo que a pessoa
+ * pediu para não ver custa muito mais do que deixar de mostrar algo que ela talvez
+ * gostasse. `NOT_INTERESTED = -100` é o dado mais limpo do sistema — a pessoa
+ * literalmente contou.
  *
- * Estágio 2, com ~1 mês de dado: medir retenção por ação e substituir o chute por
- *   peso(ação) = (retenção_da_ação − base) / (retenção_do_like − base)
+ * ## Três valores que o catálogo não define, e que foram escolhidos aqui
+ *
+ * - `IMPRESSION = 0`. O catálogo lista 5, mas impressão é o **denominador** da taxa.
+ *   Com peso positivo no numerador, `(5×impressões + ...) / impressões` nunca cai
+ *   abaixo de 5 e a taxa perde o sentido. `weightedActions` também a ignora em
+ *   código, então o único valor coerente aqui é zero.
+ * - `SKIP = -30`. O catálogo descreve `FAST_SKIP` como julgamento, mas não dá número.
+ *   Escolhido menos severo que `NOT_INTERESTED` porque é inferido, não declarado.
+ * - `UNLIKE = -60`. Não está no catálogo; é o espelho exato de `LIKE`.
+ *
+ * ## Estágio 2
+ *
+ * Com ~1 mês de dado: medir retenção por ação e substituir o chute por
+ *   peso(ação) = (retenção_da_ação − base) / (retenção_do_like − base) × 60
  * É correlação, não causalidade — serve para ordenar, não para afirmar causa.
  */
 const signalWeightsSchema = z.object({
@@ -49,7 +71,7 @@ export const rankingWeightsSchema = z.object({
 
     signals: signalWeightsSchema,
 
-    /** Quanto a taxa de engajamento suavizada pesa no score. */
+    /** Quanto a qualidade normalizada do item pesa no score. */
     engagementWeight: z.number().nonnegative(),
     /** Quanto a afinidade leitor-autor pesa no score. */
     affinityWeight: z.number().nonnegative(),
@@ -57,8 +79,14 @@ export const rankingWeightsSchema = z.object({
     /** Meia-vida do decaimento por idade, em horas. */
     halfLifeHours: z.number().positive(),
 
-    /** Suavização da taxa: média a priori e seu peso em impressões. */
-    priorRate: z.number().min(0).max(1),
+    /**
+     * Suavização da taxa.
+     *
+     * `priorRate` é a média da plataforma em **pontos ponderados por impressão**, não
+     * em fração: na escala de teto 100 ela não cabe mais em [0, 1]. Com 4% de
+     * engajamento médio e `LIKE = 60`, são 2,4 pontos por impressão.
+     */
+    priorRate: z.number().nonnegative(),
     priorWeight: z.number().nonnegative(),
 
     /** Quantos pontos ponderados valem meia afinidade. Ver src/ranking/affinity.ts. */
@@ -69,46 +97,47 @@ export type RankingWeights = z.infer<typeof rankingWeightsSchema>;
 export type SignalWeights = Record<SignalType, number>;
 
 export const DEFAULT_WEIGHTS: RankingWeights = {
-    version: "2026-09-12.chute-inicial",
+    version: "2026-09-12.teto-100",
 
     signals: {
-        // Denominador, não numerador — nunca entra na soma de ações.
+        // Denominador, não numerador — ver a nota acima.
         IMPRESSION: 0,
 
-        // Positivos, faixa comprimida 1 a 5, ancorados em LIKE = 1.
-        LIKE: 1,
-        DWELL: 1,
-        TAP_DETAIL: 2,
-        PROFILE_OPEN: 2,
-        COMMENT: 3,
-        FOLLOW: 4,
-        SAVE: 4,
-        DIRECTIONS_CLICK: 4,
-        TICKET_CLICK: 5,
+        COMMENT: 100,
+        EVENT_CHECKIN: 100,
+        TICKET_CLICK: 80,
+        LIKE: 60,
+        SAVE: 50,
+        TAP_DETAIL: 40,
+        PROFILE_OPEN: 40,
+        FOLLOW: 40,
+        DWELL: 20,
+        DIRECTIONS_CLICK: 20,
 
-        // Rompe a faixa: prova de comportamento no mundo real.
-        EVENT_CHECKIN: 10,
-
-        // Negativos desproporcionais, por assimetria de custo.
-        SKIP: -1,
-        UNLIKE: -2,
-        NOT_INTERESTED: -10,
+        SKIP: -30,
+        UNLIKE: -60,
+        NOT_INTERESTED: -100,
     },
 
+    // O termo de engajamento entra NORMALIZADO pela média da plataforma (ver
+    // `qualityMultiple`), então 1 significa "um item médio contribui 1". É o que mantém
+    // engajamento e afinidade na mesma ordem de grandeza — sem a normalização, trocar a
+    // escala dos pesos faria o engajamento crescer 60× e a afinidade virar ruído.
     engagementWeight: 1,
     affinityWeight: 0.6,
 
     // 8h: um post de ontem à noite não concorre com o de hoje.
     halfLifeHours: 8,
 
-    // 8% de taxa média e 50 impressões de crédito a priori. Ambos são chute e
-    // devem ser recalibrados assim que houver um mês de impressão real.
-    priorRate: 0.08,
-    priorWeight: 50,
+    // 4% de engajamento médio × peso 60 do like = 2,4 pontos por impressão.
+    // 30 impressões de crédito a priori, como o catálogo sugere (C ≈ 30).
+    // Ambos são chute e devem ser recalibrados com um mês de impressão real.
+    priorRate: 2.4,
+    priorWeight: 30,
 
-    // 20 pontos = meia afinidade. Uma dezena de curtidas mais um comentário no mesmo
-    // autor chega perto disso. Chute, como o resto.
-    affinitySaturation: 20,
+    // 800 pontos = meia afinidade, o que na escala de teto 100 equivale a umas 10
+    // curtidas mais 2 comentários no mesmo autor. Chute, como o resto.
+    affinitySaturation: 800,
 };
 
 let current: RankingWeights = DEFAULT_WEIGHTS;
@@ -120,7 +149,7 @@ export function getWeights(): RankingWeights {
 /**
  * Substitui os pesos em uso.
  *
- * Config inválida **não** derruba o serviço nem entra em uso: o feed continua
+ * Config inválida **não** entra em uso nem derruba o serviço: o feed continua
  * rankeando com os pesos anteriores e o erro é devolvido para quem chamou logar.
  * Um feed com peso errado é pior que um feed com peso velho.
  */

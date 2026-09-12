@@ -6,44 +6,48 @@ import {
 } from "../../src/ranking/engagement";
 import { DEFAULT_WEIGHTS } from "../../src/ranking/weights";
 
-const SMOOTHING = { priorRate: 0.08, priorWeight: 50 };
+// Media da plataforma em pontos por impressao (4% x peso 60 do like) e 30
+// impressoes de credito a priori.
+const SMOOTHING = { priorRate: 2.4, priorWeight: 30 };
 
 describe("smoothedEngagementRate", () => {
     /**
      * O teste que justifica a existência da suavização: a MESMA taxa crua de 50% em
      * volumes diferentes tem que produzir confiança diferente.
      */
-    it("separa ruído de evidência na mesma taxa crua de 50%", () => {
+    it("separa ruído de evidência na mesma proporção crua", () => {
+        // Em todos os casos metade de quem viu curtiu: 30 pontos por impressão
+        // (0,5 × peso 60). O que muda é só quanta evidência existe.
         const casos = [
-            { acoes: 1, impressoes: 2, esperado: 0.0962 },
-            { acoes: 10, impressoes: 20, esperado: 0.2 },
-            { acoes: 50, impressoes: 100, esperado: 0.36 },
-            { acoes: 500, impressoes: 1_000, esperado: 0.48 },
-            { acoes: 5_000, impressoes: 10_000, esperado: 0.4979 },
+            { acoes: 60, impressoes: 2, esperado: 4.125 },
+            { acoes: 600, impressoes: 20, esperado: 13.44 },
+            { acoes: 3_000, impressoes: 100, esperado: 23.63 },
+            { acoes: 30_000, impressoes: 1_000, esperado: 29.20 },
+            { acoes: 300_000, impressoes: 10_000, esperado: 29.92 },
         ];
 
         for (const { acoes, impressoes, esperado } of casos) {
-            expect(smoothedEngagementRate(acoes, impressoes, SMOOTHING)).toBeCloseTo(esperado, 3);
+            expect(smoothedEngagementRate(acoes, impressoes, SMOOTHING)).toBeCloseTo(esperado, 2);
         }
     });
 
-    it("cresce monotonicamente com o volume, mantendo a taxa crua fixa", () => {
+    it("cresce monotonicamente com o volume, mantendo a proporção crua fixa", () => {
         const taxas = [2, 20, 100, 1_000, 10_000].map((impressoes) =>
-            smoothedEngagementRate(impressoes / 2, impressoes, SMOOTHING)
+            smoothedEngagementRate(impressoes * 30, impressoes, SMOOTHING)
         );
 
         for (let i = 1; i < taxas.length; i += 1) {
             expect(taxas[i]!).toBeGreaterThan(taxas[i - 1]!);
         }
 
-        // Converge para a taxa crua, mas nunca a ultrapassa.
-        expect(taxas[taxas.length - 1]!).toBeLessThan(0.5);
+        // Converge para os 30 pontos crus, mas nunca os ultrapassa.
+        expect(taxas[taxas.length - 1]!).toBeLessThan(30);
     });
 
     it("devolve a média a priori quando não houve impressão, em vez de dividir por zero", () => {
-        expect(smoothedEngagementRate(0, 0, SMOOTHING)).toBe(0.08);
-        expect(smoothedEngagementRate(5, 0, SMOOTHING)).toBe(0.08);
-        expect(smoothedEngagementRate(5, -3, SMOOTHING)).toBe(0.08);
+        expect(smoothedEngagementRate(0, 0, SMOOTHING)).toBe(2.4);
+        expect(smoothedEngagementRate(5, 0, SMOOTHING)).toBe(2.4);
+        expect(smoothedEngagementRate(5, -3, SMOOTHING)).toBe(2.4);
     });
 
     it("item sem impressão não é penalizado como item ruim — é tratado como não medido", () => {
@@ -54,7 +58,9 @@ describe("smoothedEngagementRate", () => {
     });
 
     it("ação ponderada negativa afunda a taxa abaixo da priori", () => {
-        const comRejeicao = smoothedEngagementRate(-30, 100, SMOOTHING);
+        // Um NOT_INTERESTED vale -100, então cinco deles derrubam o numerador bem
+        // abaixo do crédito a priori.
+        const comRejeicao = smoothedEngagementRate(-500, 100, SMOOTHING);
 
         expect(comRejeicao).toBeLessThan(0);
     });
@@ -68,27 +74,38 @@ describe("weightedActions", () => {
     });
 
     it("soma os sinais positivos pelos pesos configurados", () => {
-        // 2 likes (1) + 1 comentário (3) = 5
-        expect(weightedActions({ LIKE: 2, COMMENT: 1 }, pesos)).toBe(5);
+        // 2 likes (60) + 1 comentário (100) = 220
+        expect(weightedActions({ LIKE: 2, COMMENT: 1 }, pesos)).toBe(220);
     });
 
-    it("dá ao check-in em evento o peso de dez curtidas", () => {
+    it("empata o check-in com o comentário no topo da escala", () => {
+        // Na escala de teto 100, check-in e comentário são ambos o máximo.
         expect(weightedActions({ EVENT_CHECKIN: 1 }, pesos)).toBe(
-            weightedActions({ LIKE: 10 }, pesos)
+            weightedActions({ COMMENT: 1 }, pesos)
         );
     });
 
-    it("um NOT_INTERESTED supera dez curtidas, por assimetria de custo", () => {
-        const total = weightedActions({ LIKE: 10, NOT_INTERESTED: 1 }, pesos);
+    it("põe o check-in acima de uma curtida e abaixo de duas", () => {
+        const checkin = weightedActions({ EVENT_CHECKIN: 1 }, pesos);
 
-        expect(total).toBe(0);
-        expect(weightedActions({ LIKE: 9, NOT_INTERESTED: 1 }, pesos)).toBeLessThan(0);
+        expect(checkin).toBeGreaterThan(weightedActions({ LIKE: 1 }, pesos));
+        expect(checkin).toBeLessThan(weightedActions({ LIKE: 2 }, pesos));
+    });
+
+    it("um NOT_INTERESTED anula quase duas curtidas", () => {
+        // ATENÇÃO: na escala de teto 100 o negativo mais forte (-100) apenas EMPATA
+        // com o positivo mais forte (COMMENT/EVENT_CHECKIN = 100). A assimetria de
+        // custo que existia na escala ancorada em 1 não sobrevive ao teto — se ela
+        // for desejada, NOT_INTERESTED precisa romper o teto de propósito.
+        expect(weightedActions({ LIKE: 1, NOT_INTERESTED: 1 }, pesos)).toBe(-40);
+        expect(weightedActions({ LIKE: 2, NOT_INTERESTED: 1 }, pesos)).toBe(20);
+        expect(weightedActions({ COMMENT: 1, NOT_INTERESTED: 1 }, pesos)).toBe(0);
     });
 
     it("ignora sinal desconhecido em vez de quebrar", () => {
         const comLixo = { LIKE: 1, SINAL_INEXISTENTE: 99 } as never;
 
-        expect(weightedActions(comLixo, pesos)).toBe(1);
+        expect(weightedActions(comLixo, pesos)).toBe(60);
     });
 
     it("contagem zero ou ausente não contribui", () => {
