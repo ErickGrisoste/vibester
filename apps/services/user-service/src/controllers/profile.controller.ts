@@ -6,11 +6,11 @@ import { EditProfileService } from "../services/editProfile.service.js";
 import { GetProfileService } from "../services/getProfile.service.js";
 import { GetFollowersService } from "../services/getFollowers.service.js";
 import { SearchProfilesService } from "../services/searchProfiles.service.js";
-import type { UserProfile as UserProfileModel } from "@prisma/client";
 import { CheckFollowService } from "../services/checkFollow.service.js";
 import { GenerateShareLinkService } from "../services/generateShareLink.service.js";
 import { ResolveShareLinkService } from "../services/resolveShareLink.service.js";
 import { env } from "../config/env.js";
+import type { ProfileView } from "../prisma/profile.select.js";
 
 const profileService = new CreateProfileService();
 const editProfileService = new EditProfileService();
@@ -36,8 +36,8 @@ const userProfileSchema = z.object({
   updatedAt: z.coerce.date(),
 });
 
-function toProfileResponse(profile: UserProfileModel) {
-  const { id: _id, userID: accountId, ...rest } = profile;
+function toProfileResponse(profile: ProfileView) {
+  const { userID: accountId, ...rest } = profile;
   return { accountId, ...rest };
 }
 
@@ -134,7 +134,7 @@ export async function profileRoutes(app: FastifyInstance) {
       summary: "Criar perfil",
       description: "Cria o perfil de um usuário a partir do seu accountId.",
       body: createProfileSchema,
-      response: { 201: userProfileSchema, 500: errorSchema },
+      response: { 201: userProfileSchema, 409: errorSchema, 500: errorSchema },
     },
   }, async (request, reply) => {
     try {
@@ -142,6 +142,11 @@ export async function profileRoutes(app: FastifyInstance) {
       return reply.status(201).send(toProfileResponse(profile));
     } catch (error) {
       request.log.error(error);
+      // P2002 = violacao de unique (userID ou username ja cadastrado). Sem esse
+      // tratamento o chamador recebe 500 e interpreta como servico fora do ar.
+      if ((error as { code?: string })?.code === "P2002") {
+        return reply.status(409).send({ message: "Profile already exists for this accountId or username" });
+      }
       return reply.status(500).send({ message: "Error creating profile" });
     }
   });

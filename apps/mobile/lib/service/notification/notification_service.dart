@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:mobile/models/notification/notification_model.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
+import 'package:mobile/service/api_error.dart';
 
 class NotificationService {
   Future<List<NotificationModel>> getNotifications(String userId) async {
@@ -13,9 +14,7 @@ class NotificationService {
       final items = response.data['items'] as List<dynamic>? ?? [];
       return items.map((json) => NotificationModel.fromJson(json)).toList();
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao buscar notificações';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar notificações'));
     }
   }
 
@@ -26,9 +25,7 @@ class NotificationService {
       );
       return response.data['count'] ?? 0;
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao buscar notificações';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar notificações'));
     }
   }
 
@@ -36,10 +33,9 @@ class NotificationService {
     try {
       await ApiClient.dio.patch(ApiEndpoints.notificationsMarkRead(userId));
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ??
-          'Erro ao marcar notificações como lidas';
-      throw Exception(mensagem);
+      throw Exception(
+        apiErrorMessage(e, 'Erro ao marcar notificações como lidas'),
+      );
     }
   }
 }

@@ -15,7 +15,7 @@ export class RegisterService {
         });
 
         if (existing) {
-            throw new AppError("Email ou username já está em uso", 409);
+            throw new AppError("Email ou username já está em uso", 409, "account_already_exists");
         }
 
         await emailVerificationService.initiate(input);

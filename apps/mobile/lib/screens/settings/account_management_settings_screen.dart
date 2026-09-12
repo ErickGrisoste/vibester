@@ -1,132 +1,41 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/common/settings_row.dart';
 
-class AccountManagementSettingsScreen extends StatefulWidget {
+/// Gerenciamento de conta.
+///
+/// Os dois itens desta tela ainda não têm destino no app (ambos tinham
+/// `onTap: () {}`), então aparecem marcados como "EM BREVE" em vez de fingir
+/// que abrem alguma coisa — mesma regra da tela de ajustes.
+class AccountManagementSettingsScreen extends StatelessWidget {
   const AccountManagementSettingsScreen({super.key});
-
-  @override
-  State<AccountManagementSettingsScreen> createState() =>
-      _AccountManagementSettingsScreenState();
-}
-
-class _AccountManagementSettingsScreenState
-    extends State<AccountManagementSettingsScreen> {
-  Color get _color => context.colors.darkGrey;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Gerenciar Conta',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: context.colors.noturno,
-        foregroundColor: context.colors.textPrimary,
-      ),
       backgroundColor: context.colors.noturno,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            SizedBox(height: 30),
-
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "DADOS E ATIVIDADE",
-                    style: GoogleFonts.inter(
-                      color: context.colors.textSecondary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: AppSpacing.huge),
+          children: const [
+            ScreenHeader(
+              title: 'Gerenciar\nconta',
+              eyebrow: 'DADOS E ATIVIDADE',
             ),
-
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              height: Platform.isIOS ? 180 : 105,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  //Infos
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(Icons.person, color: context.colors.textMuted),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Historico de Vibe Checks",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 19.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Seguranca
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.security_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Vincular e Gerenciar Contas",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            SettingsGroupLabel('DADOS E ATIVIDADE'),
+            SettingsRow(
+              icon: Icons.history_rounded,
+              label: 'Histórico de vibe checks',
+              comingSoon: true,
             ),
-
-            SizedBox(height: 30),
+            SettingsRow(
+              icon: Icons.link_rounded,
+              label: 'Vincular e gerenciar contas',
+              comingSoon: true,
+            ),
           ],
         ),
       ),

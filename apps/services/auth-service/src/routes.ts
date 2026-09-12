@@ -78,7 +78,7 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
         schema: {
             tags: ["Auth"],
             summary: "Verificar email e concluir cadastro",
-            description: "Valida o código enviado por email e conclui a criação da conta.",
+            description: "Valida o código enviado por email e conclui a criação da conta. Após MAX_CODE_ATTEMPTS códigos incorretos a verificação pendente é descartada (429) e o cadastro precisa ser reiniciado.",
             body: {
                 type: "object",
                 required: ["email", "code"],
@@ -122,6 +122,11 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
                     type: "object",
                     properties: { error: { type: "string" } },
                 },
+                429: {
+                    description: "Tentativas inválidas em excesso — a verificação pendente foi descartada e um novo código deve ser solicitado",
+                    type: "object",
+                    properties: { error: { type: "string" } },
+                },
                 502: {
                     description: "Serviço de perfil indisponível",
                     type: "object",
@@ -143,7 +148,7 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
         schema: {
             tags: ["Auth"],
             summary: "Login",
-            description: "Autentica uma conta usando email ou username e retorna um token JWT.",
+            description: "Autentica uma conta usando email ou username e retorna um token JWT. O username é aceito com ou sem o prefixo \"@\". Falhas consecutivas são contabilizadas e o dono da conta é notificado por email ao atingir o limite da janela.",
             body: {
                 type: "object",
                 required: ["password"],

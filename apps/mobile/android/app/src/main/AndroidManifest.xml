@@ -1,8 +1,27 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.INTERNET"/>
+  <!-- Câmera do app (pacote camera): foto e vídeo. O microfone só é pedido
+       ao entrar no modo vídeo; negado, o vídeo grava sem som. -->
   <uses-permission android:name="android.permission.CAMERA"/>
-  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+  <!-- Sem isto, CAMERA faz o Play esconder o app de aparelho sem câmera. O
+       app trata a ausência (AppCamera → "Sem câmera" → galeria). -->
+  <uses-feature android:name="android.hardware.camera" android:required="false"/>
+  <!-- O camera_android_camerax também declara `camera.any` (obrigatória) e
+       escrita em armazenamento. A feature vira opcional pelo mesmo motivo
+       acima; a escrita sai porque foto e vídeo gravam no cache do próprio app. -->
+  <uses-feature
+      android:name="android.hardware.camera.any"
+      android:required="false"
+      tools:replace="android:required"/>
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
+  <!-- A galeria usa o Photo Picker do sistema (obrigatório no Android 13+),
+       que não exige permissão: READ_MEDIA_IMAGES saiu. A leitura de
+       armazenamento fica só para Android 12 ou anterior. -->
+  <uses-permission
+      android:name="android.permission.READ_EXTERNAL_STORAGE"
+      android:maxSdkVersion="32"/>
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
    
@@ -38,6 +57,11 @@
                 <data android:scheme="vibester" android:host="profile"/>
             </intent-filter>
         </activity>
+        <!-- Recorte da foto de perfil (image_cropper → uCrop). -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

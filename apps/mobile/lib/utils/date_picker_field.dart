@@ -1,133 +1,125 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/theme/theme_extensions.dart';
 import 'package:intl/intl.dart';
+import 'package:mobile/theme/app_spacing.dart';
+import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
 
+/// Campo de data.
+///
+/// Visualmente é o mesmo campo de `PrimaryTextField` (rótulo mono acima, caixa
+/// com fio, erro com ícone abaixo), para o formulário não ter dois idiomas —
+/// o de digitar e o de escolher. O calendário do sistema herda o tema do app,
+/// então não precisa mais do `ColorScheme` montado à mão com hex solto
+/// (`0xFF141414`) que existia aqui.
 class DatePickerField extends FormField<DateTime> {
   DatePickerField({
     super.key,
     required String labelText,
-    required double height,
     DateTime? initialDate,
     void Function(DateTime)? onDateSelected,
     super.validator,
     super.autovalidateMode,
+
+    /// Mantido por compatibilidade com as chamadas existentes; a altura agora
+    /// é definida pelo conteúdo, como nos demais campos.
+    @Deprecated('A altura vem do conteúdo') double? height,
   }) : super(
          initialValue: initialDate,
-         builder: (FormFieldState<DateTime> field) {
-           return _DatePickerFieldView(
-             labelText: labelText,
-             height: height,
-             selectedDate: field.value,
-             errorText: field.errorText,
-             onDateSelected: (picked) {
-               field.didChange(picked);
-               onDateSelected?.call(picked);
-             },
-           );
-         },
+         builder: (field) => _DatePickerFieldView(
+           labelText: labelText,
+           selectedDate: field.value,
+           errorText: field.errorText,
+           onDateSelected: (picked) {
+             field.didChange(picked);
+             onDateSelected?.call(picked);
+           },
+         ),
        );
 }
 
 class _DatePickerFieldView extends StatelessWidget {
   final String labelText;
-  final double height;
   final DateTime? selectedDate;
   final String? errorText;
   final ValueChanged<DateTime> onDateSelected;
 
   const _DatePickerFieldView({
     required this.labelText,
-    required this.height,
     required this.selectedDate,
     required this.errorText,
     required this.onDateSelected,
   });
 
   Future<void> _pickDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
+    final now = DateTime.now();
+    final picked = await showDatePicker(
       context: context,
-      initialDate: selectedDate ?? DateTime.now(),
+      initialDate: selectedDate ?? DateTime(now.year - 18, now.month, now.day),
       firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: context.colors.ambar,
-              surface: Color(0xFF141414),
-              onSurface: Colors.white,
-            ),
-            textTheme: Theme.of(context).textTheme.apply(
-              bodyColor: Colors.white38,
-              displayColor: Colors.white,
-            ),
-            textSelectionTheme: TextSelectionThemeData(
-              cursorColor: context.colors.ambar,
-              selectionColor: context.colors.ambar.withOpacity(0.4),
-              selectionHandleColor: context.colors.ambar,
-            ),
-            inputDecorationTheme: InputDecorationTheme(
-              labelStyle: TextStyle(color: context.colors.ambar),
-              enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: Colors.white10),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: BorderSide(color: context.colors.ambar),
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
+      lastDate: now,
+      helpText: 'QUANDO VOCÊ NASCEU',
+      cancelText: 'CANCELAR',
+      confirmText: 'OK',
     );
 
-    if (picked != null) {
-      onDateSelected(picked);
-    }
+    if (picked != null) onDateSelected(picked);
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool hasError = errorText != null;
+    final colors = context.colors;
+    final type = context.typography;
+    final hasError = errorText != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
+        Text(
+          labelText.toUpperCase(),
+          style: type.monoMicro.copyWith(
+            color: hasError ? colors.error : colors.textMuted,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        VibesterPressable(
           onTap: () => _pickDate(context),
+          borderRadius: AppRadius.mdAll,
           child: Container(
-            width: 350,
-            height: height,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.lg,
+            ),
             decoration: BoxDecoration(
-              color: const Color(0xFF141414),
-              borderRadius: BorderRadius.circular(18),
+              color: colors.surface,
+              borderRadius: AppRadius.mdAll,
               border: Border.all(
-                color: hasError
-                    ? Colors.redAccent
-                    : (selectedDate != null
-                          ? context.colors.ambar
-                          : Colors.white10),
-                width: 1.3,
+                color: hasError ? colors.error : colors.hairline,
+                width: hasError ? AppStroke.regular : AppStroke.hairline,
               ),
             ),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  selectedDate != null
-                      ? DateFormat('dd/MM/yyyy', 'pt_BR').format(selectedDate!)
-                      : labelText,
-                  style: TextStyle(
-                    color: selectedDate != null ? Colors.white : Colors.white54,
+                Icon(Icons.cake_outlined, size: 19, color: colors.textDisabled),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    selectedDate == null
+                        ? 'Escolher data'
+                        : DateFormat(
+                            "d 'de' MMMM 'de' y",
+                            'pt_BR',
+                          ).format(selectedDate!),
+                    style: type.bodyLarge.copyWith(
+                      color: selectedDate == null
+                          ? colors.textDisabled
+                          : colors.textPrimary,
+                    ),
                   ),
                 ),
                 Icon(
-                  Icons.calendar_today,
-                  color: hasError ? Colors.redAccent : context.colors.ambar,
-                  size: 18,
+                  Icons.calendar_today_outlined,
+                  size: 17,
+                  color: colors.textMuted,
                 ),
               ],
             ),
@@ -135,10 +127,22 @@ class _DatePickerFieldView extends StatelessWidget {
         ),
         if (hasError)
           Padding(
-            padding: const EdgeInsets.only(top: 6, left: 4),
-            child: Text(
-              errorText!,
-              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            padding: const EdgeInsets.only(top: AppSpacing.sm),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.error_outline_rounded,
+                  size: 13,
+                  color: colors.error,
+                ),
+                const SizedBox(width: AppSpacing.xs + 2),
+                Expanded(
+                  child: Text(
+                    errorText!,
+                    style: type.bodySmall.copyWith(color: colors.error),
+                  ),
+                ),
+              ],
             ),
           ),
       ],

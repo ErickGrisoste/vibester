@@ -1,16 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/service/user/user_service.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/buttons/primary_button.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/motion/vibester_shake.dart';
 import 'package:pinput/pinput.dart';
 import 'package:provider/provider.dart';
 
+/// Confirmação de e-mail por código.
+///
+/// A tela serve dois fluxos com o mesmo código: ativar uma conta recém-criada
+/// (segue para a edição de perfil) e confirmar identidade antes de redefinir a
+/// senha (via [onEmailConfirmed]).
+///
+/// Duas correções vieram com o redesenho: o código tem 6 dígitos, mas a
+/// validação local liberava com 5 (`length < 5`) e o erro só aparecia depois
+/// da ida ao servidor; e o erro exibido era o `toString()` da exceção crua num
+/// SnackBar. Agora a caixa de código treme quando o código é rejeitado —
+/// resposta imediata, no lugar onde o erro aconteceu.
 class EmailConfirmScreen extends StatefulWidget {
   final String email;
   final String senha;
@@ -28,7 +42,10 @@ class EmailConfirmScreen extends StatefulWidget {
 }
 
 class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
+  static const _codeLength = 6;
+
   bool _pinError = false;
+  int _errorTick = 0;
   bool _isLoading = false;
   final _pinController = TextEditingController();
   final _userService = UserService();
@@ -50,12 +67,20 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
 
       ApiClient.token = token;
 
-      final profileResponse = await _userService.getProfile(accountId);
-      final usuarioLogado = UserModel.fromProfileJson(
-        profileResponse,
-        accountId: accountId,
-        token: token,
-      );
+      // Mesmo tratamento da tela de login: a conta já foi criada e o token é
+      // válido, então falha ao carregar o perfil não desfaz o cadastro.
+      UserModel usuarioLogado;
+      try {
+        final profileResponse = await _userService.getProfile(accountId);
+        usuarioLogado = UserModel.fromProfileJson(
+          profileResponse,
+          accountId: accountId,
+          token: token,
+        );
+      } catch (e) {
+        debugPrint('Cadastro OK, mas falhou ao carregar o perfil: $e');
+        usuarioLogado = UserModel.fromLoginJson(loginResponse);
+      }
 
       await AuthStorageService.saveSession(usuarioLogado);
 
@@ -65,6 +90,7 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
       Navigator.pushNamed(context, AppRoutes.profileEditing);
     } catch (e) {
       debugPrint(e.toString());
+      ApiClient.token = null;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -84,8 +110,11 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
   }
 
   Future<void> _verificarCodigo() async {
-    if (_pinController.text.length < 5) {
-      setState(() => _pinError = true);
+    if (_pinController.text.length < _codeLength) {
+      setState(() {
+        _pinError = true;
+        _errorTick++;
+      });
       return;
     }
 
@@ -102,10 +131,22 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
       await _aoVerificar();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _pinError = true);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      setState(() {
+        _pinError = true;
+        _errorTick++;
+      });
+      debugPrint('Falha ao verificar código: $e');
+      // A mensagem vem do auth-service: "Código inválido" (422) e "Serviço de
+      // perfil indisponível" (502) pedem ações diferentes do usuário.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is Exception
+                ? e.toString().replaceFirst('Exception: ', '')
+                : 'Código inválido ou expirado',
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -119,127 +160,124 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Dígito em DM Mono: é um código de sistema, não uma palavra.
     final defaultTheme = PinTheme(
-      width: 56,
-      height: 56,
-      textStyle: GoogleFonts.inter(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: context.colors.ambar,
+      width: 48,
+      height: 58,
+      textStyle: context.typography.monoDisplay.copyWith(
+        color: context.colors.textPrimary,
+        fontSize: 22,
       ),
       decoration: BoxDecoration(
-        color: context.colors.ambar.withOpacity(0.05),
-        border: Border.all(
-          color: context.colors.ambar.withOpacity(0.3),
-          width: 1.5,
-        ),
-        borderRadius: BorderRadius.circular(12),
+        color: context.colors.surface,
+        border: Border.all(color: context.colors.hairline),
+        borderRadius: AppRadius.smAll,
       ),
     );
 
     final focusedTheme = defaultTheme.copyWith(
       decoration: defaultTheme.decoration!.copyWith(
-        border: Border.all(color: context.colors.ambar, width: 2),
-        color: context.colors.ambar.withOpacity(0.08),
-        boxShadow: [
-          BoxShadow(
-            color: context.colors.ambar.withOpacity(0.25),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
+        border: Border.all(
+          color: context.colors.ambar,
+          width: AppStroke.regular,
+        ),
       ),
     );
 
     final errorTheme = defaultTheme.copyWith(
       decoration: defaultTheme.decoration!.copyWith(
-        border: Border.all(color: context.colors.error, width: 2),
-        color: context.colors.error.withOpacity(0.08),
-        boxShadow: [
-          BoxShadow(
-            color: context.colors.error.withOpacity(0.25),
-            blurRadius: 8,
-            spreadRadius: 1,
-          ),
-        ],
+        border: Border.all(
+          color: context.colors.error,
+          width: AppStroke.regular,
+        ),
       ),
     );
 
     return Scaffold(
-      backgroundColor: context.colors.darkGrey,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Center(
-              child: SizedBox(
-                width: 130,
-                height: 300,
-                child: Image.asset('assets/img/mascote/mascote.png'),
-              ),
-            ),
-
-            Text(
-              'Verifique seu email',
-              style: GoogleFonts.inter(
-                color: context.colors.textPrimary,
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            RichText(
-              textAlign: TextAlign.center,
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: 'Enviamos um código de verificação para\n',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: context.colors.grey,
-                    ),
+      backgroundColor: context.colors.noturno,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: Grain(opacity: 0.04, density: 0.4)),
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+              children: [
+                const ScreenHeader(
+                  title: 'Confirma\nseu e-mail',
+                  eyebrow: 'ÚLTIMO PASSO',
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screen,
                   ),
-                  TextSpan(
-                    text: widget.email,
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.orange,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text.rich(
+                        TextSpan(
+                          style: context.typography.bodyLarge.copyWith(
+                            color: context.colors.textMuted,
+                          ),
+                          children: [
+                            const TextSpan(text: 'Mandamos um código de 6 '),
+                            const TextSpan(text: 'dígitos para\n'),
+                            TextSpan(
+                              text: widget.email,
+                              style: TextStyle(
+                                color: context.colors.ambar,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: AppSpacing.xxl),
+
+                      // Treme a cada rejeição — inclusive quando é o mesmo
+                      // erro de novo, porque o contador muda junto.
+                      VibesterShake(
+                        trigger: _errorTick,
+                        child: Pinput(
+                          length: _codeLength,
+                          defaultPinTheme: defaultTheme,
+                          focusedPinTheme: focusedTheme,
+                          errorPinTheme: errorTheme,
+                          controller: _pinController,
+                          forceErrorState: _pinError,
+                          onChanged: (_) {
+                            if (_pinError) setState(() => _pinError = false);
+                          },
+                          onCompleted: (_) => _verificarCodigo(),
+                        ),
+                      ),
+
+                      if (_pinError)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.md),
+                          child: Text(
+                            'CÓDIGO INVÁLIDO OU INCOMPLETO',
+                            style: context.typography.monoMicro.copyWith(
+                              color: context.colors.error,
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(height: AppSpacing.xxl),
+                      VibesterButton(
+                        label: 'Verificar e-mail',
+                        state: _isLoading
+                            ? VibesterButtonState.loading
+                            : VibesterButtonState.idle,
+                        onPressed: _verificarCodigo,
+                      ),
+                    ],
                   ),
-                  TextSpan(
-                    text:
-                        '\n\nVerifique sua caixa de entrada e insira o\ncódigo abaixo para ativar sua conta ',
-                    style: GoogleFonts.inter(
-                      color: context.colors.grey,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-
-            const SizedBox(height: 30),
-
-            Pinput(
-              length: 6,
-              defaultPinTheme: defaultTheme,
-              focusedPinTheme: focusedTheme,
-              errorPinTheme: errorTheme,
-              controller: _pinController,
-              forceErrorState: _pinError,
-            ),
-
-            const SizedBox(height: 50),
-
-            PrimaryButton(
-              label: _isLoading ? 'Verificando...' : 'Verificar e-mail',
-              onPressed: _isLoading ? () {} : _verificarCodigo,
-            ),
-
-            const SizedBox(height: 12),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

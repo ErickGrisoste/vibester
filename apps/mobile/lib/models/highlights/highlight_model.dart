@@ -1,8 +1,14 @@
+import 'package:mobile/models/media/post_media.dart';
+
 class HighlightModel {
   final String postId;
   final String userId;
   final String? estabelecimentoId;
   final List<String> imagensUrls;
+
+  /// Mídia do post na ordem do carrossel, foto e vídeo (`media`; em post
+  /// antigo, derivada de `imageUrls`).
+  final List<PostMedia> midias;
   final String legenda;
   final int totalCurtidas;
   final int totalComentarios;
@@ -16,6 +22,7 @@ class HighlightModel {
     required this.userId,
     this.estabelecimentoId,
     required this.imagensUrls,
+    this.midias = const [],
     required this.legenda,
     required this.totalCurtidas,
     required this.totalComentarios,
@@ -35,6 +42,10 @@ class HighlightModel {
       imagensUrls: json['imageUrls'] != null
           ? List<String>.from(json['imageUrls'])
           : <String>[],
+      midias: PostMedia.listFromJson(
+        json['media'],
+        legacyImageUrls: json['imageUrls'],
+      ),
       legenda: json['caption'] ?? '',
       totalCurtidas: json['totalLikes'] ?? 0,
       totalComentarios: json['totalComments'] ?? 0,
@@ -45,10 +56,11 @@ class HighlightModel {
     );
   }
 
-  // A primeira imagem da lista, usada pelo HighlightsCard
-  // Fica vazia se a lista de imagens estiver vazia, pra não estourar erro
-  String get imagemEmDestaque =>
-      imagensUrls.isNotEmpty ? imagensUrls.first : '';
+  // A capa do post, usada pelo HighlightsCard: a primeira foto, ou a capa do
+  // primeiro vídeo. Fica vazia se não houver mídia, pra não estourar erro
+  String get imagemEmDestaque => midias.isNotEmpty ? midias.first.coverUrl : '';
+
+  bool get temVideo => midias.any((m) => m.isVideo);
 
   HighlightModel copyWith({int? totalCurtidas, bool? curtidoPeloUsuario}) {
     return HighlightModel(
@@ -56,6 +68,7 @@ class HighlightModel {
       userId: userId,
       estabelecimentoId: estabelecimentoId,
       imagensUrls: imagensUrls,
+      midias: midias,
       legenda: legenda,
       totalCurtidas: totalCurtidas ?? this.totalCurtidas,
       totalComentarios: totalComentarios,

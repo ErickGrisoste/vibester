@@ -16,6 +16,8 @@ COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
+# prisma.config.ts carrega a DATABASE_URL para o CLI: sem ele o schema nao tem
+# 'url' no bloco datasource e 'prisma migrate deploy' nao roda dentro da imagem.
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 

@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { profileSelect } from '../../src/prisma/profile.select';
 
 vi.mock('../../src/config/redis', async () => {
   const { default: RedisMock } = await import('ioredis-mock');
@@ -163,7 +164,35 @@ describe('user-service — HTTP Integration', () => {
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.payload);
       expect(body).toHaveProperty('accountId', USER_ID);
-      expect(mockUserProfile.create).toHaveBeenCalledWith({ data: { userID: USER_ID } });
+      expect(mockUserProfile.create).toHaveBeenCalledWith({ data: { userID: USER_ID }, select: profileSelect });
+    });
+
+    // Regressao: sem tratar P2002 o chamador (auth-service, no fim do cadastro)
+    // recebia 500 e interpretava como "servico de perfil indisponivel",
+    // fazendo rollback de uma conta que so precisava de um username diferente.
+    it('retorna 409 quando o username ja existe', async () => {
+      const p2002 = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+      mockUserProfile.create.mockRejectedValue(p2002);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/users/profile',
+        payload: { accountId: USER_ID, username: '@repetido' },
+      });
+
+      expect(res.statusCode).toBe(409);
+    });
+
+    it('retorna 500 para erros inesperados do banco', async () => {
+      mockUserProfile.create.mockRejectedValue(new Error('db down'));
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/users/profile',
+        payload: { accountId: USER_ID },
+      });
+
+      expect(res.statusCode).toBe(500);
     });
   });
 
@@ -281,6 +310,7 @@ describe('user-service — HTTP Integration', () => {
       expect(mockUserProfile.update).toHaveBeenCalledWith({
         where: { userID: USER_ID },
         data: { name: 'Novo Nome', username: 'novo_username' },
+        select: profileSelect,
       });
     });
 

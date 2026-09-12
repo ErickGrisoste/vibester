@@ -18,4 +18,16 @@ export const env = {
     rateLimitVerifyEmailMax: Number(process.env.RATE_LIMIT_VERIFY_EMAIL_MAX) || 10,
     rateLimitLoginMax: Number(process.env.RATE_LIMIT_LOGIN_MAX) || 10,
     emailVerificationTtlSeconds: Number(process.env.EMAIL_VERIFICATION_TTL_SECONDS) || 600,
+    // Quantos codigos errados um mesmo email pode tentar antes da pendencia ser
+    // descartada. Limita forca bruta sobre o codigo de 6 digitos, que sozinho
+    // teria os 10 minutos inteiros de TTL como janela de tentativa.
+    maxCodeAttempts: Number(process.env.MAX_CODE_ATTEMPTS) || 5,
+    // Chave do HMAC que protege o codigo de verificacao no Redis. Cai para o
+    // JWT_SECRET quando nao definida, para nao exigir config nova no deploy,
+    // mas o ideal e um segredo proprio (rotacionavel sem invalidar tokens).
+    verificationCodeSecret: (process.env.VERIFICATION_CODE_SECRET || process.env.JWT_SECRET) as string,
+    // Janela e limite do contador de falhas de login, usados para avisar o dono
+    // da conta. Contador fica no Redis para valer entre as replicas.
+    authFailWindowSeconds: Number(process.env.AUTH_FAIL_WINDOW_SECONDS) || 900,
+    authFailNotifyThreshold: Number(process.env.AUTH_FAIL_NOTIFY_THRESHOLD) || 5,
 };

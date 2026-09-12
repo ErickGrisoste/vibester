@@ -1,13 +1,20 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/posts/post_service.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/media/post_media_carousel.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
 import 'package:provider/provider.dart';
 
+/// Publicação em tela cheia.
+///
+/// A foto assume a tela inteira, com as ações e a legenda por cima — a mesma
+/// leitura do cartaz de evento, aplicada ao conteúdo social. A mídia é o
+/// `PostMediaCarousel`, o mesmo do feed: fotos e vídeos na ordem do post, com
+/// indicador em traços e contador "2/4".
 class PostDetailScreen extends StatefulWidget {
   final HighlightModel highlight;
 
@@ -19,16 +26,13 @@ class PostDetailScreen extends StatefulWidget {
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
   final PostService _postService = PostService();
-  late final PageController _pageController;
   late HighlightModel _highlight;
-  int _paginaAtual = 0;
   bool _isTogglingLike = false;
 
   @override
   void initState() {
     super.initState();
     _highlight = widget.highlight;
-    _pageController = PageController();
   }
 
   Future<void> _alternarCurtida() async {
@@ -75,12 +79,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
   String _formatarData(String isoDate) {
     if (isoDate.isEmpty) return '';
     try {
@@ -93,182 +91,142 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final type = context.typography;
     final highlight = _highlight;
-    final imagens = highlight.imagensUrls;
     final dataFormatada = _formatarData(highlight.criadoEm);
 
-    // Limita a resolução decodificada ao tamanho real da tela (em pixels
-    // físicos). Sem isso, uma foto de câmera em resolução original consome
-    // memória suficiente para expulsar outras imagens do cache global,
-    // fazendo-as "recarregar" visualmente ao voltar para outras telas.
-    final imagemCacheWidth =
-        (MediaQuery.of(context).size.width *
-                MediaQuery.of(context).devicePixelRatio)
-            .round();
-
     return Scaffold(
-      backgroundColor: context.colors.noturno,
-      appBar: AppBar(
-        backgroundColor: context.colors.noturno,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: context.colors.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'Publicação',
-          style: GoogleFonts.inter(
-            color: context.colors.textPrimary,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: ListView(
+      backgroundColor: colors.noturno,
+      body: Stack(
         children: [
-          // Carrossel de imagens (caso tenha mais de uma)
-          AspectRatio(
-            aspectRatio: 1,
-            child: imagens.isEmpty
-                ? Container(
-                    color: Colors.white12,
-                    child: Center(
-                      child: Icon(
-                        Icons.image_not_supported_outlined,
-                        color: context.colors.textDisabled,
-                        size: 48,
-                      ),
-                    ),
-                  )
-                : Stack(
-                    alignment: Alignment.bottomCenter,
-                    children: [
-                      PageView.builder(
-                        controller: _pageController,
-                        itemCount: imagens.length,
-                        onPageChanged: (index) =>
-                            setState(() => _paginaAtual = index),
-                        itemBuilder: (context, index) {
-                          return CachedNetworkImage(
-                            imageUrl: imagens[index],
-                            fit: BoxFit.cover,
-                            memCacheWidth: imagemCacheWidth,
-                            fadeInDuration: Duration.zero,
-                            fadeOutDuration: Duration.zero,
-                            errorWidget: (context, url, error) {
-                              return Container(
-                                color: Colors.white12,
-                                child: Icon(
-                                  Icons.broken_image_outlined,
-                                  color: context.colors.textDisabled,
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
+          ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              AspectRatio(
+                aspectRatio: 4 / 5,
+                child: PostMediaCarousel(media: highlight.midias),
+              ),
 
-                      if (imagens.length > 1)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(imagens.length, (index) {
-                              return Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 3,
-                                ),
-                                width: 7,
-                                height: 7,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: index == _paginaAtual
-                                      ? context.colors.ambar
-                                      : Colors.white38,
-                                ),
-                              );
-                            }),
-                          ),
-                        ),
-                    ],
-                  ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Curtidas e comentários
-                Row(
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.screen),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    GestureDetector(
-                      onTap: _alternarCurtida,
-                      behavior: HitTestBehavior.opaque,
-                      child: Icon(
-                        highlight.curtidoPeloUsuario
-                            ? Icons.favorite
-                            : Icons.favorite_outline,
-                        color: highlight.curtidoPeloUsuario
-                            ? context.colors.brasa
-                            : context.colors.textSecondary,
-                        size: 22,
+                    Row(
+                      children: [
+                        _Action(
+                          icon: highlight.curtidoPeloUsuario
+                              ? Icons.favorite
+                              : Icons.favorite_border_rounded,
+                          value: highlight.totalCurtidas,
+                          active: highlight.curtidoPeloUsuario,
+                          onTap: _alternarCurtida,
+                        ),
+                        const SizedBox(width: AppSpacing.lg),
+                        _Action(
+                          icon: Icons.mode_comment_outlined,
+                          value: highlight.totalComentarios,
+                        ),
+                      ],
+                    ),
+
+                    if (highlight.legenda.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        highlight.legenda,
+                        style: type.bodyLarge.copyWith(
+                          color: colors.textPrimary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${highlight.totalCurtidas}',
-                      style: TextStyle(
-                        color: context.colors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
+                    ],
+
+                    if (dataFormatada.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        dataFormatada.toUpperCase(),
+                        style: type.monoMicro.copyWith(
+                          color: colors.textDisabled,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 20),
-                    Icon(
-                      Icons.mode_comment_outlined,
-                      color: context.colors.textSecondary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${highlight.totalComentarios}',
-                      style: TextStyle(
-                        color: context.colors.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    ],
                   ],
                 ),
+              ),
+            ],
+          ),
 
-                const SizedBox(height: 16),
-
-                // Legenda
-                if (highlight.legenda.isNotEmpty)
-                  Text(
-                    highlight.legenda,
-                    style: TextStyle(
-                      color: context.colors.textPrimary,
-                      fontSize: 15,
-                      height: 1.4,
+          // Voltar flutuando sobre a foto, com o padding do topo respeitado.
+          Positioned(
+            top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+            left: AppSpacing.lg,
+            child: Semantics(
+              button: true,
+              label: 'Voltar',
+              child: VibesterPressable(
+                onTap: () => Navigator.maybePop(context),
+                borderRadius: AppRadius.pillAll,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.scrim.withValues(alpha: 0.55),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.14),
                     ),
                   ),
-
-                if (dataFormatada.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    dataFormatada,
-                    style: TextStyle(
-                      color: context.colors.textDisabled,
-                      fontSize: 13,
-                    ),
+                  child: const Icon(
+                    Icons.arrow_back_rounded,
+                    size: 20,
+                    color: Colors.white,
                   ),
-                ],
-              ],
+                ),
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Ação com contador (curtir, comentar). Contador em DM Mono; alvo de 44px
+/// mesmo com o ícone pequeno.
+class _Action extends StatelessWidget {
+  final IconData icon;
+  final int value;
+  final bool active;
+  final VoidCallback? onTap;
+
+  const _Action({
+    required this.icon,
+    required this.value,
+    this.active = false,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? context.colors.brasa : context.colors.textSecondary;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        height: 44,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 22, color: color),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              value.toString().padLeft(2, '0'),
+              style: context.typography.mono.copyWith(color: color),
+            ),
+          ],
+        ),
       ),
     );
   }

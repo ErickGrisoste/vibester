@@ -19,9 +19,17 @@ const start = async () => {
         methods: ['GET', 'POST'],
         credentials: true,
     });
+    // Store no Redis, nao em memoria: o HPA deste servico vai de 2 a 6 replicas,
+    // e um contador por processo faz o limite efetivo virar
+    // (max x numero de pods) — justamente nas rotas de brute force.
+    // skipOnError deixa passar se o Redis cair: rate limit indisponivel nao
+    // pode virar indisponibilidade de login.
     await app.register(rateLimit, {
         max: env.rateLimitMax,
         timeWindow: '1 minute',
+        redis: redis.client(),
+        skipOnError: true,
+        nameSpace: 'auth-rl:',
     });
     await registerSwagger(app);
     await app.register(authRoutes);

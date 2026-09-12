@@ -8,16 +8,18 @@ import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
-import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/providers/events/events_list_provider.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
+import 'package:mobile/providers/place/nearby_provider.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/theme/theme_service.dart';
+import 'package:mobile/service/user/interests_storage.dart';
 import 'package:mobile/theme/app_theme.dart';
+import 'package:mobile/theme/vibester_page_route.dart';
 import 'package:mobile/screens/events/event_detail_screen.dart';
 import 'package:mobile/screens/events/event_list_screen.dart';
 import 'package:mobile/screens/events/favorites_events_screen.dart';
@@ -25,18 +27,19 @@ import 'package:mobile/screens/feed/feed_screen.dart';
 import 'package:mobile/screens/feed/new_publication_screen.dart';
 import 'package:mobile/screens/home/home_screen.dart';
 import 'package:mobile/screens/home/initial_screen.dart';
+import 'package:mobile/screens/notification/notifications_screen.dart';
+import 'package:mobile/screens/saved/saved_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mobile/screens/onboarding/onboarding_screen.dart';
 import 'package:mobile/screens/places/favorite_places_screen.dart';
 import 'package:mobile/screens/places/hot_places_screen.dart';
 import 'package:mobile/screens/places/place_detail_screen.dart';
-import 'package:mobile/screens/places/place_reviews_screen.dart';
 import 'package:mobile/screens/register/email_confirm_screen.dart';
 import 'package:mobile/screens/register/login_screen.dart';
 import 'package:mobile/screens/register/recover_password_screen.dart';
 import 'package:mobile/screens/register/register_screen.dart';
 import 'package:mobile/screens/register/reset_password_screen.dart';
-import 'package:mobile/screens/search/search_screen.dart';
+import 'package:mobile/screens/explore/explore_screen.dart';
 import 'package:mobile/screens/settings/account_management_settings_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
@@ -47,42 +50,9 @@ import 'package:mobile/screens/user/user_profile_screen.dart';
 import 'package:mobile/widgets/cards/highlights/post_detail_screen.dart';
 import 'package:provider/provider.dart';
 
-PageRouteBuilder _slideRoute(Widget page, RouteSettings settings) {
-  return PageRouteBuilder(
-    settings: settings,
-    pageBuilder: (_, __, ___) => page,
-    transitionsBuilder: (_, animation, __, child) => SlideTransition(
-      position: Tween<Offset>(
-        begin: const Offset(1, 0),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-      child: child,
-    ),
-  );
-}
-
-PageRouteBuilder _fadeRoute(Widget page, RouteSettings settings) {
-  return PageRouteBuilder(
-    settings: settings,
-    pageBuilder: (_, __, ___) => page,
-    transitionsBuilder: (_, animation, __, child) =>
-        FadeTransition(opacity: animation, child: child),
-  );
-}
-
-PageRouteBuilder _scaleRoute(Widget page, RouteSettings settings) {
-  return PageRouteBuilder(
-    settings: settings,
-    pageBuilder: (_, __, ___) => page,
-    transitionsBuilder: (_, animation, __, child) => ScaleTransition(
-      scale: Tween<double>(
-        begin: 0.9,
-        end: 1.0,
-      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-      child: FadeTransition(opacity: animation, child: child),
-    ),
-  );
-}
+// Builders de transição de rota (fade+slide+scale compostos) vivem em
+// lib/theme/vibester_page_route.dart: vibesterSlideRoute, vibesterFadeRoute,
+// vibesterDetailRoute — usados abaixo, no onGenerateRoute.
 
 //Classe que da ao scroll uma propriedade especifica
 class _NoBounceScrollBehavior extends ScrollBehavior {
@@ -103,8 +73,24 @@ void main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 200 << 20; // 200MB
 
   await initializeDateFormatting('pt_BR', null);
-  final savedUser = await AuthStorageService.loadSession();
+  // Interesses escolhidos no onboarding: restaurados antes da primeira tela
+  // pra a régua de categorias da Home já nascer na ordem do usuário.
+  await InterestsStorage.restore();
+  var savedUser = await AuthStorageService.loadSession();
   final onboardingPendente = await AuthStorageService.onboardingPendente();
+  // JWT vencido não é sessão: restaurar abriria a home com o feed recusando
+  // tudo com 401. Descarta e começa pela tela inicial.
+  final savedToken = savedUser?.token;
+  // Guardado para a interface: descartar a sessão em silêncio faz o usuário
+  // abrir o app, cair na tela inicial e achar que perdeu tudo. O 401 em tempo
+  // de uso já explica o que houve (ver `_handleSessionExpired`); o boot
+  // precisava fazer o mesmo.
+  var sessaoExpirada = false;
+  if (savedToken != null && ApiClient.isTokenExpired(savedToken)) {
+    await AuthStorageService.clearSession();
+    savedUser = null;
+    sessaoExpirada = true;
+  }
   if (savedUser?.token != null) {
     ApiClient.token = savedUser!.token;
   }
@@ -114,6 +100,7 @@ void main() async {
       savedUser: savedUser,
       onboardingPendente: onboardingPendente,
       initialThemeMode: initialThemeMode,
+      sessaoExpirada: sessaoExpirada,
     ),
   );
 }
@@ -123,11 +110,16 @@ class MyApp extends StatefulWidget {
   final bool onboardingPendente;
   final ThemeMode initialThemeMode;
 
+  /// A sessão salva foi descartada no boot por token vencido. O app avisa e
+  /// leva ao login, em vez de abrir a capa como se nunca tivesse havido conta.
+  final bool sessaoExpirada;
+
   const MyApp({
     super.key,
     this.savedUser,
     this.onboardingPendente = false,
     required this.initialThemeMode,
+    this.sessaoExpirada = false,
   });
 
   @override
@@ -143,7 +135,50 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    ApiClient.onSessionExpired = _handleSessionExpired;
     _initDeepLinks();
+
+    if (widget.sessaoExpirada) {
+      // Depois do primeiro frame: antes disso não existe navigator nem
+      // messenger para receber isso.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _avisarSessaoExpirada();
+      });
+    }
+  }
+
+  /// Leva ao login com a explicação. Mesma pilha e mesma mensagem do caminho
+  /// de 401 em tempo de uso, para as duas formas de perder a sessão terminarem
+  /// no mesmo lugar.
+  void _avisarSessaoExpirada() {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+
+    navigator.pushNamed(AppRoutes.login);
+    ScaffoldMessenger.of(navigator.context).showSnackBar(
+      const SnackBar(content: Text('Sua sessão expirou. Entra de novo.')),
+    );
+  }
+
+  // 401 numa rota autenticada: o token venceu. Encerra a sessão pelos dois
+  // lados (memória e storage seguro, via UserProvider.logout) e volta ao
+  // login, mesma pilha do "Sair" das configurações.
+  Future<void> _handleSessionExpired() async {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+
+    final messenger = ScaffoldMessenger.of(navigator.context);
+    final userProvider = navigator.context.read<UserProvider>();
+    if (userProvider.user == null) return;
+
+    await userProvider.logout();
+    if (!mounted) return;
+
+    navigator.pushNamedAndRemoveUntil(AppRoutes.initialScreen, (_) => false);
+    navigator.pushNamed(AppRoutes.login);
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Sua sessão expirou. Entra de novo.')),
+    );
   }
 
   Future<void> _initDeepLinks() async {
@@ -163,10 +198,21 @@ class _MyAppState extends State<MyApp> {
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
 
+    // Capturados antes do await: depois dele o context do navigator pode ter
+    // sido desmontado, e usá-lo cruzando o gap assíncrono é o que o
+    // use_build_context_synchronously alerta.
+    final messenger = ScaffoldMessenger.of(navigator.context);
+    final currentUserId = navigator.context
+        .read<UserProvider>()
+        .user
+        ?.accountId;
+
     try {
       final resolvedAccountId = await _userService.resolveShareToken(token);
+      if (!mounted) return;
+
       if (resolvedAccountId == null) {
-        ScaffoldMessenger.of(navigator.context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text(
               'Este link de compartilhamento expirou ou é inválido.',
@@ -176,10 +222,6 @@ class _MyAppState extends State<MyApp> {
         return;
       }
 
-      final currentUserId = navigator.context
-          .read<UserProvider>()
-          .user
-          ?.accountId;
       if (resolvedAccountId == currentUserId) {
         navigator.pushNamed(AppRoutes.profile);
       } else {
@@ -189,15 +231,21 @@ class _MyAppState extends State<MyApp> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        navigator.context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
+      // Mensagem tratada na tela; o detalhe da exceção fica no log local.
+      debugPrint('Falha ao abrir link compartilhado: $e');
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível abrir esse link agora.'),
+        ),
+      );
     }
   }
 
   @override
   void dispose() {
     _linkSubscription?.cancel();
+    ApiClient.onSessionExpired = null;
     super.dispose();
   }
 
@@ -216,6 +264,7 @@ class _MyAppState extends State<MyApp> {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => PlaceListProvider()),
+        ChangeNotifierProvider(create: (_) => NearbyProvider()),
         ChangeNotifierProvider(create: (_) => EventsListProvider()),
         ChangeNotifierProvider(create: (_) => PublicationListProvider()),
         ChangeNotifierProvider.value(value: userProvider),
@@ -242,45 +291,51 @@ class _MyAppState extends State<MyApp> {
             switch (settings.name) {
               // EVENTS
               case AppRoutes.eventList:
-                return _slideRoute(const EventListScreen(), settings);
+                return vibesterSlideRoute(
+                  const EventListScreen(showHeader: true),
+                  settings,
+                );
               case AppRoutes.favoritesEvents:
-                return _slideRoute(const FavoritesEventsScreen(), settings);
+                return vibesterSlideRoute(
+                  const FavoritesEventsScreen(),
+                  settings,
+                );
               case AppRoutes.eventDetail:
                 final event = settings.arguments as EventModel;
-                return _scaleRoute(
+                return vibesterDetailRoute(
                   EventDetailScreen(eventModel: event),
                   settings,
                 );
 
               // PLACES
               case AppRoutes.favoritesPlaces:
-                return _slideRoute(const FavoritePlacesScreen(), settings);
+                return vibesterSlideRoute(
+                  const FavoritePlacesScreen(),
+                  settings,
+                );
               case AppRoutes.hotPlaces:
-                return _slideRoute(const HotPlacesScreen(), settings);
+                return vibesterSlideRoute(const HotPlacesScreen(), settings);
               case AppRoutes.placeDetail:
                 final placeId = settings.arguments as String;
-                return _scaleRoute(
+                return vibesterDetailRoute(
                   PlaceDetailScreen(placeId: placeId),
                   settings,
                 );
-              case AppRoutes.placeReviews:
-                final place = settings.arguments as PlaceModel;
-                return _scaleRoute(PlaceReviewsScreen(place: place), settings);
 
               // HOME
               case AppRoutes.home:
-                return _fadeRoute(const HomeScreen(), settings);
+                return vibesterFadeRoute(const HomeScreen(), settings);
               case AppRoutes.initialScreen:
-                return _fadeRoute(const InitialScreen(), settings);
+                return vibesterFadeRoute(const InitialScreen(), settings);
 
               // ONBOARDING
               case AppRoutes.onboarding:
-                return _fadeRoute(const OnboardingScreen(), settings);
+                return vibesterFadeRoute(const OnboardingScreen(), settings);
 
               // REGISTER
               case AppRoutes.emailConfirm:
                 final args = settings.arguments as Map<String, String>;
-                return _fadeRoute(
+                return vibesterFadeRoute(
                   EmailConfirmScreen(
                     email: args['email']!,
                     senha: args['senha']!,
@@ -288,54 +343,77 @@ class _MyAppState extends State<MyApp> {
                   settings,
                 );
               case AppRoutes.login:
-                return _fadeRoute(const LoginScreen(), settings);
+                return vibesterFadeRoute(const LoginScreen(), settings);
               case AppRoutes.recoverPassword:
-                return _fadeRoute(const RecoverPasswordScreen(), settings);
+                return vibesterFadeRoute(
+                  const RecoverPasswordScreen(),
+                  settings,
+                );
               case AppRoutes.register:
-                return _fadeRoute(const RegisterScreen(), settings);
+                return vibesterFadeRoute(const RegisterScreen(), settings);
               case AppRoutes.resetPassword:
-                return _fadeRoute(const ResetPasswordScreen(), settings);
+                return vibesterFadeRoute(const ResetPasswordScreen(), settings);
 
               // SEARCH
               case AppRoutes.search:
-                return _slideRoute(const SearchScreen(), settings);
+                return vibesterSlideRoute(const ExploreScreen(), settings);
 
               // SETTINGS
               case AppRoutes.accountManagementSettings:
-                return _slideRoute(
+                return vibesterSlideRoute(
                   const AccountManagementSettingsScreen(),
                   settings,
                 );
               case AppRoutes.settings:
-                return _slideRoute(const SettingsScreen(), settings);
+                return vibesterSlideRoute(const SettingsScreen(), settings);
               case AppRoutes.personalInformationSettings:
-                return _slideRoute(
+                return vibesterSlideRoute(
                   const PersonalInformationSettingsScreen(),
                   settings,
                 );
 
               // USER
               case AppRoutes.profile:
-                return _slideRoute(const UserProfileScreen(), settings);
+                return vibesterSlideRoute(const UserProfileScreen(), settings);
               case AppRoutes.profileEditing:
-                return _slideRoute(const ProfileEditingScreen(), settings);
+                return vibesterSlideRoute(
+                  const ProfileEditingScreen(),
+                  settings,
+                );
               case AppRoutes.userInterests:
-                return _slideRoute(const UserInterestsScreen(), settings);
+                return vibesterSlideRoute(
+                  const UserInterestsScreen(),
+                  settings,
+                );
               case AppRoutes.otherProfile:
                 final accountid = settings.arguments as String;
-                return _slideRoute(
+                return vibesterSlideRoute(
                   OtherUsersProfileScreen(accountId: accountid),
                   settings,
                 );
 
+              // NOTIFICATIONS
+              case AppRoutes.notifications:
+                return vibesterSlideRoute(
+                  const NotificationsScreen(),
+                  settings,
+                );
+
+              // SAVED
+              case AppRoutes.saved:
+                return vibesterSlideRoute(const SavedScreen(), settings);
+
               // FEED
               case AppRoutes.feed:
-                return _slideRoute(const FeedScreen(), settings);
+                return vibesterSlideRoute(const FeedScreen(), settings);
               case AppRoutes.newPublication:
-                return _scaleRoute(const NewPublicationScreen(), settings);
+                return vibesterDetailRoute(
+                  const NewPublicationScreen(),
+                  settings,
+                );
               case AppRoutes.postDetail:
                 final highlight = settings.arguments as HighlightModel;
-                return _scaleRoute(
+                return vibesterDetailRoute(
                   PostDetailScreen(highlight: highlight),
                   settings,
                 );

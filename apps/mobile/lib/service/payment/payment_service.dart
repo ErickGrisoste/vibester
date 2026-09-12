@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
+import 'package:mobile/service/api_error.dart';
 
 class PaymentService {
   Future<String> createCheckout({
@@ -19,9 +20,9 @@ class PaymentService {
       );
       return response.data['url'];
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao gerar checkout de pagamento';
-      throw Exception(mensagem);
+      throw Exception(
+        apiErrorMessage(e, 'Erro ao gerar checkout de pagamento'),
+      );
     }
   }
 }

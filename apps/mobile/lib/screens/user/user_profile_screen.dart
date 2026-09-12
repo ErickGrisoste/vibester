@@ -1,22 +1,34 @@
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:flutter/material.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/service/user/user_service.dart';
-import 'package:provider/provider.dart';
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/providers/events/events_list_provider.dart';
-import 'package:mobile/providers/place/place_list_provider.dart';
-import 'package:mobile/screens/events/favorites_events_screen.dart';
 import 'package:mobile/screens/highlights/property_highlights_screen.dart';
-import 'package:mobile/screens/places/favorite_places_screen.dart';
+import 'package:mobile/service/user/user_service.dart';
+import 'package:mobile/utils/username.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/utils/divider.dart';
-import 'package:mobile/utils/editable_text_field.dart';
-import 'package:mobile/widgets/cards/users/profile_avatar.dart';
+import 'package:mobile/widgets/common/vibester_image.dart';
+import 'package:mobile/widgets/common/vibester_skeleton.dart';
+import 'package:mobile/widgets/common/vibester_tag.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/graffiti/spray_glow.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
+/// VOCÊ — o perfil do próprio usuário.
+///
+/// A versão anterior era, na prática, uma tela administrativa: avatar
+/// centralizado, três contadores, dois botões de contorno idênticos
+/// ("Configurações" e "Compartilhar perfil", mesmo peso, mesma largura) e três
+/// abas, duas delas repetindo listas que já existiam em outra parte do app
+/// (favoritos e check-ins agora vivem em "Seus rolês").
+///
+/// A daqui responde outra pergunta: *quem é essa pessoa?* Nome grande, foto
+/// tratada como retrato colado, os interesses reais do usuário como etiquetas,
+/// e a grade de fotos ocupando o resto — porque é o que a pessoa fez, e é isso
+/// que dá vibe a um perfil. Ajustes e sessão ficam num canto discreto: são
+/// manutenção, não identidade.
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
 
@@ -24,28 +36,12 @@ class UserProfileScreen extends StatefulWidget {
   State<UserProfileScreen> createState() => UserProfileScreenState();
 }
 
-class UserProfileScreenState extends State<UserProfileScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class UserProfileScreenState extends State<UserProfileScreen> {
   final UserService _userService = UserService();
   final GlobalKey<PropertyHighlightsScreenState> _highlightsKey = GlobalKey();
 
-  bool _showAppBarAvatar = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  // Chamado ao entrar na aba de perfil pelo navbar, pra manter os dados em
-  // dia mesmo com as telas do IndexedStack sendo montadas só uma vez.
+  /// Chamado pela casca da Home ao entrar neste destino: as telas do
+  /// `IndexedStack` são montadas uma vez só e não se atualizariam sozinhas.
   Future<void> refreshProfileData() => _fetchProfile();
 
   Future<void> _fetchProfile() async {
@@ -55,18 +51,20 @@ class UserProfileScreenState extends State<UserProfileScreen>
 
     try {
       final profileData = await _userService.getProfile(accountId);
-      final usuarioAtualizado = UserModel.fromProfileJson(
+      final atualizado = UserModel.fromProfileJson(
         profileData,
         accountId: accountId,
         token: user?.token,
       );
-
-      if (mounted) {
-        context.read<UserProvider>().setUser(usuarioAtualizado);
-      }
+      if (mounted) context.read<UserProvider>().setUser(atualizado);
     } catch (_) {
-      // Mantém os dados atuais em tela caso a atualização falhe
+      // Mantém os dados atuais em tela caso a atualização falhe.
     }
+  }
+
+  Future<void> _onRefresh() async {
+    await _fetchProfile();
+    await _highlightsKey.currentState?.refresh();
   }
 
   Future<void> _shareProfile() async {
@@ -75,409 +73,381 @@ class UserProfileScreenState extends State<UserProfileScreen>
 
     try {
       final shareUrl = await _userService.generateShareLink(accountId);
-      await Share.share(
-        'Confira meu perfil no Vibester: $shareUrl',
-        subject: 'Meu perfil no Vibester',
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Meu perfil no Vibester: $shareUrl',
+          subject: 'Meu perfil no Vibester',
+        ),
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
-    }
-  }
-
-  Future<void> _onRefresh() async {
-    await _fetchProfile();
-
-    switch (_tabController.index) {
-      case 0:
-        await _highlightsKey.currentState?.refresh();
-        break;
-      case 1:
-        await context.read<PlaceListProvider>().fetchPlaces(force: true);
-        break;
-      case 2:
-        await context.read<EventsListProvider>().fetchEvents(force: true);
-        break;
+      if (!mounted) return;
+      // Mensagem tratada: nunca a exceção crua na tela.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível gerar o link agora')),
+      );
+      debugPrint('Falha ao compartilhar perfil: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final user = context.watch<UserProvider>().user;
 
     if (user == null) {
       return Scaffold(
-        backgroundColor: context.colors.noturno,
-        body: const Center(child: CircularProgressIndicator()),
+        backgroundColor: colors.noturno,
+        body: const Padding(
+          padding: EdgeInsets.all(AppSpacing.screen),
+          child: VibesterSkeletonLines(lines: 4, spacing: AppSpacing.lg),
+        ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: context.colors.navy,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            color: context.colors.navy,
-            boxShadow: [
-              BoxShadow(
-                color: context.colors.border.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-        ),
-        title: SizedBox(
-          width: double.infinity,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              AnimatedOpacity(
-                duration: Duration(milliseconds: 300),
-                opacity: _showAppBarAvatar ? 1.0 : 0.0,
-                child: AnimatedSlide(
-                  duration: Duration(milliseconds: 300),
-                  offset: _showAppBarAvatar ? Offset(-1.2, 0) : Offset(-1.2, 0),
-                  child: CircleAvatar(
-                    radius: 16,
-                    backgroundImage: CachedNetworkImageProvider(
-                      user.fotoPerfil,
-                    ),
-                  ),
+      backgroundColor: colors.noturno,
+      body: RefreshIndicator(
+        color: colors.ambar,
+        backgroundColor: colors.surface,
+        onRefresh: _onRefresh,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(child: _ProfileIdentity(user: user)),
+            SliverToBoxAdapter(child: _ProfileActions(onShare: _shareProfile)),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screen,
+                  AppSpacing.xxl,
+                  AppSpacing.screen,
+                  AppSpacing.sm,
                 ),
-              ),
-              AnimatedSlide(
-                duration: Duration(milliseconds: 300),
-                offset: _showAppBarAvatar ? Offset(0.19, 0) : Offset(0, 0),
-                child: Text(
-                  user.nomeUsuario,
-                  style: GoogleFonts.inter(
-                    color: context.colors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        centerTitle: true,
-      ),
-      backgroundColor: context.colors.noturno,
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (notification.depth == 0 &&
-              notification is ScrollUpdateNotification) {
-            setState(() {
-              _showAppBarAvatar = notification.metrics.pixels > 200;
-            });
-          }
-          return false;
-        },
-        child: RefreshIndicator(
-          color: context.colors.ambar,
-          backgroundColor: context.colors.navy,
-          onRefresh: _onRefresh,
-          child: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                child: Row(
                   children: [
-                    Padding(
-                      padding: EdgeInsets.only(top: 30.0),
-                      child: ProfileAvatar(imageUrl: user.fotoPerfil),
-                    ),
-
-                    SizedBox(height: 12),
-
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          '${user.nome}',
-                          style: GoogleFonts.inter(
-                            color: context.colors.textPrimary,
-                            fontSize: 35,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: 12),
-
-                    IntrinsicWidth(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minWidth: 150,
-                          maxWidth: 280,
-                        ),
-                        child: EditableTextField(
-                          label: user.nomeUsuario,
-                          height: 30,
-                          width: double.infinity,
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: 20),
-
                     Text(
-                      user.bio,
-                      style: GoogleFonts.inter(
-                        color: context.colors.textSecondary,
-                        fontWeight: FontWeight.bold,
+                      'SEUS REGISTROS',
+                      style: context.typography.monoEyebrow.copyWith(
+                        color: colors.ambar,
                       ),
                     ),
-
-                    SizedBox(height: 12),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        Column(
-                          children: [
-                            Text(
-                              user.seguidores.toString(),
-                              style: GoogleFonts.inter(
-                                color: context.colors.textPrimary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                            Text(
-                              'SEGUIDORES',
-                              style: GoogleFonts.inter(
-                                color: context.colors.textSecondary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        MyDivider(height: 50, width: 1),
-
-                        Column(
-                          children: [
-                            Text(
-                              user.seguindo.toString(),
-                              style: GoogleFonts.inter(
-                                color: context.colors.textPrimary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                            Text(
-                              'SEGUINDO',
-                              style: GoogleFonts.inter(
-                                color: context.colors.textSecondary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        MyDivider(height: 50, width: 1),
-
-                        Column(
-                          children: [
-                            Text(
-                              user.eventosVisitados.toString(),
-                              style: GoogleFonts.inter(
-                                color: context.colors.textPrimary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
-                            ),
-                            Text(
-                              'EVENTOS',
-                              style: GoogleFonts.inter(
-                                color: context.colors.textSecondary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                    const Spacer(),
+                    Text(
+                      user.totalPosts.toString().padLeft(2, '0'),
+                      style: context.typography.monoSmall.copyWith(
+                        color: colors.textDisabled,
+                      ),
                     ),
-
-                    SizedBox(height: 16),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Material(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(50),
-                          child: InkWell(
-                            onTap: () {
-                              Navigator.pushNamed(context, AppRoutes.settings);
-                            },
-                            borderRadius: BorderRadius.circular(50),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: context.colors.textPrimary,
-                                  width: 1,
-                                ),
-                                borderRadius: BorderRadius.circular(50),
-                              ),
-                              height: 30,
-                              width: 150,
-                              child: Center(
-                                child: Text(
-                                  'Configurações',
-                                  style: GoogleFonts.inter(
-                                    color: context.colors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        SizedBox(width: 14),
-
-                        Material(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(50),
-                          child: InkWell(
-                            onTap: _shareProfile,
-                            borderRadius: BorderRadius.circular(50),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: context.colors.textPrimary,
-                                  width: 1,
-                                ),
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(50),
-                                ),
-                              ),
-                              height: 30,
-                              width: 150,
-                              child: Center(
-                                child: Text(
-                                  'Compartilhar perfil',
-                                  style: GoogleFonts.inter(
-                                    color: context.colors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 16),
                   ],
                 ),
               ),
-
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _StickyTabBarDelegate(
-                  TabBar(
-                    controller: _tabController,
-                    unselectedLabelColor: context.colors.textMuted,
-                    labelColor: context.colors.textPrimary,
-                    dividerColor: Colors.transparent,
-                    indicatorColor: context.colors.brasa,
-                    indicatorPadding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    labelPadding: EdgeInsets.all(10),
-                    labelStyle: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    tabs: [
-                      Tab(text: 'FOTOS'),
-                      Tab(text: 'FAVORITOS'),
-                      Tab(text: 'CHECK-IN'),
-                    ],
-                  ),
-                  color: context.colors.noturno,
-                ),
-              ),
-            ],
-            body: Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: 3.0),
-                  child: MyDivider(height: 1, width: double.infinity),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      Center(
-                        child: PropertyHighlightsScreen(
-                          key: _highlightsKey,
-                          // Precisa do ? pq usuario pede ser null, inclusive começa como null, assim não estora erro
-                          accountId: user?.accountId ?? '',
-                        ),
-                      ),
-                      Center(
-                        child: FavoritePlacesScreen(
-                          showRefreshIndicator: false,
-                        ),
-                      ),
-                      Center(
-                        child: FavoritesEventsScreen(
-                          showRefreshIndicator: false,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ),
-          ),
+            PropertyHighlightsScreen(
+              key: _highlightsKey,
+              accountId: user.accountId ?? '',
+              asSliver: true,
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _StickyTabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabBar tabBar;
-  final Color color;
+// -----------------------------------------------------------------------
 
-  const _StickyTabBarDelegate(this.tabBar, {required this.color});
+class _ProfileIdentity extends StatelessWidget {
+  final UserModel user;
+
+  const _ProfileIdentity({required this.user});
+
+  /// `interesses` chega da API como texto único; aceita vírgula ou barra como
+  /// separador porque as duas formas aparecem nos dados existentes.
+  List<String> get _interests => user.interesses
+      .split(RegExp(r'[,/;]'))
+      .map((e) => e.trim())
+      .where((e) => e.isNotEmpty)
+      .toList();
 
   @override
-  double get minExtent => tabBar.preferredSize.height;
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final type = context.typography;
 
-  @override
-  double get maxExtent => tabBar.preferredSize.height;
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.screen,
+          AppSpacing.lg,
+          AppSpacing.screen,
+          0,
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              right: -70,
+              top: -50,
+              child: SprayGlow(color: colors.brasa, size: 200, intensity: 0.16),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Retrato colado: quadrado com canto rasgado e leve
+                    // inclinação, no lugar do avatar circular centralizado.
+                    Transform.rotate(
+                      angle: -0.022,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          boxShadow: [
+                            BoxShadow(
+                              color: colors.scrim.withValues(alpha: 0.5),
+                              offset: const Offset(4, 4),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(AppRadius.sm),
+                            topRight: Radius.circular(AppRadius.sm),
+                            bottomRight: Radius.circular(AppRadius.sm),
+                          ),
+                          child: SizedBox(
+                            width: 92,
+                            height: 106,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                VibesterImage(
+                                  source: user.fotoPerfil,
+                                  placeholderIcon: Icons.person_outline_rounded,
+                                ),
+                                const Grain(opacity: 0.06, density: 0.5),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.lg),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            user.nome.isEmpty ? 'Sem nome' : user.nome,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: type.headlineLarge.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            formatHandle(user.nomeUsuario).isEmpty
+                                ? '@—'
+                                : formatHandle(user.nomeUsuario),
+                            style: type.monoSmall.copyWith(color: colors.ambar),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
 
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Container(color: color, child: tabBar);
+                if (user.bio.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    user.bio,
+                    style: type.bodyLarge.copyWith(color: colors.textSecondary),
+                  ),
+                ],
+
+                const SizedBox(height: AppSpacing.lg),
+                _Counters(user: user),
+
+                if (_interests.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Text(
+                    'SUA VIBE',
+                    style: type.monoEyebrow.copyWith(color: colors.textMuted),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
+                    children: [
+                      for (final interest in _interests)
+                        VibesterTag(interest, tone: TagTone.outline),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
+}
+
+/// Contadores em DM Mono, alinhados à esquerda numa fileira só. Todos vêm de
+/// `fromProfileJson` — nenhum é decorativo.
+class _Counters extends StatelessWidget {
+  final UserModel user;
+
+  const _Counters({required this.user});
 
   @override
-  bool shouldRebuild(_StickyTabBarDelegate oldDelegate) =>
-      tabBar != oldDelegate.tabBar || color != oldDelegate.color;
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Row(
+      children: [
+        for (final (i, cell) in <(int, String)>[
+          (user.totalPosts, 'POSTS'),
+          (user.seguidores, 'SEGUIDORES'),
+          (user.seguindo, 'SEGUINDO'),
+        ].indexed) ...[
+          if (i > 0)
+            Container(
+              width: 1,
+              height: 28,
+              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              color: colors.hairline,
+            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                cell.$1.toString(),
+                style: context.typography.monoDisplay.copyWith(
+                  color: colors.textPrimary,
+                  fontSize: 20,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                cell.$2,
+                style: context.typography.monoMicro.copyWith(
+                  color: colors.textDisabled,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Ações do perfil. Uma principal, larga e óbvia ("Seus rolês" — o conteúdo
+/// que o usuário salvou), e as de manutenção reduzidas a ícones ao lado.
+class _ProfileActions extends StatelessWidget {
+  final VoidCallback onShare;
+
+  const _ProfileActions({required this.onShare});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screen,
+        AppSpacing.xl,
+        AppSpacing.screen,
+        0,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: VibesterPressable(
+              onTap: () => Navigator.pushNamed(context, AppRoutes.saved),
+              borderRadius: AppRadius.pillAll,
+              child: Container(
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.ambar,
+                  borderRadius: AppRadius.pillAll,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.bookmark_rounded,
+                      size: 18,
+                      color: colors.onAmbar,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      'Seus rolês',
+                      style: context.typography.titleMedium.copyWith(
+                        color: colors.onAmbar,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          _IconAction(
+            icon: Icons.ios_share_rounded,
+            label: 'Compartilhar perfil',
+            onTap: onShare,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          _IconAction(
+            icon: Icons.tune_rounded,
+            label: 'Configurações',
+            onTap: () => Navigator.pushNamed(context, AppRoutes.settings),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _IconAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Semantics(
+      button: true,
+      label: label,
+      child: VibesterPressable(
+        onTap: onTap,
+        borderRadius: AppRadius.pillAll,
+        child: Container(
+          width: 52,
+          height: 52,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: colors.outline),
+          ),
+          child: Icon(icon, size: 20, color: colors.textPrimary),
+        ),
+      ),
+    );
+  }
 }

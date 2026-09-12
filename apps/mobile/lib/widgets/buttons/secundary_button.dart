@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
 
+/// Ação secundária com ícone (ex.: "Comprar ingresso" no detalhe do evento).
+/// Fachada fina sobre [VibesterButton] — em tela nova, use ele direto.
 class SecundaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
@@ -16,38 +17,11 @@ class SecundaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 60,
-
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: context.colors.ambar,
-
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-          ),
-        ),
-
-        onPressed: () {
-          onPressed();
-        },
-
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: context.colors.textPrimary),
-            SizedBox(width: 8),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                color: context.colors.textPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return VibesterButton(
+      label: label,
+      onPressed: onPressed,
+      icon: icon,
+      variant: VibesterButtonVariant.outline,
     );
   }
 }

@@ -8,7 +8,6 @@ class AppRoutes {
   static const favoritesPlaces = '/favorites-places';
   static const placeDetail = '/place-detail';
   static const hotPlaces = '/hot-places';
-  static const placeReviews = '/place-reviews';
 
   //HOME
   static const home = '/home';
@@ -39,6 +38,12 @@ class AppRoutes {
   static const profileEditing = '/profile-edit';
   static const userInterests = '/user-interests';
   static const otherProfile = '/other-profile';
+
+  //NOTIFICATIONS
+  static const notifications = '/notifications';
+
+  //SAVED
+  static const saved = '/saved';
 
   //FEED
   static const feed = '/feed';

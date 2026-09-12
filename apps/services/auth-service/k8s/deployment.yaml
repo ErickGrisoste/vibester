@@ -42,6 +42,15 @@ spec:
               value: "60"
             - name: EMAIL_VERIFICATION_TTL_SECONDS
               value: "600"
+            # Códigos incorretos aceitos por pendência antes de descartá-la (429).
+            - name: MAX_CODE_ATTEMPTS
+              value: "5"
+            # Janela e limite do contador de falhas de login que dispara o email
+            # de alerta ao dono da conta (evento auth.attempts.exceeded).
+            - name: AUTH_FAIL_WINDOW_SECONDS
+              value: "900"
+            - name: AUTH_FAIL_NOTIFY_THRESHOLD
+              value: "5"
             - name: REDIS_URL
               valueFrom:
                 configMapKeyRef:

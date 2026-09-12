@@ -1,31 +1,15 @@
-import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:email_validator/email_validator.dart';
+import 'package:mobile/models/media/media_item.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
-
-class UploadUrlResult {
-  final String uploadUrl;
-  final String key;
-  final String publicUrl;
-
-  UploadUrlResult({
-    required this.uploadUrl,
-    required this.key,
-    required this.publicUrl,
-  });
-
-  factory UploadUrlResult.fromJson(Map<String, dynamic> json) {
-    return UploadUrlResult(
-      uploadUrl: json['uploadUrl'] ?? '',
-      key: json['key'] ?? '',
-      publicUrl: json['publicUrl'] ?? '',
-    );
-  }
-}
+import 'package:mobile/service/api_error.dart';
+import 'package:mobile/service/media_upload_service.dart';
 
 class UserService {
+  final MediaUploadService _mediaUpload = MediaUploadService();
+
   Future<void> register({
     required String name,
     required String username,
@@ -45,8 +29,7 @@ class UserService {
         },
       );
     } on DioException catch (e) {
-      final mensagem = e.response?.data?['message'] ?? 'Erro ao criar conta';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao criar conta'));
     }
   }
 
@@ -70,8 +53,7 @@ class UserService {
 
       return response.data;
     } on DioException catch (e) {
-      final mensagem = e.response?.data?['message'] ?? 'Erro ao fazer login';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao fazer login'));
     }
   }
 
@@ -81,8 +63,7 @@ class UserService {
       final response = await ApiClient.dio.get(ApiEndpoints.getProfileById(id));
       return response.data;
     } on DioException catch (e) {
-      final mensagem = e.response?.data?['message'] ?? 'Erro ao buscar perfil';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar perfil'));
     }
   }
 
@@ -99,8 +80,7 @@ class UserService {
       );
       return response.data;
     } on DioException catch (e) {
-      final mensagem = e.response?.data?['message'] ?? 'Erro ao atualizar nome';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao atualizar nome'));
     }
   }
 
@@ -116,19 +96,21 @@ class UserService {
       );
       return response.data;
     } on DioException catch (e) {
-      final mensagem = e.response?.data?['message'] ?? 'Erro ao atualizar bio';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao atualizar bio'));
     }
   }
 
   Future<Map<String, dynamic>> updateAvatar({
     required String accountId,
-    required File image,
+    required MediaItem image,
   }) async {
     try {
-      final imageUrls = await _uploadImages(userId: accountId, images: [image]);
+      final uploaded = await _mediaUpload.upload(
+        userId: accountId,
+        items: [image],
+      );
 
-      final avatarUrl = imageUrls.first;
+      final avatarUrl = uploaded.first.url;
 
       final response = await ApiClient.dio.put(
         ApiEndpoints.updateAvatar(),
@@ -137,10 +119,7 @@ class UserService {
 
       return response.data;
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao atualizar avatar';
-
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao atualizar avatar'));
     }
   }
 
@@ -154,8 +133,7 @@ class UserService {
         data: {'followerId': followerId, 'followingId': followingId},
       );
     } on DioException catch (e) {
-      final mensagem = e.response?.data?['message'] ?? 'Erro ao seguir usuário';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao seguir usuário'));
     }
   }
 
@@ -169,9 +147,7 @@ class UserService {
       );
       return response.data['isFollowing'] ?? false;
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao verificar status de seguir';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao verificar status de seguir'));
     }
   }
 
@@ -185,9 +161,7 @@ class UserService {
         data: {'followerId': followerId, 'followingId': followingId},
       );
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao deixar de seguir usuário';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao deixar de seguir usuário'));
     }
   }
 
@@ -199,15 +173,14 @@ class UserService {
       );
       return response.data['shareUrl'] as String;
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ??
-          'Erro ao gerar link de compartilhamento';
-      throw Exception(mensagem);
+      throw Exception(
+        apiErrorMessage(e, 'Erro ao gerar link de compartilhamento'),
+      );
     }
   }
 
   // Retorna o accountId do perfil apontado pelo token, ou null se o link
-  // estiver expirado/inválido (404 do backend).
+  // estiver expirado (404) ou malformado (400: o token não é um UUID).
   Future<String?> resolveShareToken(String token) async {
     try {
       final response = await ApiClient.dio.get(
@@ -215,74 +188,12 @@ class UserService {
       );
       return response.data['accountId'] as String?;
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return null;
-      final mensagem =
-          e.response?.data?['message'] ??
-          'Erro ao abrir link de compartilhamento';
-      throw Exception(mensagem);
-    }
-  }
-
-  Future<List<UploadUrlResult>> _getUploadUrls({
-    required String userId,
-    required int count,
-  }) async {
-    try {
-      final response = await ApiClient.dio.post(
-        ApiEndpoints.postsUploadUrl(),
-        data: {'userId': userId, 'count': count},
+      final status = e.response?.statusCode;
+      if (status == 404 || status == 400) return null;
+      throw Exception(
+        apiErrorMessage(e, 'Erro ao abrir link de compartilhamento'),
       );
-      final List data = response.data;
-      return data.map((json) => UploadUrlResult.fromJson(json)).toList();
-    } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao gerar URLs de upload';
-      throw Exception(mensagem);
     }
-  }
-
-  Future<void> _uploadToR2(String uploadUrl, File file) async {
-    final dio = Dio(); // instância separada: sem Authorization da sua API
-    final bytes = await file.readAsBytes();
-    final extensao = file.path.split('.').last.toLowerCase();
-    final contentType = extensao == 'png' ? 'image/png' : 'image/jpeg';
-
-    await dio.put(
-      uploadUrl,
-      data: bytes,
-      options: Options(
-        headers: {
-          Headers.contentLengthHeader: bytes.length,
-          'Content-Type': contentType,
-        },
-      ),
-    );
-  }
-
-  Future<List<String>> _uploadImages({
-    required String userId,
-    required List<File> images,
-  }) async {
-    if (images.isEmpty) return [];
-
-    final uploadUrls = await _getUploadUrls(
-      userId: userId,
-      count: images.length,
-    );
-
-    final publicUrls = <String>[];
-    for (var i = 0; i < images.length; i++) {
-      await _uploadToR2(uploadUrls[i].uploadUrl, images[i]);
-      publicUrls.add(_normalizeUrl(uploadUrls[i].publicUrl));
-    }
-    return publicUrls;
-  }
-
-  String _normalizeUrl(String url) {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url;
-    }
-    return 'https://$url';
   }
 
   Future<List<UserSearchResult>> searchUsers(String q, {int limit = 10}) async {
@@ -293,9 +204,7 @@ class UserService {
       final data = response.data['data'] as List;
       return data.map((json) => UserSearchResult.fromJson(json)).toList();
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao pesquisar usuários';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao pesquisar usuários'));
     }
   }
 
@@ -309,9 +218,7 @@ class UserService {
         data: {'email': email, 'code': code},
       );
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Código inválido ou expirado';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Código inválido ou expirado'));
     }
   }
 }

@@ -13,6 +13,13 @@ vi.mock('../../src/config/env', () => ({
     corsOrigin: false,
     fetchTimeoutMs: 5000,
     rateLimitMax: 60,
+    rateLimitRegisterMax: 5,
+    rateLimitVerifyEmailMax: 10,
+    rateLimitLoginMax: 10,
     emailVerificationTtlSeconds: 600,
+    maxCodeAttempts: 5,
+    verificationCodeSecret: 'test-code-secret',
+    authFailWindowSeconds: 900,
+    authFailNotifyThreshold: 5,
   },
 }));

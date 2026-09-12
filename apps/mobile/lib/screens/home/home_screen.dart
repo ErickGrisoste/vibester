@@ -1,15 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
-import 'package:mobile/screens/favorites/user_favorites_screen.dart';
-import 'package:mobile/screens/home/home_tab.dart';
-import 'package:mobile/screens/search/search_screen.dart';
+import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/screens/explore/explore_screen.dart';
+import 'package:mobile/screens/feed/feed_screen.dart';
+import 'package:mobile/screens/home/today_screen.dart';
 import 'package:mobile/screens/user/user_profile_screen.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/navbar/custom_navbar.dart';
+import 'package:mobile/widgets/navigation/vibester_navbar.dart';
 import 'package:provider/provider.dart';
 
+/// Casca de navegação do app.
+///
+/// A arquitetura anterior tinha **duas** navegações empilhadas: quatro abas
+/// embaixo (home / busca / favoritos / perfil) e, dentro da primeira, mais
+/// três abas no topo (FEED / DESTAQUES / EM ALTA). Isso significava que o
+/// conteúdo mais importante do produto — o que está acontecendo hoje — ficava
+/// atrás de uma aba dentro de uma aba, e que o botão voltar precisava de uma
+/// máquina de estados só pra saber onde o usuário estava.
+///
+/// Aqui existe uma navegação só, com quatro destinos e uma ação:
+///
+/// * **FEED** — o social: o que as pessoas estão postando (tela inicial).
+/// * **EXPLORAR** — busca ativa: categorias, lugares, eventos, pessoas.
+/// * **(+)** — publicar (ação, não destino: volta pra onde o usuário estava).
+/// * **HOJE** — descoberta: o que está rolando agora, perto, nesta semana.
+/// * **VOCÊ** — identidade, salvos e ajustes.
+///
+/// Favoritos deixou de ser um destino de primeiro nível (virou uma seção
+/// dentro de VOCÊ, junto da identidade — que é onde o usuário procura o que
+/// ele mesmo salvou) e notificações saíram de dentro da aba de favoritos, um
+/// lugar onde ninguém as encontraria, para o sino do cabeçalho de HOJE.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -18,61 +41,65 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const _profileTabIndex = 3;
+  static const _feedIndex = 0;
+  static const _profileIndex = 3;
 
-  int _currentIndex = 0;
-  bool _navbarVisible = true;
-  bool _isTabSwitching = false; // Bloqueia o listener durante a troca de aba
-  final _navbarVisibleNotifier = ValueNotifier<bool>(true);
+  /// Tela inicial do produto — hoje o FEED.
+  static const _homeIndex = _feedIndex;
+
+  int _currentIndex = _homeIndex;
+  bool _dockVisible = true;
+
   final _profileKey = GlobalKey<UserProfileScreenState>();
-  final _homeTabKey = GlobalKey<HomeTabState>();
 
-  // Momento do ultimo toque no botao voltar do Android, para o padrao
-  // "aperte duas vezes para sair".
+  /// Momento do último toque no voltar do Android, para o padrão "aperte
+  /// duas vezes para sair".
   DateTime? _lastBackPress;
 
-  // Instanciadas uma única vez para manter o estado (e o cache de imagens já
-  // carregadas) de cada aba ao trocar entre elas.
-  late final List<Widget> _screens = [
-    HomeTab(
-      key: _homeTabKey,
-      navbarVisibleNotifier: _navbarVisibleNotifier,
-      onTabChanged: () {
-        // Reseta a barra ao trocar de aba pelo TabBar ou swipe
-        setState(() => _navbarVisible = true);
-        _navbarVisibleNotifier.value = true;
-      },
-    ),
-    SearchScreen(),
-    UserFavoritesScreen(),
+  /// Instanciadas uma vez só: trocar de destino não deve descartar o estado
+  /// (posição de scroll, imagens já carregadas) do destino anterior.
+  late final List<Widget> _destinations = [
+    const FeedScreen(),
+    const ExploreScreen(),
+    const TodayScreen(),
     UserProfileScreen(key: _profileKey),
   ];
 
-  @override
-  void dispose() {
-    _navbarVisibleNotifier.dispose();
-    super.dispose();
-  }
+  static const _navDestinations = [
+    NavbarDestination(
+      icon: Icons.dynamic_feed_outlined,
+      activeIcon: Icons.dynamic_feed,
+      label: 'FEED',
+    ),
+    NavbarDestination(
+      icon: Icons.explore_outlined,
+      activeIcon: Icons.explore,
+      label: 'BUSCA',
+    ),
+    NavbarDestination(
+      icon: Icons.bolt_outlined,
+      activeIcon: Icons.bolt,
+      label: 'HOJE',
+    ),
+    NavbarDestination(
+      icon: Icons.person_outline_rounded,
+      activeIcon: Icons.person_rounded,
+      label: 'VOCÊ',
+    ),
+  ];
 
   void _handleBackPress() {
-    // Qualquer lugar fora do FEED volta direto para ele, sem paradas
-    // intermediarias: a navbar e a aba interna sao resetadas juntas.
-    final homeTab = _homeTabKey.currentState;
-    final estaNoFeed = _currentIndex == 0 && (homeTab?.isOnFeedTab ?? true);
-
-    if (!estaNoFeed) {
-      if (_currentIndex != 0) {
-        setState(() {
-          _currentIndex = 0;
-          _navbarVisible = true;
-        });
-        _navbarVisibleNotifier.value = true;
-      }
-      homeTab?.goToFeedTab();
+    // Qualquer destino que não seja a tela inicial volta pra ela — a tela
+    // inicial do produto é uma só, e sair do app nunca acontece por acidente
+    // no meio da navegação.
+    if (_currentIndex != _homeIndex) {
+      setState(() {
+        _currentIndex = _homeIndex;
+        _dockVisible = true;
+      });
       return;
     }
 
-    // No FEED: exige um segundo toque para fechar o app.
     final now = DateTime.now();
     final isSecondPress =
         _lastBackPress != null &&
@@ -86,19 +113,76 @@ class _HomeScreenState extends State<HomeScreen> {
     _lastBackPress = now;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Aperte voltar novamente para sair'),
+        content: Text('Aperte voltar de novo pra sair'),
         duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
+  void _selectDestination(int index) {
+    if (index == _currentIndex) return;
+
+    setState(() {
+      _currentIndex = index;
+      _dockVisible = true;
+    });
+
+    // Não há push, então o badge não se atualiza sozinho: uma leitura leve a
+    // cada troca de destino é o suficiente e não custa uma tela de loading.
+    final userId = context.read<UserProvider>().user?.accountId;
+    if (userId != null) {
+      context.read<NotificationProvider>().fetchUnreadCount(userId);
+    }
+
+    // As telas do IndexedStack são montadas uma única vez, então o perfil não
+    // busca dados novos sozinho ao voltar a ficar visível.
+    if (index == _profileIndex) {
+      _profileKey.currentState?.refreshProfileData();
+    }
+  }
+
+  Future<void> _openComposer() async {
+    await Navigator.pushNamed(context, AppRoutes.newPublication);
+    if (!mounted) return;
+
+    // Publicou: leva pro FEED, que é onde o post aparece — a ação termina
+    // mostrando o resultado dela, não devolvendo o usuário pra tela anterior
+    // sem explicação.
+    final userId = context.read<UserProvider>().user?.accountId;
+    setState(() {
+      _currentIndex = _feedIndex;
+      _dockVisible = true;
+    });
+    if (userId != null) {
+      context.read<PublicationListProvider>().fetchPublications(
+        userId,
+        force: true,
+      );
+    }
+  }
+
+  /// Esconde o dock ao descer e devolve ao subir. O gesto é o mesmo em todos
+  /// os destinos, então mora aqui e não em cada tela.
+  bool _onScroll(ScrollNotification notification) {
+    if (notification is! ScrollUpdateNotification) return false;
+    if (notification.metrics.axis != Axis.vertical) return false;
+
+    final delta = notification.scrollDelta ?? 0;
+    if (delta > 3 && _dockVisible) {
+      setState(() => _dockVisible = false);
+    } else if (delta < -3 && !_dockVisible) {
+      setState(() => _dockVisible = true);
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Impede que o voltar do Android feche o app no primeiro toque.
+    final unread = context.watch<NotificationProvider>().unreadCount;
+
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
+      onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         _handleBackPress();
       },
@@ -106,70 +190,27 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: context.colors.noturno,
         extendBody: true,
         body: NotificationListener<ScrollNotification>(
-          //Serve para definir o estado. Controla tmb o botão da tela de feed pra sumir junto da barra. Tmb valida pra não sumir com PageView
-          onNotification: (notification) {
-            if (_isTabSwitching)
-              return false; // Ignora scroll durante troca de aba
-
-            if (notification is ScrollUpdateNotification &&
-                notification.metrics.axis == Axis.vertical) {
-              final delta = notification.scrollDelta ?? 0;
-
-              if (delta > 2 && _navbarVisible) {
-                setState(() => _navbarVisible = false);
-                _navbarVisibleNotifier.value = false;
-              } else if (delta < -2 && !_navbarVisible) {
-                setState(() => _navbarVisible = true);
-                _navbarVisibleNotifier.value = true;
-              }
-            }
-            return false;
-          },
-          child: IndexedStack(index: _currentIndex, children: _screens),
-        ),
-        bottomNavigationBar: IgnorePointer(
-          ignoring: !_navbarVisible,
-          child: AnimatedSlide(
-            offset: _navbarVisible ? Offset.zero : const Offset(0, 1),
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeInOut,
-            child: AnimatedOpacity(
-              opacity: _navbarVisible ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              child: CustomNavbar(
-                currentIndex: _currentIndex,
-                //Serve pra todas as telas resetarem ao trocar de tela, pra não perder a barra
-                onTap: (index) {
-                  setState(() {
-                    _currentIndex = index;
-                    _navbarVisible = true;
-                    _navbarVisibleNotifier.value = true;
-                    _isTabSwitching = true;
-                  });
-                  Future.delayed(const Duration(milliseconds: 400), () {
-                    if (mounted) setState(() => _isTabSwitching = false);
-                  });
-
-                  // Refresh leve do badge de notificações a cada troca de aba
-                  // (não há infra de push para atualizar em tempo real).
-                  final userId = context.read<UserProvider>().user?.accountId;
-                  if (userId != null) {
-                    context.read<NotificationProvider>().fetchUnreadCount(
-                      userId,
-                    );
-                  }
-
-                  // As telas do IndexedStack são montadas uma única vez, então
-                  // a aba de perfil não busca dados novos sozinha ao ser
-                  // selecionada — atualiza manualmente aqui.
-                  if (index == _profileTabIndex) {
-                    _profileKey.currentState?.refreshProfileData();
-                  }
-                },
-              ),
-            ),
+          onNotification: _onScroll,
+          // Aba escondida fica montada (preserva estado e rolagem), mas com
+          // o ticker mudo: nada anima fora da tela, e o vídeo do feed pausa.
+          child: IndexedStack(
+            index: _currentIndex,
+            children: [
+              for (final (i, destination) in _destinations.indexed)
+                TickerMode(enabled: i == _currentIndex, child: destination),
+            ],
           ),
+        ),
+        // Esconder/mostrar no scroll é intenção declarada aqui; a coreografia
+        // (deslocamento, opacidade, duração) vive dentro da navbar.
+        bottomNavigationBar: VibesterNavbar(
+          destinations: _navDestinations,
+          currentIndex: _currentIndex,
+          onDestinationSelected: _selectDestination,
+          onCreate: _openComposer,
+          badgeIndex: _profileIndex,
+          badgeCount: unread,
+          visible: _dockVisible,
         ),
       ),
     );

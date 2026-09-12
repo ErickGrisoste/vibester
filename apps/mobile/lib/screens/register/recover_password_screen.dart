@@ -1,10 +1,22 @@
+import 'package:email_validator/email_validator.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/screens/register/email_confirm_screen.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/buttons/primary_button.dart';
+import 'package:mobile/theme/vibester_page_route.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/text-field/primary_text_field.dart';
 
+/// Recuperar acesso.
+///
+/// Mesmo fluxo: valida o e-mail, abre a tela de código e, confirmado, segue
+/// para a redefinição de senha. A validação passou a checar formato de e-mail
+/// (antes só checava se o campo estava vazio, então um "asdf" seguia adiante
+/// e só falhava depois) e a navegação usa a transição do app em vez de um
+/// `MaterialPageRoute` cru no meio de um fluxo todo animado.
 class RecoverPasswordScreen extends StatefulWidget {
   const RecoverPasswordScreen({super.key});
 
@@ -22,151 +34,92 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.colors.darkGrey,
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 100),
-            child: Column(
-              children: [
-                Center(
-                  child: SizedBox(
-                    width: 130,
-                    height: 265,
-                    child: Image.asset('assets/img/mascote/mascote.png'),
-                  ),
-                ),
+  void _enviarCodigo() {
+    if (!_formKey.currentState!.validate()) return;
 
-                Text(
-                  'Recuperar Vibe',
-                  style: GoogleFonts.inter(
-                    color: context.colors.textPrimary,
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  'Insira seu email para recuperação de conta',
-                  style: GoogleFonts.inter(color: context.colors.grey),
-                ),
+    final email = _emailController.text.trim();
 
-                SizedBox(height: 15),
-
-                Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 280, bottom: 10),
-                      child: Text(
-                        'E-MAIL',
-                        style: GoogleFonts.inter(
-                          color: context.colors.grey,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 350,
-                      child: TextFormField(
-                        controller: _emailController,
-                        style: TextStyle(color: context.colors.textPrimary),
-                        cursorColor: context.colors.ambar,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: context.colors.darkGrey,
-                          prefixIcon: Icon(Icons.email_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          errorStyle: TextStyle(
-                            color: context.colors.error,
-                            fontSize: 12,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: context.colors.border,
-                              width: 1.3,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: context.colors.ambar,
-                              width: 1.3,
-                            ),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: context.colors.error,
-                              width: 1.3,
-                            ),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: context.colors.error,
-                              width: 1.3,
-                            ),
-                          ),
-                        ),
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Campo obrigatório!';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-
-                Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 50),
-                      child: SizedBox(
-                        width: 350,
-                        height: 50,
-                        child: PrimaryButton(
-                          label: 'Enviar Codigo',
-                          onPressed: () {
-                            if (!_formKey.currentState!.validate()) return;
-
-                            final email = _emailController.text.trim();
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => EmailConfirmScreen(
-                                  senha: '',
-                                  email: email,
-                                  onEmailConfirmed: () {
-                                    Navigator.pushNamed(
-                                      context,
-                                      AppRoutes.resetPassword,
-                                      arguments: email,
-                                    );
-                                  },
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+    Navigator.push(
+      context,
+      vibesterFadeRoute(
+        EmailConfirmScreen(
+          senha: '',
+          email: email,
+          onEmailConfirmed: () => Navigator.pushNamed(
+            context,
+            AppRoutes.resetPassword,
+            arguments: email,
           ),
         ),
+        const RouteSettings(name: 'email-confirm-recovery'),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Scaffold(
+      backgroundColor: colors.noturno,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: Grain(opacity: 0.04, density: 0.4)),
+          SafeArea(
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+                children: [
+                  const ScreenHeader(
+                    title: 'Recuperar\nacesso',
+                    eyebrow: 'ESQUECEU A SENHA',
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.screen,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'A gente manda um código de verificação pro seu '
+                          'e-mail.',
+                          style: context.typography.bodyLarge.copyWith(
+                            color: colors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        PrimaryTextField(
+                          controller: _emailController,
+                          label: 'E-mail',
+                          icon: Icons.mail_outline_rounded,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _enviarCodigo(),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Informe seu e-mail';
+                            }
+                            if (!EmailValidator.validate(value.trim())) {
+                              return 'Esse e-mail não parece válido';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        VibesterButton(
+                          label: 'Enviar código',
+                          onPressed: _enviarCodigo,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

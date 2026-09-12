@@ -35,6 +35,91 @@ class AppColors extends ThemeExtension<AppColors> {
   /// e ícones use `GradientMask` (theme_extensions.dart).
   LinearGradient get gradient => LinearGradient(colors: [ambar, brasa]);
 
+  // -------------------------------------------------------------------
+  // Superfícies derivadas
+  //
+  // A paleta do Vibester (navy / ambar / brasa / noturno / darkGrey / grey) é
+  // patrimônio da marca e não muda. O que falta pra construir hierarquia de
+  // profundidade não é cor nova, e sim *camada*: as superfícies abaixo são
+  // todas derivadas por opacidade/mistura dos tokens existentes, então o app
+  // continua cromaticamente idêntico a si mesmo.
+  // -------------------------------------------------------------------
+
+  /// Fundo de tela. Alias semântico de [noturno].
+  Color get background => noturno;
+
+  /// Primeira camada acima do fundo (bloco, célula de lista, campo). Um
+  /// [navy] muito diluído sobre o fundo — dá relevo sem virar "card cinza".
+  Color get surface => Color.alphaBlend(navy.withValues(alpha: 0.55), noturno);
+
+  /// Segunda camada (sheet, painel sobreposto, dock).
+  Color get surfaceRaised =>
+      Color.alphaBlend(navy.withValues(alpha: 0.88), noturno);
+
+  /// Traço estrutural discreto — separadores e contornos de superfície, onde
+  /// [border] (white38) seria alto demais.
+  Color get hairline => grey.withValues(alpha: 0.18);
+
+  /// Traço de contorno visível, usado como elemento gráfico (moldura de
+  /// poster, chip selecionado).
+  Color get outline => grey.withValues(alpha: 0.38);
+
+  /// Véu sobre imagem para garantir contraste de texto sobreposto. Sempre
+  /// preto real: escurecer com [noturno] tingiria a foto de roxo.
+  Color get scrim => const Color(0xFF000000);
+
+  /// Gradiente de leitura para texto sobre foto (transparente → escuro).
+  /// Usado por todo card com metadado sobreposto.
+  LinearGradient get photoScrim => LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    stops: const [0.0, 0.45, 1.0],
+    colors: [
+      scrim.withValues(alpha: 0.0),
+      scrim.withValues(alpha: 0.45),
+      scrim.withValues(alpha: 0.92),
+    ],
+  );
+
+  /// Cor de "ao vivo / acontecendo agora". É [brasa] — a única cor quente
+  /// urgente da paleta — isolada num nome semântico pra não ser usada como
+  /// decoração genérica.
+  Color get live => brasa;
+
+  /// Tinta escura da marca, fixa nos dois temas.
+  ///
+  /// É o [noturno] do tema escuro usado como *cor de texto*, não como fundo:
+  /// por isso é constante e não acompanha o tema — ela existe para ficar sobre
+  /// preenchimentos de marca, que também não mudam entre temas.
+  static const Color ink = Color(0xFF0C0910);
+
+  /// Cor legível de texto/ícone sobre um preenchimento sólido.
+  ///
+  /// Escolhe entre [ink] e branco pela razão de contraste real, em vez de
+  /// assumir branco. Isso não é preciosismo: branco sobre `ambar` (#F88806)
+  /// dá **2,47:1**, abaixo até do piso de 3:1 da WCAG para texto grande — era
+  /// o rótulo de todo botão principal, chip selecionado e tag de marca do app.
+  /// Com [ink] a mesma combinação vai a 8:1, e de quebra fica mais parecida
+  /// com tinta preta sobre papel laranja, que é a direção de cartaz do
+  /// produto.
+  ///
+  /// Em fundos escuros (o vermelho de erro do tema claro, por exemplo) a conta
+  /// devolve branco sozinha — nenhuma tela precisa decidir isso na mão.
+  Color onFill(Color background) {
+    final luminancia = background.computeLuminance();
+    final contrasteComBranco = 1.05 / (luminancia + 0.05);
+    final contrasteComTinta =
+        (luminancia + 0.05) / (ink.computeLuminance() + 0.05);
+
+    return contrasteComTinta >= contrasteComBranco ? ink : Colors.white;
+  }
+
+  /// Atalho para o caso mais comum: texto sobre [ambar].
+  Color get onAmbar => onFill(ambar);
+
+  /// Texto sobre [brasa].
+  Color get onBrasa => onFill(brasa);
+
   static const AppColors dark = AppColors(
     navy: Color(0xFF17112A),
     ambar: Color(0xFFF88806),

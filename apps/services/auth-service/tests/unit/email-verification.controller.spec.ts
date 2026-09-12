@@ -28,7 +28,7 @@ describe('EmailVerificationController', () => {
     vi.mocked(EmailVerificationService).prototype.verify = vi.fn().mockResolvedValue(accountOutput);
 
     const controller = new EmailVerificationController();
-    const req: any = { body: { email: 'e@e.com', code: '482931' }, log: { error: vi.fn() } };
+    const req: any = { body: { email: 'e@e.com', code: '482931' }, log: { error: vi.fn(), warn: vi.fn() } };
     const reply = mockReply();
 
     await controller.verify(req, reply);
@@ -44,7 +44,7 @@ describe('EmailVerificationController', () => {
     );
 
     const controller = new EmailVerificationController();
-    const req: any = { body: { email: 'e@e.com', code: '000000' }, log: { error: vi.fn() } };
+    const req: any = { body: { email: 'e@e.com', code: '000000' }, log: { error: vi.fn(), warn: vi.fn() } };
     const reply = mockReply();
 
     await controller.verify(req, reply);
@@ -59,7 +59,7 @@ describe('EmailVerificationController', () => {
     );
 
     const controller = new EmailVerificationController();
-    const req: any = { body: { email: 'e@e.com', code: '000000' }, log: { error: vi.fn() } };
+    const req: any = { body: { email: 'e@e.com', code: '000000' }, log: { error: vi.fn(), warn: vi.fn() } };
     const reply = mockReply();
 
     await controller.verify(req, reply);
@@ -71,7 +71,7 @@ describe('EmailVerificationController', () => {
     vi.mocked(EmailVerificationService).prototype.verify = vi.fn().mockRejectedValue(new Error('Unexpected'));
 
     const controller = new EmailVerificationController();
-    const req: any = { body: { email: 'e@e.com', code: '482931' }, log: { error: vi.fn() } };
+    const req: any = { body: { email: 'e@e.com', code: '482931' }, log: { error: vi.fn(), warn: vi.fn() } };
     const reply = mockReply();
 
     await controller.verify(req, reply);

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/theme/app_colors.dart';
+import 'package:mobile/theme/app_motion.dart';
+import 'package:mobile/theme/app_typography.dart';
 
 extension AppColorsX on BuildContext {
   AppColors get colors => Theme.of(this).extension<AppColors>()!;
@@ -7,6 +9,22 @@ extension AppColorsX on BuildContext {
   /// Atalho para o gradiente da marca. Equivale a `context.colors.gradient`.
   /// Use direto em `BoxDecoration.gradient` (fundos, cards, botões).
   LinearGradient get gradient => colors.gradient;
+}
+
+extension AppTypographyX on BuildContext {
+  /// Tokens de tipografia do Vibester (Outfit + DM Mono). Equivale a
+  /// `context.colors`, mas para estilo de texto — ver `app_typography.dart`.
+  AppTypography get typography => AppTypography.instance;
+}
+
+extension AppMotionX on BuildContext {
+  /// Se o sistema pediu redução de movimento (Acessibilidade). Ver
+  /// `app_motion.dart` para os tokens estáticos (`AppMotion.fast` etc.).
+  bool get reduceMotion => AppMotion.reduceMotion(this);
+
+  /// [duration], ou [Duration.zero] se `reduceMotion` estiver ativo.
+  Duration adaptiveMotion(Duration duration) =>
+      AppMotion.adaptive(this, duration);
 }
 
 /// Aplica o gradiente da marca sobre texto e ícones.

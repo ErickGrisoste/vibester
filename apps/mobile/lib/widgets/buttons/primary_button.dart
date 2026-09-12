@@ -1,10 +1,14 @@
-// ignore_for_file: prefer_final_fields
-
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
 
-class PrimaryButton extends StatefulWidget {
+/// Ação principal de uma tela.
+///
+/// Hoje é uma fachada fina sobre [VibesterButton] — a implementação real (as
+/// quatro variantes, os quatro estados, o alvo de 56px) vive lá. Este arquivo
+/// existe porque `PrimaryButton` aparece em oito telas com a mesma assinatura;
+/// em tela nova, use [VibesterButton] direto.
+class PrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
   final ButtonState state;
@@ -17,76 +21,35 @@ class PrimaryButton extends StatefulWidget {
   });
 
   @override
-  State<PrimaryButton> createState() => _PrimaryButtonState();
-}
-
-class _PrimaryButtonState extends State<PrimaryButton> {
-  @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(seconds: 2),
-      curve: Curves.easeOutBack,
-      width: 350,
-      height: 60,
-      decoration: BoxDecoration(
-        color: widget.state.color(context),
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: context.colors.ambar.withOpacity(0.5),
-            blurRadius: 12,
-            spreadRadius: 1,
-          ),
-          BoxShadow(
-            color: context.colors.ambar.withOpacity(0.3),
-            blurRadius: 20,
-            spreadRadius: 1,
-          ),
-          BoxShadow(
-            color: context.colors.ambar.withOpacity(0.15),
-            blurRadius: 30,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(30),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(30),
-          onTap: widget.onPressed,
-          child: Center(
-            child: widget.state == ButtonState.idle
-                ? Text(
-                    widget.label,
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      color: context.colors.textPrimary,
-                    ),
-                  )
-                : Text(
-                    widget.state.label,
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.bold,
-                      color: context.colors.textPrimary,
-                    ),
-                  ),
-          ),
-        ),
-      ),
+    return VibesterButton(
+      label: state == ButtonState.idle ? label : state.label,
+      onPressed: onPressed,
+      state: state.toButtonState(),
+      successLabel: state.label,
+      errorLabel: state.label,
     );
   }
 }
 
+/// Estado das ações de seguir/salvar. Mantido para compatibilidade com as
+/// telas existentes; internamente mapeia para [VibesterButtonState].
 enum ButtonState {
   idle,
   loading,
   success,
   error;
 
+  VibesterButtonState toButtonState() => switch (this) {
+    ButtonState.idle => VibesterButtonState.idle,
+    ButtonState.loading => VibesterButtonState.loading,
+    ButtonState.success => VibesterButtonState.success,
+    ButtonState.error => VibesterButtonState.error,
+  };
+
   Color color(BuildContext context) => switch (this) {
     ButtonState.idle => context.colors.ambar,
-    ButtonState.loading => const Color(0xFFFFAA00),
+    ButtonState.loading => context.colors.ambar,
     ButtonState.success => context.colors.navy,
     ButtonState.error => context.colors.error,
   };

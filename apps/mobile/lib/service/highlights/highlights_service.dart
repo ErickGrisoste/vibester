@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
+import 'package:mobile/service/api_error.dart';
 
 class HighlightsService {
   // Busca os posts de um usuário pelo accountId
@@ -18,9 +19,7 @@ class HighlightsService {
       final List data = response.data;
       return data.map((json) => HighlightModel.fromJson(json)).toList();
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao buscar destaques';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar destaques'));
     }
   }
 
@@ -37,9 +36,7 @@ class HighlightsService {
       final List data = response.data;
       return data.map((json) => HighlightModel.fromJson(json)).toList();
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao buscar destaques';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar destaques'));
     }
   }
 }

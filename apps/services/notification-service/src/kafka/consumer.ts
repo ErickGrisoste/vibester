@@ -6,6 +6,7 @@ import { handleFollowEvent } from "./handlers/follow.handler";
 import { handlePostLikedEvent } from "./handlers/postLiked.handler";
 import { handlePostCommentedEvent } from "./handlers/postCommented.handler";
 import { handleUserDeletedEvent } from "./handlers/userDeleted.handler";
+import { handleExcessiveAttemptsEvent } from "./handlers/excessiveAttempts.handler";
 
 export const kafka = new Kafka({
   clientId: "notification-service",
@@ -26,6 +27,7 @@ const TOPICS = [
   "post.liked",
   "post.commented",
   "user.deleted",
+  "auth.attempts.exceeded",
 ];
 
 export async function startKafkaConsumers(): Promise<void> {
@@ -66,6 +68,9 @@ export async function startKafkaConsumers(): Promise<void> {
             break;
           case "user.deleted":
             await handleUserDeletedEvent(value);
+            break;
+          case "auth.attempts.exceeded":
+            await handleExcessiveAttemptsEvent(value);
             break;
           default:
             console.warn(`[Kafka] Unhandled topic: ${topic}`);

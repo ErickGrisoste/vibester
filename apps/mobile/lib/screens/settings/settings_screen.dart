@@ -1,16 +1,29 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/payment/payment_service.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/theme/vibester_dialog.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/common/settings_row.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// Configurações.
+///
+/// A versão anterior desenhava cada grupo como um cartão arredondado de altura
+/// fixa (`height: Platform.isIOS ? 190 : 150`) com divisórias internas — o que
+/// quebra assim que o texto de um item quebra em duas linhas — e apresentava
+/// como iguais tanto os itens que funcionavam quanto os oito que tinham
+/// `onTap: () {}`. Aqui os grupos são apenas rótulos em DM Mono sobre linhas
+/// separadas por fio, a altura vem do conteúdo, e **o que ainda não existe é
+/// mostrado como não existente**: item apagado, sem toque, com o selo "EM
+/// BREVE". Prometer um destino que não abre é pior que assumir que ele ainda
+/// não está pronto.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -19,44 +32,49 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  Color get _color => context.colors.darkGrey;
   final PaymentService _paymentService = PaymentService();
-  bool modoFantasma = false;
+
+  /// Preferência local de visibilidade, ainda sem contrapartida no backend.
+  bool _modoFantasma = false;
   bool _carregandoCheckout = false;
 
   static const String _promocoesProductId = 'prod_g3JtzRb2TASCFuBYrQ2M4gTp';
 
   Future<void> _confirmarLogout() async {
-    final confirmar = await showDialog<bool>(
+    final colors = context.colors;
+
+    final confirmar = await showVibesterDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: context.colors.darkGrey,
+        backgroundColor: colors.surfaceRaised,
         title: Text(
           'Sair da conta',
-          style: GoogleFonts.inter(
-            color: context.colors.textPrimary,
-            fontWeight: FontWeight.bold,
+          style: context.typography.titleLarge.copyWith(
+            color: colors.textPrimary,
           ),
         ),
         content: Text(
-          'Tem certeza que deseja sair?',
-          style: GoogleFonts.inter(color: context.colors.textSecondary),
+          'Você vai precisar entrar de novo pra usar o app.',
+          style: context.typography.bodyMedium.copyWith(
+            color: colors.textSecondary,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancelar',
-              style: GoogleFonts.inter(color: context.colors.textMuted),
+              style: context.typography.titleSmall.copyWith(
+                color: colors.textMuted,
+              ),
             ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               'Sair',
-              style: GoogleFonts.inter(
-                color: context.colors.error,
-                fontWeight: FontWeight.bold,
+              style: context.typography.titleSmall.copyWith(
+                color: colors.error,
               ),
             ),
           ),
@@ -78,7 +96,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _abrirCheckoutPromocoes() async {
     if (_carregandoCheckout) return;
-
     setState(() => _carregandoCheckout = true);
 
     try {
@@ -96,696 +113,161 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     } catch (e) {
+      // Mensagem tratada na tela; detalhe da exceção só no log local.
+      debugPrint('Falha no checkout: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível abrir o checkout')),
+        );
       }
     } finally {
-      if (mounted) {
-        setState(() => _carregandoCheckout = false);
-      }
+      if (mounted) setState(() => _carregandoCheckout = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final themeProvider = context.watch<ThemeProvider>();
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Configurações',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: context.colors.noturno,
-        foregroundColor: context.colors.textPrimary,
-      ),
-      backgroundColor: context.colors.noturno,
-      body: SingleChildScrollView(
-        child: Column(
+      backgroundColor: colors.noturno,
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: AppSpacing.huge),
           children: [
-            SizedBox(height: 30),
+            const ScreenHeader(title: 'Ajustes', eyebrow: 'SUA CONTA'),
 
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "CONTA",
-                    style: GoogleFonts.inter(
-                      color: context.colors.textSecondary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+            const SettingsGroupLabel('CONTA'),
+            SettingsRow(
+              icon: Icons.person_outline_rounded,
+              label: 'Informações pessoais',
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRoutes.personalInformationSettings,
+              ),
+            ),
+            const SettingsRow(
+              icon: Icons.shield_outlined,
+              label: 'Segurança',
+              comingSoon: true,
+            ),
+            SettingsRow(
+              icon: Icons.manage_accounts_outlined,
+              label: 'Gerenciamento de conta',
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRoutes.accountManagementSettings,
               ),
             ),
 
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              padding: EdgeInsets.all(12),
-              height: Platform.isIOS ? 190 : 150,
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  //Infos
-                  InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.personalInformationSettings,
-                      );
-                    },
-
-                    child: Row(
-                      children: [
-                        Icon(Icons.person, color: context.colors.textMuted),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Informações Pessoais",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Seguranca
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.security_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Segurança",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Gerenciar
-                  InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.accountManagementSettings,
-                      );
-                    },
-
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.settings_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Gerenciamento de Conta",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            const SettingsGroupLabel('APARÊNCIA'),
+            SettingsRow(
+              icon: themeProvider.isDarkMode
+                  ? Icons.dark_mode_outlined
+                  : Icons.light_mode_outlined,
+              label: 'Modo escuro',
+              trailing: Switch(
+                value: themeProvider.isDarkMode,
+                activeThumbColor: colors.onAmbar,
+                activeTrackColor: colors.ambar,
+                inactiveTrackColor: colors.surface,
+                onChanged: (_) => themeProvider.toggleTheme(),
               ),
             ),
 
-            SizedBox(height: 30),
-
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "APARÊNCIA",
-                    style: GoogleFonts.inter(
-                      color: context.colors.textSecondary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+            const SettingsGroupLabel('PRIVACIDADE'),
+            const SettingsRow(
+              icon: Icons.my_location_outlined,
+              label: 'Permissões de localização',
+              comingSoon: true,
+            ),
+            SettingsRow(
+              icon: FontAwesomeIcons.ghost,
+              label: 'Ghost vibe',
+              description:
+                  'Ficar invisível nos lugares em que você faz check-in',
+              trailing: Switch(
+                value: _modoFantasma,
+                activeThumbColor: colors.onAmbar,
+                activeTrackColor: colors.ambar,
+                inactiveTrackColor: colors.surface,
+                onChanged: (value) => setState(() => _modoFantasma = value),
               ),
             ),
-
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    context.watch<ThemeProvider>().isDarkMode
-                        ? Icons.dark_mode_outlined
-                        : Icons.light_mode_outlined,
-                    color: context.colors.textMuted,
-                  ),
-                  SizedBox(width: 15),
-                  Expanded(
-                    child: Text(
-                      "Modo Escuro",
-                      style: GoogleFonts.inter(
-                        color: context.colors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  Transform.scale(
-                    scale: Platform.isIOS ? 1.0 : 0.8,
-                    child: Switch(
-                      value: context.watch<ThemeProvider>().isDarkMode,
-                      onChanged: (value) {
-                        context.read<ThemeProvider>().setThemeMode(
-                          value ? ThemeMode.dark : ThemeMode.light,
-                        );
-                      },
-                      activeColor: context.colors.brasa,
-                    ),
-                  ),
-                ],
-              ),
+            const SettingsRow(
+              icon: Icons.visibility_outlined,
+              label: 'Visualizar vibe checks',
+              comingSoon: true,
             ),
 
-            SizedBox(height: 30),
-
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "PRIVACIDADE",
-                    style: GoogleFonts.inter(
-                      color: context.colors.textSecondary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+            const SettingsGroupLabel('NOTIFICAÇÕES'),
+            const SettingsRow(
+              icon: Icons.people_outline_rounded,
+              label: 'Amigos na área',
+              comingSoon: true,
+            ),
+            const SettingsRow(
+              icon: Icons.event_note_outlined,
+              label: 'Atualizações de eventos',
+              comingSoon: true,
             ),
 
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              height: Platform.isIOS ? 230 : 150,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  //Permição
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Permissões de Localização",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 19,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Fantasma
-                  Row(
-                    children: [
-                      FaIcon(
-                        FontAwesomeIcons.ghost,
-                        color: context.colors.textMuted,
-                      ),
-                      SizedBox(width: 15),
-                      Expanded(
-                        child: Text(
-                          "Ghost Vibe",
-                          style: GoogleFonts.inter(
-                            color: context.colors.textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-
-                      Transform.scale(
-                        scale: Platform.isIOS ? 1.0 : 0.8,
-                        child: Switch(
-                          value: modoFantasma,
-                          onChanged: (value) {
-                            setState(() {
-                              modoFantasma = value;
-                            });
-                          },
-                          activeColor: context.colors.brasa,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Gerenciar
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.visibility_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Visualizar Vibe Checks",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            const SettingsGroupLabel('VIBESTER CLUB'),
+            SettingsRow(
+              icon: Icons.workspace_premium_outlined,
+              label: 'Assinar o Vibester Club',
+              description: 'Promoções e vantagens nos lugares parceiros',
+              accent: true,
+              loading: _carregandoCheckout,
+              onTap: _abrirCheckoutPromocoes,
             ),
 
-            SizedBox(height: 30),
-
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "NOTIFICAÇÕES",
-                    style: GoogleFonts.inter(
-                      color: context.colors.textSecondary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+            const SettingsGroupLabel('AJUDA'),
+            const SettingsRow(
+              icon: Icons.help_outline_rounded,
+              label: 'Central de ajuda',
+              comingSoon: true,
+            ),
+            const SettingsRow(
+              icon: Icons.card_giftcard_outlined,
+              label: 'Convidar um amigo',
+              comingSoon: true,
+            ),
+            const SettingsRow(
+              icon: Icons.description_outlined,
+              label: 'Termos e política',
+              comingSoon: true,
             ),
 
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              height: Platform.isIOS ? 190 : 150,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  //Friends in the area, fds
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.notifications_outlined,
-                          color: context.colors.textMuted,
-                        ),
-
-                        SizedBox(width: 10),
-
-                        Expanded(
-                          child: Text(
-                            "Amigos na Área",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Eventos
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today_outlined,
-                          color: context.colors.textMuted,
-                        ),
-
-                        SizedBox(width: 10),
-
-                        Expanded(
-                          child: Text(
-                            "Atualizações de Eventos",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Parceria
-                  InkWell(
-                    onTap: _abrirCheckoutPromocoes,
-                    child: Row(
-                      children: [
-                        _carregandoCheckout
-                            ? SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: context.colors.textMuted,
-                                ),
-                              )
-                            : Icon(
-                                Icons.confirmation_number_outlined,
-                                color: context.colors.textMuted,
-                              ),
-
-                        SizedBox(width: 10),
-
-                        Expanded(
-                          child: Text(
-                            "Assinar o Vibester Club",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 30),
-
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "AJUDA",
-                    style: GoogleFonts.inter(
-                      color: context.colors.textSecondary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              height: Platform.isIOS ? 190 : 150,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  //Ajuda
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.help_outline,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Central de Ajuda",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Add amigo
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.group_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Convidar um Amigo",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Termos
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.description_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Termos e Política",
-                            style: GoogleFonts.inter(
-                              color: context.colors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 30),
-
+            const SizedBox(height: AppSpacing.xxl),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _confirmarLogout,
-                  icon: Icon(Icons.logout, color: context.colors.error),
-                  label: Text(
-                    'Sair da conta',
-                    style: GoogleFonts.inter(
-                      color: context.colors.error,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.screen,
+              ),
+              child: VibesterPressable(
+                onTap: _confirmarLogout,
+                borderRadius: AppRadius.pillAll,
+                child: Container(
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: AppRadius.pillAll,
+                    border: Border.all(
+                      color: colors.error.withValues(alpha: 0.5),
                     ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: BorderSide(color: context.colors.error),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  child: Text(
+                    'Sair da conta',
+                    style: context.typography.titleMedium.copyWith(
+                      color: colors.error,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ),
             ),
-
-            SizedBox(height: 30),
           ],
         ),
       ),

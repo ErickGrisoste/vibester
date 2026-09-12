@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
+import 'package:mobile/service/api_error.dart';
 
 class EventService {
   List<EventModel> events = [];
@@ -10,16 +11,24 @@ class EventService {
   EventModel? selectedEvent;
 
   Future<List<EventModel>> getEvents() async {
-    final response = await ApiClient.dio.get(ApiEndpoints.events());
-    final List data = response.data;
-    events = data.map((json) => EventModel.fromJson(json)).toList();
-    return events;
+    try {
+      final response = await ApiClient.dio.get(ApiEndpoints.events());
+      final List data = response.data;
+      events = data.map((json) => EventModel.fromJson(json)).toList();
+      return events;
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar eventos'));
+    }
   }
 
   Future<List<EventModel>> getEventsFeatured() async {
-    final response = await ApiClient.dio.get(ApiEndpoints.eventsFeatured());
-    final List data = response.data;
-    return data.map((json) => EventModel.fromJson(json)).toList();
+    try {
+      final response = await ApiClient.dio.get(ApiEndpoints.eventsFeatured());
+      final List data = response.data;
+      return data.map((json) => EventModel.fromJson(json)).toList();
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar eventos em destaque'));
+    }
   }
 
   Future<List<EventModel>> getEventsWeek({DateTime? date}) async {
@@ -27,12 +36,16 @@ class EventService {
       'yyyy-MM-dd',
     ).format(date ?? DateTime.now());
 
-    final response = await ApiClient.dio.get(
-      ApiEndpoints.eventsWeek(dataFormatada),
-    );
+    try {
+      final response = await ApiClient.dio.get(
+        ApiEndpoints.eventsWeek(dataFormatada),
+      );
 
-    final List data = response.data;
-    return data.map((json) => EventModel.fromJson(json)).toList();
+      final List data = response.data;
+      return data.map((json) => EventModel.fromJson(json)).toList();
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar eventos da semana'));
+    }
   }
 
   Future<List<EventModel>> getEventsNearby({
@@ -40,32 +53,62 @@ class EventService {
     required double longitude,
     double radiusKm = 20,
   }) async {
-    final response = await ApiClient.dio.get(
-      ApiEndpoints.eventNearby(),
-      queryParameters: {
-        'latitude': latitude.toString(),
-        'longitude': longitude.toString(),
-        'radiusKm': radiusKm,
-      },
-    );
+    try {
+      final response = await ApiClient.dio.get(
+        ApiEndpoints.eventNearby(),
+        queryParameters: {
+          'latitude': latitude.toString(),
+          'longitude': longitude.toString(),
+          'radiusKm': radiusKm,
+        },
+      );
 
-    final List data = response.data;
-    nearbyEvents = data.map((json) => EventModel.fromJson(json)).toList();
-    return nearbyEvents;
+      final List data = response.data;
+      nearbyEvents = data.map((json) => EventModel.fromJson(json)).toList();
+      return nearbyEvents;
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar eventos próximos'));
+    }
+  }
+
+  Future<List<EventModel>> getEventsByEstablishment(
+    String establishmentId,
+  ) async {
+    try {
+      final response = await ApiClient.dio.get(
+        ApiEndpoints.eventsByEstablishment(establishmentId),
+      );
+      final List data = response.data;
+      return data.map((json) => EventModel.fromJson(json)).toList();
+    } on DioException catch (e) {
+      throw Exception(
+        apiErrorMessage(e, 'Erro ao buscar eventos do estabelecimento'),
+      );
+    }
   }
 
   Future<EventModel> getEventById(String eventId) async {
-    final response = await ApiClient.dio.get(ApiEndpoints.eventDetail(eventId));
-    selectedEvent = EventModel.fromJson(response.data);
-    return selectedEvent!;
+    try {
+      final response = await ApiClient.dio.get(
+        ApiEndpoints.eventDetail(eventId),
+      );
+      selectedEvent = EventModel.fromJson(response.data);
+      return selectedEvent!;
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar evento'));
+    }
   }
 
   Future<List<EventModel>> getUserCheckIns(String userId) async {
-    final response = await ApiClient.dio.get(
-      ApiEndpoints.eventCheckins(userId),
-    );
-    final List data = response.data;
-    return data.map((json) => EventModel.fromJson(json)).toList();
+    try {
+      final response = await ApiClient.dio.get(
+        ApiEndpoints.eventCheckins(userId),
+      );
+      final List data = response.data;
+      return data.map((json) => EventModel.fromJson(json)).toList();
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar seus rolês'));
+    }
   }
 
   Future<bool> getCheckInStatus({
@@ -92,9 +135,7 @@ class EventService {
         data: {'userId': userId},
       );
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao confirmar presença';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao confirmar presença'));
     }
   }
 
@@ -108,9 +149,7 @@ class EventService {
         data: {'userId': userId},
       );
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ?? 'Erro ao remover presença';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao remover presença'));
     }
   }
 }
