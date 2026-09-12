@@ -13,6 +13,7 @@ import { CommentController } from "./controller/comment.controller";
 import { getCassandraClient } from "./config/cassandra";
 import { redis } from "./config/redis";
 import { env } from "./config/env";
+import { registry } from "./metrics/registry";
 
 const postSchema = {
     type: "object",
@@ -27,6 +28,17 @@ const postSchema = {
         establishmentLogo: { type: "string", nullable: true },
         establishmentCategory: { type: "string", nullable: true },
         imageUrls: { type: "array", items: { type: "string", format: "uri" } },
+        media: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    url: { type: "string", format: "uri" },
+                    type: { type: "string", enum: ["IMAGE", "VIDEO"] },
+                    thumbnailUrl: { type: "string", format: "uri", nullable: true },
+                },
+            },
+        },
         caption: { type: "string" },
         tags: { type: "array", items: { type: "string" }, nullable: true },
         totalLikes: { type: "integer" },
@@ -62,7 +74,19 @@ const likeSchema = {
 
 const errorSchema = {
     type: "object",
-    properties: { message: { type: "string" } },
+    properties: {
+        message: { type: "string" },
+        errors: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    field: { type: "string" },
+                    message: { type: "string" },
+                },
+            },
+        },
+    },
 };
 
 const postIdParam = {
@@ -95,10 +119,35 @@ const postsQuerystring = {
 };
 
 export async function routes(app: FastifyInstance) {
+    // Liveness — só confirma que o processo Fastify está de pé, sem tocar em
+    // Redis/Cassandra. Uma degradação externa não deve derrubar o pod: matar o
+    // processo não conserta o Astra/Redis, só causa reconexão em massa quando
+    // (se) o pod novo sobe no meio da mesma instabilidade. Ver /ready para a
+    // checagem de dependências.
     app.get("/health", {
         schema: {
             tags: ["Health"],
-            summary: "Health check com verificação de dependências",
+            summary: "Liveness — processo vivo, sem checar dependências externas",
+            response: {
+                200: {
+                    type: "object",
+                    properties: { status: { type: "string", example: "ok" } },
+                },
+            },
+        },
+    }, async (_request, reply) => {
+        return reply.status(200).send({ status: "ok" });
+    });
+
+    // Readiness — controla se o pod recebe tráfego (não reinicia nada).
+    // Cassandra é dependência dura (toda rota o usa) e derruba o readiness;
+    // Redis não é — cacheAside já cai pro Cassandra direto quando o Redis
+    // falha (ver config/redis.ts), então Redis fora do ar deixa o serviço
+    // mais lento, não quebrado, e por isso não tira o pod de rotação sozinho.
+    app.get("/ready", {
+        schema: {
+            tags: ["Health"],
+            summary: "Readiness — Cassandra crítico, Redis best-effort",
             response: {
                 200: {
                     type: "object",
@@ -142,10 +191,20 @@ export async function routes(app: FastifyInstance) {
             cassandra: cassandraOk ? "ok" : "error",
         };
 
-        if (redisOk && cassandraOk) {
-            return reply.status(200).send({ status: "ok", dependencies });
+        if (cassandraOk) {
+            return reply.status(200).send({ status: redisOk ? "ok" : "degraded", dependencies });
         }
         return reply.status(503).send({ status: "degraded", dependencies });
+    });
+
+    app.get("/metrics", {
+        schema: {
+            tags: ["Health"],
+            summary: "Métricas Prometheus",
+        },
+    }, async (_request, reply) => {
+        reply.header("Content-Type", registry.contentType);
+        return reply.send(await registry.metrics());
     });
 
     const uploadService = new UploadService();
@@ -169,10 +228,24 @@ export async function routes(app: FastifyInstance) {
             description: "Retorna URLs temporárias (5 min) para o cliente fazer PUT direto no Cloudflare R2, sem passar pela VPS. Após o upload, use as publicUrls no corpo de POST /posts.",
             body: {
                 type: "object",
-                required: ["userId", "count"],
+                required: ["userId"],
                 properties: {
                     userId: { type: "string", format: "uuid", description: "ID do usuário que fará o upload" },
-                    count: { type: "integer", minimum: 1, maximum: 20, description: "Quantidade de imagens (máx 20)" },
+                    files: {
+                        type: "array",
+                        minItems: 1,
+                        maxItems: 10,
+                        description: "Um item por arquivo, com o tipo e o content-type reais. A URL é assinada com esse content-type.",
+                        items: {
+                            type: "object",
+                            required: ["type", "contentType"],
+                            properties: {
+                                type: { type: "string", enum: ["IMAGE", "VIDEO"] },
+                                contentType: { type: "string", description: "Ex.: image/jpeg, video/mp4" },
+                            },
+                        },
+                    },
+                    count: { type: "integer", minimum: 1, maximum: 10, description: "Legado: N imagens JPEG. Use `files`." },
                 },
             },
             response: {
@@ -184,6 +257,8 @@ export async function routes(app: FastifyInstance) {
                             uploadUrl: { type: "string", description: "URL pré-assinada para PUT (expira em 5 min)" },
                             key: { type: "string", description: "Chave do objeto no bucket" },
                             publicUrl: { type: "string", description: "URL pública final após upload" },
+                            type: { type: "string", enum: ["IMAGE", "VIDEO"] },
+                            contentType: { type: "string", description: "Content-type com que a URL foi assinada" },
                         },
                     },
                 },
@@ -200,7 +275,7 @@ export async function routes(app: FastifyInstance) {
             summary: "Criar post",
             body: {
                 type: "object",
-                required: ["userId", "imageUrls"],
+                required: ["userId"],
                 properties: {
                     userId: { type: "string", format: "uuid" },
                     userUsername: { type: "string", maxLength: 50 },
@@ -210,7 +285,20 @@ export async function routes(app: FastifyInstance) {
                     establishmentName: { type: "string", maxLength: 100 },
                     establishmentLogo: { type: "string", format: "uri" },
                     establishmentCategory: { type: "string", maxLength: 50 },
-                    imageUrls: { type: "array", items: { type: "string", format: "uri" }, minItems: 1, maxItems: 20 },
+                    media: {
+                    type: "array",
+                    maxItems: 10,
+                    items: {
+                        type: "object",
+                        required: ["url", "type"],
+                        properties: {
+                            url: { type: "string", format: "uri" },
+                            type: { type: "string", enum: ["IMAGE", "VIDEO"] },
+                            thumbnailUrl: { type: "string", format: "uri", nullable: true },
+                        },
+                    },
+                    },
+                    imageUrls: { type: "array", items: { type: "string", format: "uri" }, minItems: 1, maxItems: 10, description: "Legado: só imagens. Use `media`." },
                     caption: { type: "string", maxLength: 2000 },
                     tags: { type: "array", items: { type: "string" }, maxItems: 20 },
                 },
@@ -257,13 +345,17 @@ export async function routes(app: FastifyInstance) {
         schema: {
             tags: ["Posts"],
             summary: "Atualizar legenda",
+            description: "Só o dono do post pode atualizar a legenda — `userId` precisa bater com o `userId` gravado no post.",
             params: postIdParam,
             body: {
                 type: "object",
-                required: ["caption"],
-                properties: { caption: { type: "string", maxLength: 2000 } },
+                required: ["caption", "userId"],
+                properties: {
+                    caption: { type: "string", maxLength: 2000 },
+                    userId: { type: "string", format: "uuid", description: "Precisa ser o dono do post" },
+                },
             },
-            response: { 200: postSchema, 400: errorSchema, 404: errorSchema },
+            response: { 200: postSchema, 400: errorSchema, 403: errorSchema, 404: errorSchema },
         },
     }, postController.updateCaption.bind(postController));
 
@@ -272,8 +364,14 @@ export async function routes(app: FastifyInstance) {
         schema: {
             tags: ["Posts"],
             summary: "Remover post (soft delete)",
+            description: "Só o dono do post pode removê-lo — `userId` precisa bater com o `userId` gravado no post.",
             params: postIdParam,
-            response: { 204: { type: "null", description: "Removido com sucesso" }, 404: errorSchema },
+            body: {
+                type: "object",
+                required: ["userId"],
+                properties: { userId: { type: "string", format: "uuid", description: "Precisa ser o dono do post" } },
+            },
+            response: { 204: { type: "null", description: "Removido com sucesso" }, 403: errorSchema, 404: errorSchema },
         },
     }, postController.softDelete.bind(postController));
 

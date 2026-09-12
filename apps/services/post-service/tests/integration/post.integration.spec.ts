@@ -59,12 +59,31 @@ describe('post-service — HTTP Integration', () => {
   });
 
   describe('GET /health', () => {
-    it('retorna 200 ou 503 com status de dependências', async () => {
+    it('retorna 200 sempre (liveness — não checa dependências)', async () => {
       const res = await app.inject({ method: 'GET', url: '/health' });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body).toEqual({ status: 'ok' });
+      expect(body).not.toHaveProperty('dependencies');
+    });
+  });
+
+  describe('GET /ready', () => {
+    it('retorna 200 ou 503 com status de dependências', async () => {
+      const res = await app.inject({ method: 'GET', url: '/ready' });
       expect([200, 503]).toContain(res.statusCode);
       const body = JSON.parse(res.payload);
       expect(body).toHaveProperty('status');
       expect(body).toHaveProperty('dependencies');
+    });
+  });
+
+  describe('GET /metrics', () => {
+    it('expõe métricas no formato Prometheus', async () => {
+      const res = await app.inject({ method: 'GET', url: '/metrics' });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('text/plain');
+      expect(res.payload).toContain('http_request_duration_seconds');
     });
   });
 
@@ -77,7 +96,7 @@ describe('post-service — HTTP Integration', () => {
         url: '/posts',
         payload: {
           userId: USER_ID,
-          imageUrls: ['https://example.com/img.jpg'],
+          imageUrls: [`https://test.r2.dev/posts/${USER_ID}/img.jpg`],
           caption: 'Test post',
           establishmentId: ESTAB_ID,
         },
@@ -98,7 +117,7 @@ describe('post-service — HTTP Integration', () => {
         url: '/posts',
         payload: {
           userId: USER_ID,
-          imageUrls: ['https://example.com/img.jpg'],
+          imageUrls: [`https://test.r2.dev/posts/${USER_ID}/img.jpg`],
           caption: longCaption,
         },
       });
@@ -111,10 +130,128 @@ describe('post-service — HTTP Integration', () => {
         url: '/posts',
         payload: {
           userId: USER_ID,
-          imageUrls: ['https://example.com/img.jpg'],
+          imageUrls: [`https://test.r2.dev/posts/${USER_ID}/img.jpg`],
           caption: 'a'.repeat(2001),
         },
       });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('aceita post misto de imagem e vídeo preservando a ordem', async () => {
+      const media = [
+        { url: `https://test.r2.dev/posts/${USER_ID}/a.jpg`, type: 'IMAGE' },
+        { url: `https://test.r2.dev/posts/${USER_ID}/b.mp4`, type: 'VIDEO', thumbnailUrl: `https://test.r2.dev/posts/${USER_ID}/b.jpg` },
+        { url: `https://test.r2.dev/posts/${USER_ID}/c.jpg`, type: 'IMAGE' },
+      ];
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: { userId: USER_ID, media, caption: 'noite boa' },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.payload);
+      expect(body.media).toEqual(media);
+      // image_urls continua sendo gravada para apps que ainda não leem media.
+      expect(body.imageUrls).toEqual([
+        `https://test.r2.dev/posts/${USER_ID}/a.jpg`,
+        `https://test.r2.dev/posts/${USER_ID}/c.jpg`,
+      ]);
+    });
+
+    it('aceita post só de vídeo', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+          userId: USER_ID,
+          media: [{ url: `https://test.r2.dev/posts/${USER_ID}/b.mp4`, type: 'VIDEO' }],
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(JSON.parse(res.payload).imageUrls).toEqual([]);
+    });
+
+    it('converte imageUrls legado em media do tipo IMAGE', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: { userId: USER_ID, imageUrls: [`https://test.r2.dev/posts/${USER_ID}/a.jpg`] },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(JSON.parse(res.payload).media).toEqual([
+        { url: `https://test.r2.dev/posts/${USER_ID}/a.jpg`, type: 'IMAGE' },
+      ]);
+    });
+
+    it('rejeita mídia hospedada fora do bucket', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+          userId: USER_ID,
+          media: [{ url: 'https://evil.example.com/a.jpg', type: 'IMAGE' }],
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejeita mídia que pertence ao bucket mas a outro usuário', async () => {
+      const otherUserId = 'f1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+          userId: USER_ID,
+          media: [{ url: `https://test.r2.dev/posts/${otherUserId}/a.jpg`, type: 'IMAGE' }],
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.payload);
+      expect(body.errors[0].message).toMatch(/não pertence a este usuário/);
+    });
+
+    it('rejeita tipo de mídia desconhecido', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+          userId: USER_ID,
+          media: [{ url: `https://test.r2.dev/posts/${USER_ID}/a.gif`, type: 'GIF' }],
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejeita post sem nenhuma mídia', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: { userId: USER_ID, caption: 'só texto' },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('rejeita mais de 10 mídias', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/posts',
+        payload: {
+          userId: USER_ID,
+          media: Array.from({ length: 11 }, (_, i) => ({
+            url: `https://test.r2.dev/posts/${USER_ID}/${i}.jpg`,
+            type: 'IMAGE',
+          })),
+        },
+      });
+
       expect(res.statusCode).toBe(400);
     });
   });
@@ -185,16 +322,98 @@ describe('post-service — HTTP Integration', () => {
       expect(res.statusCode).toBe(200);
       expect(mockExecute.mock.calls.length).toBe(callsBefore);
     });
+
+    it('retorna o header X-Next-Cursor quando a página está cheia', async () => {
+      mockExecute.mockResolvedValueOnce({ rows: [makeCassandraRow()] });
+
+      const res = await app.inject({ method: 'GET', url: `/users/${USER_ID}/posts?limit=1` });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['x-next-cursor']).toBeDefined();
+    });
   });
 
-  describe('DELETE /posts/:postId (soft delete)', () => {
-    it('marca post como deletado e retorna 204', async () => {
+  describe('GET /establishments/:establishmentId/posts', () => {
+    it('retorna posts do estabelecimento', async () => {
+      mockExecute.mockResolvedValueOnce({ rows: [makeCassandraRow({ establishment_id: ESTAB_ID })] });
+
+      const res = await app.inject({ method: 'GET', url: `/establishments/${ESTAB_ID}/posts` });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body).toHaveLength(1);
+      expect(body[0]).toHaveProperty('establishmentId', ESTAB_ID);
+    });
+  });
+
+  describe('PATCH /posts/:postId', () => {
+    it('atualiza a legenda quando o userId é o dono do post', async () => {
       mockExecute
         .mockResolvedValueOnce({ rows: [makeCassandraRow()] })
         .mockResolvedValue({ rows: [] });
 
-      const res = await app.inject({ method: 'DELETE', url: `/posts/${POST_ID}` });
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/posts/${POST_ID}`,
+        payload: { userId: USER_ID, caption: 'legenda nova' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload).caption).toBe('legenda nova');
+    });
+
+    it('retorna 403 quando o userId não é o dono do post', async () => {
+      mockExecute.mockResolvedValueOnce({ rows: [makeCassandraRow()] });
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/posts/${POST_ID}`,
+        payload: { userId: 'f1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5', caption: 'não deveria passar' },
+      });
+
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('retorna 400 quando userId não é enviado', async () => {
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/posts/${POST_ID}`,
+        payload: { caption: 'sem userId' },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
+  describe('DELETE /posts/:postId (soft delete)', () => {
+    it('marca post como deletado e retorna 204 quando o userId é o dono do post', async () => {
+      mockExecute
+        .mockResolvedValueOnce({ rows: [makeCassandraRow()] })
+        .mockResolvedValue({ rows: [] });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/posts/${POST_ID}`,
+        payload: { userId: USER_ID },
+      });
       expect(res.statusCode).toBe(204);
+    });
+
+    it('retorna 403 quando o userId não é o dono do post', async () => {
+      mockExecute.mockResolvedValueOnce({ rows: [makeCassandraRow()] });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/posts/${POST_ID}`,
+        payload: { userId: 'f1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5' },
+      });
+
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('retorna 400 quando userId não é enviado', async () => {
+      const res = await app.inject({ method: 'DELETE', url: `/posts/${POST_ID}` });
+      expect(res.statusCode).toBe(400);
     });
   });
 

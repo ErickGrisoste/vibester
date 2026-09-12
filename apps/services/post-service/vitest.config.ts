@@ -5,6 +5,9 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["src/**/*.test.ts", "tests/integration/**/*.spec.ts"],
+    // tests/integration-real usa env real (Cassandra/Redis reais) e roda só via
+    // vitest.integration.config.ts — nunca deve ser pego pelo `npm test` padrão.
+    exclude: ["**/node_modules/**", "**/dist/**", "tests/integration-real/**"],
     setupFiles: ["tests/setup/vitest.setup.ts"],
     coverage: {
       provider: "v8",

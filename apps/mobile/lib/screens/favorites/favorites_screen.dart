@@ -37,7 +37,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       Text(
                         'Seus lugares favoritos',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.colors.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -49,7 +49,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                       Text(
                         'Os lugares que você ama acompanhar de perto.',
                         style: TextStyle(
-                          color: Colors.white38,
+                          color: context.colors.textDisabled,
                           fontSize: 12.5,
                           fontWeight: FontWeight.bold,
                         ),

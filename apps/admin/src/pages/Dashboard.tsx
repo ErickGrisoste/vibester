@@ -1,4 +1,3 @@
-import React from 'react';
 import { Users, Eye, TrendingUp, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import VibeFlowChart from '../components/VibeFlowChart';

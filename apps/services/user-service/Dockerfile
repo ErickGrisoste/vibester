@@ -16,8 +16,9 @@ COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3003
 
-CMD ["node", "--max-old-space-size=384", "--require", "./dist/config/tracing.js", "dist/server.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node --max-old-space-size=384 --require ./dist/config/tracing.js dist/server.js"]

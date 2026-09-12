@@ -31,7 +31,7 @@ class PrimaryTextField extends StatelessWidget {
           filled: true,
           fillColor: Color(0xFF141414),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
-          errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 12),
+          errorStyle: TextStyle(color: context.colors.error, fontSize: 12),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
             borderSide: const BorderSide(color: Colors.white10, width: 1.3),
@@ -42,11 +42,11 @@ class PrimaryTextField extends StatelessWidget {
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Colors.redAccent, width: 1.3),
+            borderSide: BorderSide(color: context.colors.error, width: 1.3),
           ),
           focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Colors.redAccent, width: 1.3),
+            borderSide: BorderSide(color: context.colors.error, width: 1.3),
           ),
         ),
         keyboardType: TextInputType.emailAddress,

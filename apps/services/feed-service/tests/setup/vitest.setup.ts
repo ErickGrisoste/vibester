@@ -8,5 +8,7 @@ vi.mock('../../src/config/env', () => ({
     astra_token: 'test-token',
     keyspace: 'test_keyspace',
     kafka_brokers: 'localhost:9092',
+    cassandra_contact_points: undefined,
+    cassandra_local_datacenter: undefined,
   },
 }));

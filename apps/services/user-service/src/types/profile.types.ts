@@ -19,3 +19,7 @@ export interface UpdateProfileInfoInput {
   name: string;
   username: string;
 }
+
+export interface GenerateShareLinkInput {
+  accountId: string;
+}

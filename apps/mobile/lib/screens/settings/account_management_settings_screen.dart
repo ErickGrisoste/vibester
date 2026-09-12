@@ -25,7 +25,7 @@ class _AccountManagementSettingsScreenState
           style: GoogleFonts.inter(fontWeight: FontWeight.bold),
         ),
         backgroundColor: context.colors.noturno,
-        foregroundColor: Colors.white,
+        foregroundColor: context.colors.textPrimary,
       ),
       backgroundColor: context.colors.noturno,
       body: SingleChildScrollView(
@@ -40,7 +40,7 @@ class _AccountManagementSettingsScreenState
                   Text(
                     "DADOS E ATIVIDADE",
                     style: GoogleFonts.inter(
-                      color: Colors.white70,
+                      color: context.colors.textSecondary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -59,7 +59,7 @@ class _AccountManagementSettingsScreenState
               decoration: BoxDecoration(
                 color: _color,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white38, width: 1),
+                border: Border.all(color: context.colors.border, width: 1),
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -69,25 +69,28 @@ class _AccountManagementSettingsScreenState
                     onTap: () {},
                     child: Row(
                       children: [
-                        Icon(Icons.person, color: Colors.white54),
+                        Icon(Icons.person, color: context.colors.textMuted),
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             "Historico de Vibe Checks",
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.colors.textPrimary,
                               fontSize: 19.5,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        Icon(Icons.arrow_forward_ios, color: Colors.white),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          color: context.colors.textPrimary,
+                        ),
                       ],
                     ),
                   ),
                   Container(
                     margin: EdgeInsets.only(left: 30, right: 5),
-                    color: Colors.white38,
+                    color: context.colors.border,
                     width: double.infinity,
                     height: 1,
                   ),
@@ -97,19 +100,25 @@ class _AccountManagementSettingsScreenState
                     onTap: () {},
                     child: Row(
                       children: [
-                        Icon(Icons.security_outlined, color: Colors.white54),
+                        Icon(
+                          Icons.security_outlined,
+                          color: context.colors.textMuted,
+                        ),
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             "Vincular e Gerenciar Contas",
                             style: GoogleFonts.inter(
-                              color: Colors.white,
+                              color: context.colors.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        Icon(Icons.arrow_forward_ios, color: Colors.white),
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          color: context.colors.textPrimary,
+                        ),
                       ],
                     ),
                   ),

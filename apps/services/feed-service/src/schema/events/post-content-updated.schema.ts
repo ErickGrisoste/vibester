@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mediaItemSchema } from "./post-created.schema";
 
 export const postContentUpdatedSchema = z.object({
     authorId: z.string().uuid(),
@@ -6,6 +7,7 @@ export const postContentUpdatedSchema = z.object({
     createdAt: z.iso.datetime(),
     caption: z.string().optional(),
     imageUrls: z.array(z.string()).optional(),
+    media: z.array(mediaItemSchema).optional(),
     tags: z.array(z.string()).optional()
 });
 

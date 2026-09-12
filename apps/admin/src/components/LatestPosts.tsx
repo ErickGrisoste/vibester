@@ -1,5 +1,4 @@
-import React from 'react';
-import { MoreHorizontal, Play, Pause, Edit3 } from 'lucide-react';
+import { Play, Pause, Edit3 } from 'lucide-react';
 
 const posts = [
   { id: 1, title: 'Double Chopp até 22h', type: 'Promo Relâmpago', status: 'active', time: 'Ativo agora' },

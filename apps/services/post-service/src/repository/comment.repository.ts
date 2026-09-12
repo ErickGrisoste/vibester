@@ -1,5 +1,6 @@
-import { Comment } from "../types/comment.type";
+import { Comment, PaginatedComments } from "../types/comment.type";
 import { BaseRepository } from "./base.repository";
+import { CommentCursor, encodeCommentCursor } from "../utils/cursor";
 
 export class CommentRepository extends BaseRepository {
 
@@ -55,48 +56,84 @@ export class CommentRepository extends BaseRepository {
         );
     }
 
-    async findByPost(postId: string, limit = 50): Promise<Comment[]> {
+    async findByPost(postId: string, limit = 50, cursor?: CommentCursor): Promise<PaginatedComments> {
+        const params: unknown[] = [postId];
+        let cursorClause = "";
+
+        if (cursor) {
+            cursorClause = "AND (created_at, comment_id) < (?, ?)";
+            params.push(cursor.createdAt, cursor.commentId);
+        }
+
+        params.push(limit);
+
         const result = await this.execute(
             `
                 SELECT *
                 FROM comments_by_post
                 WHERE post_id = ?
+                ${cursorClause}
                 LIMIT ?;
             `,
-            [postId, limit]
+            params
         );
 
-        return result.rows.map((row) => ({
+        const rows = result.rows;
+        const comments = rows.map((row) => ({
             commentId: row.comment_id,
             postId: row.post_id,
             userId: row.user_id,
             content: row.content,
             isDeleted: row.is_deleted,
             createdAt: row.created_at,
-            updatedAt: row.updated_at
+            updatedAt: row.updated_at,
         }));
+        const lastRow = rows[rows.length - 1];
+        const nextCursor = rows.length === limit && lastRow
+            ? encodeCommentCursor({ createdAt: lastRow.created_at, commentId: lastRow.comment_id })
+            : null;
+
+        return { comments, nextCursor };
     }
 
-    async findByUser(userId: string, limit = 50): Promise<Comment[]> {
+    async findByUser(userId: string, limit = 50, cursor?: CommentCursor): Promise<PaginatedComments> {
+        const params: unknown[] = [userId];
+        let cursorClause = "";
+
+        if (cursor) {
+            cursorClause = "AND (created_at, comment_id) < (?, ?)";
+            params.push(cursor.createdAt, cursor.commentId);
+        }
+
+        params.push(limit);
+
         const result = await this.execute(
             `
                 SELECT *
                 FROM comments_by_user
                 WHERE user_id = ?
+                ${cursorClause}
                 LIMIT ?;
             `,
-            [userId, limit]
+            params
         );
 
-        return result.rows.map((row) => ({
+        const rows = result.rows;
+        const comments = rows.map((row) => ({
             commentId: row.comment_id,
             postId: row.post_id,
             userId: row.user_id,
             content: row.content,
             isDeleted: row.is_deleted,
             createdAt: row.created_at,
-            updatedAt: row.updated_at
+            updatedAt: row.updated_at,
         }));
+        const lastRow = rows[rows.length - 1];
+        const nextCursor = rows.length === limit && lastRow
+            ? encodeCommentCursor({ createdAt: lastRow.created_at, commentId: lastRow.comment_id })
+            : null;
+
+        return { comments, nextCursor };
     }
 
     async updateCommentByPost(
@@ -240,14 +277,20 @@ export class CommentRepository extends BaseRepository {
         );
     }
 
-    async softDeleteCommentById(commentId: string) {
-        return this.execute(
+    // IF is_deleted = false fecha a corrida de dois softDelete concorrentes do
+    // mesmo comentário: sem isso, ambos passavam pela checagem prévia em
+    // CommentService (nenhum write tinha rodado ainda) e ambos decrementavam o
+    // counter atômico de total_comments, deixando-o negativo.
+    async softDeleteCommentById(commentId: string): Promise<boolean> {
+        const result = await this.execute(
             `
                 UPDATE comments_by_id
                 SET is_deleted = true
-                WHERE comment_id = ?;
+                WHERE comment_id = ?
+                IF is_deleted = false;
             `,
             [commentId]
         );
+        return this.isApplied(result);
     }
 }

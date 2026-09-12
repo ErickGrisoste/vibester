@@ -1,6 +1,7 @@
 import { UpdatePostContentEvent } from "../schema/events/post-content-updated.schema";
 import { Post } from "../types/post.types";
 import { BaseRepository } from "./base.repository";
+import { toMediaRows } from "../utils/media";
 
 export class PostsByUserRepository extends BaseRepository {
 
@@ -22,6 +23,7 @@ export class PostsByUserRepository extends BaseRepository {
                     establishment_category,
 
                     image_urls,
+                    media,
                     caption,
                     tags,
 
@@ -30,7 +32,7 @@ export class PostsByUserRepository extends BaseRepository {
                     is_deleted,
                     updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 USING TTL ?;
             `,
             [
@@ -48,6 +50,7 @@ export class PostsByUserRepository extends BaseRepository {
                 post.establishmentCategory,
 
                 post.imageUrls,
+                toMediaRows(post.media),
                 post.caption,
                 post.tags,
 
@@ -81,12 +84,13 @@ export class PostsByUserRepository extends BaseRepository {
                 SET
                     caption = ?,
                     image_urls = ?,
+                    media = ?,
                     tags = ?
                 WHERE user_id = ?
                     AND created_at = ?
                     AND post_id = ?;
             `,
-            [contentUpdated.caption, contentUpdated.imageUrls, contentUpdated.tags, userId, createdAt, contentUpdated.postId]
+            [contentUpdated.caption, contentUpdated.imageUrls, toMediaRows(contentUpdated.media), contentUpdated.tags, userId, createdAt, contentUpdated.postId]
         );
     }
 

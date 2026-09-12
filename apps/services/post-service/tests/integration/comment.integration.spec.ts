@@ -109,6 +109,118 @@ describe('post-service — Comments Integration', () => {
     });
   });
 
+  describe('PATCH /comments/:commentId', () => {
+    const COMMENT_ID = 'd1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
+
+    function makeCommentRow(overrides: Record<string, unknown> = {}) {
+      return {
+        comment_id: COMMENT_ID,
+        post_id: POST_ID,
+        user_id: COMMENTER_ID,
+        content: 'comentário original',
+        is_deleted: false,
+        created_at: new Date('2024-01-01T00:00:00.000Z'),
+        updated_at: null,
+        ...overrides,
+      };
+    }
+
+    it('atualiza o conteúdo quando o userId é o autor do comentário', async () => {
+      mockExecute
+        .mockResolvedValueOnce({ rows: [makeCommentRow()] }) // findById
+        .mockResolvedValue({ rows: [] });
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/comments/${COMMENT_ID}`,
+        payload: { userId: COMMENTER_ID, content: 'editado' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload).content).toBe('editado');
+    });
+
+    it('retorna 403 quando o userId não é o autor do comentário', async () => {
+      mockExecute.mockResolvedValueOnce({ rows: [makeCommentRow()] });
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/comments/${COMMENT_ID}`,
+        payload: { userId: 'f1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5', content: 'não deveria passar' },
+      });
+
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('retorna 404 quando o comentário não existe', async () => {
+      mockExecute.mockResolvedValue({ rows: [] });
+
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/comments/${COMMENT_ID}`,
+        payload: { userId: COMMENTER_ID, content: 'x' },
+      });
+
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
+  describe('DELETE /comments/:commentId', () => {
+    const COMMENT_ID = 'd1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
+
+    function makeCommentRow(overrides: Record<string, unknown> = {}) {
+      return {
+        comment_id: COMMENT_ID,
+        post_id: POST_ID,
+        user_id: COMMENTER_ID,
+        content: 'comentário original',
+        is_deleted: false,
+        created_at: new Date('2024-01-01T00:00:00.000Z'),
+        updated_at: null,
+        ...overrides,
+      };
+    }
+
+    it('remove o comentário quando o userId é o autor e retorna 204', async () => {
+      mockExecute
+        .mockResolvedValueOnce({ rows: [makeCommentRow()] })       // findById (comment)
+        .mockResolvedValueOnce({ rows: [makeCassandraPostRow()] }) // findById (post)
+        .mockResolvedValue({ rows: [] });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/comments/${COMMENT_ID}`,
+        payload: { userId: COMMENTER_ID },
+      });
+
+      expect(res.statusCode).toBe(204);
+    });
+
+    it('retorna 403 quando o userId não é o autor do comentário', async () => {
+      mockExecute.mockResolvedValueOnce({ rows: [makeCommentRow()] });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/comments/${COMMENT_ID}`,
+        payload: { userId: 'f1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5' },
+      });
+
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('retorna 404 quando o comentário não existe', async () => {
+      mockExecute.mockResolvedValue({ rows: [] });
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/comments/${COMMENT_ID}`,
+        payload: { userId: COMMENTER_ID },
+      });
+
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
   describe('GET /posts/:postId/comments', () => {
     it('retorna comentários do post', async () => {
       const commentRows = [
@@ -130,6 +242,25 @@ describe('post-service — Comments Integration', () => {
       const body = JSON.parse(res.payload);
       expect(body).toHaveLength(1);
       expect(body[0]).toHaveProperty('content', 'Ótimo post!');
+    });
+
+    it('retorna o header X-Next-Cursor quando a página está cheia', async () => {
+      mockExecute.mockResolvedValueOnce({
+        rows: [{
+          comment_id: 'd1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5',
+          post_id: POST_ID,
+          user_id: COMMENTER_ID,
+          content: 'Ótimo post!',
+          is_deleted: false,
+          created_at: new Date(),
+          updated_at: null,
+        }],
+      });
+
+      const res = await app.inject({ method: 'GET', url: `/posts/${POST_ID}/comments?limit=1` });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['x-next-cursor']).toBeDefined();
     });
   });
 

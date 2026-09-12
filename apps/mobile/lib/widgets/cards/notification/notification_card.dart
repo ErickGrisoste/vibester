@@ -93,7 +93,10 @@ class NotificationCard extends StatelessWidget {
               Expanded(
                 child: RichText(
                   text: TextSpan(
-                    style: GoogleFonts.inter(color: Colors.white, fontSize: 14),
+                    style: GoogleFonts.inter(
+                      color: context.colors.textPrimary,
+                      fontSize: 14,
+                    ),
                     children: [
                       TextSpan(
                         text: _nomeAtor,
@@ -105,8 +108,8 @@ class NotificationCard extends StatelessWidget {
                       TextSpan(
                         text:
                             '  ·  ${formatRelativeTime(notification.criadoEm)}',
-                        style: const TextStyle(
-                          color: Colors.white38,
+                        style: TextStyle(
+                          color: context.colors.textDisabled,
                           fontSize: 12,
                         ),
                       ),
@@ -129,10 +132,10 @@ class NotificationCard extends StatelessWidget {
                       fadeInDuration: Duration.zero,
                       fadeOutDuration: Duration.zero,
                       errorWidget: (_, _, _) => Container(
-                        color: Colors.white12,
-                        child: const Icon(
+                        color: context.colors.darkGrey,
+                        child: Icon(
                           Icons.broken_image_outlined,
-                          color: Colors.white38,
+                          color: context.colors.textDisabled,
                           size: 18,
                         ),
                       ),
@@ -150,7 +153,7 @@ class NotificationCard extends StatelessWidget {
   Widget _fallbackAvatar(BuildContext context) {
     return Container(
       color: context.colors.darkGrey,
-      child: const Icon(Icons.person, color: Colors.white38),
+      child: Icon(Icons.person, color: context.colors.textDisabled),
     );
   }
 }

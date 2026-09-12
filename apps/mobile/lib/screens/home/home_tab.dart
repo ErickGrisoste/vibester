@@ -13,7 +13,7 @@ class HomeTab extends StatefulWidget {
   //serve só pra passar o valor atual da barra pra tela do feed
   final ValueNotifier<bool> navbarVisibleNotifier;
   // volta com a barra ao trocar de aba
-  final VoidCallback onTabChanged; 
+  final VoidCallback onTabChanged;
 
   const HomeTab({
     super.key,
@@ -22,10 +22,10 @@ class HomeTab extends StatefulWidget {
   });
 
   @override
-  State<HomeTab> createState() => _HomeTabState();
+  State<HomeTab> createState() => HomeTabState();
 }
 
-class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
+class HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _locationService = LocationService();
 
@@ -62,6 +62,12 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     }
   }
 
+  /// Usado pelo botao voltar do Android: informa se a aba FEED esta ativa.
+  bool get isOnFeedTab => _tabController.index == 0;
+
+  /// Usado pelo botao voltar do Android: retorna para a aba FEED.
+  void goToFeedTab() => _tabController.animateTo(0);
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -82,7 +88,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
             color: context.colors.navy,
             boxShadow: [
               BoxShadow(
-                color: Colors.white.withOpacity(0.1),
+                color: context.colors.border.withOpacity(0.1),
                 blurRadius: 8,
                 offset: const Offset(0, 1),
               ),
@@ -97,7 +103,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         centerTitle: true,
         bottom: TabBar(
           controller: _tabController,
-          unselectedLabelColor: Colors.white54,
+          unselectedLabelColor: context.colors.textMuted,
           labelColor: context.colors.ambar,
           dividerColor: Colors.transparent,
           indicatorColor: context.colors.ambar,

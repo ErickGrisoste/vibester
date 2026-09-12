@@ -49,6 +49,19 @@ jobs:
     needs: unit-tests
 
     services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: establishment_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       redis:
         image: redis:7-alpine
         ports:
@@ -73,7 +86,7 @@ jobs:
       - name: Install dependencies
         working-directory: apps/services/establishment-service
         env:
-          DATABASE_URL: postgresql://u:p@localhost:5432/db
+          DATABASE_URL: postgresql://test:test@localhost:5432/establishment_test_db
           JWT_SECRET: integration-test-secret-32chars
           SERP_API_KEY: test
           r2_account_id: test
@@ -83,11 +96,17 @@ jobs:
           r2_public_url: https://test.r2.dev
         run: npm install
 
+      - name: Run migrations
+        working-directory: apps/services/establishment-service
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/establishment_test_db
+        run: npx prisma migrate deploy
+
       - name: Run integration tests
         working-directory: apps/services/establishment-service
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://u:p@localhost:5432/db
+          DATABASE_URL: postgresql://test:test@localhost:5432/establishment_test_db
           REDIS_URL: redis://localhost:6379
           JWT_SECRET: integration-test-secret-32chars
           SERP_API_KEY: test

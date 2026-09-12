@@ -44,7 +44,7 @@ class _TertiaryButtonState extends State<TertiaryButton> {
               widget.state.label.toUpperCase(),
               style: GoogleFonts.inter(
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: context.colors.textPrimary,
               ),
             ),
           ),
@@ -64,7 +64,7 @@ enum ButtonState {
     ButtonState.idle => context.colors.navy,
     ButtonState.loading => const Color(0xFFFFAA00),
     ButtonState.success => context.colors.ambar,
-    ButtonState.error => const Color(0xFFF44336),
+    ButtonState.error => context.colors.error,
   };
 
   String get label => switch (this) {

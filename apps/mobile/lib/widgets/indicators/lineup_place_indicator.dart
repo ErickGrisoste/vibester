@@ -72,9 +72,9 @@ class LineupPlaceIndicator extends StatelessWidget {
                           child: place.profileImage.isEmpty
                               ? Container(
                                   color: Colors.white12,
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.storefront,
-                                    color: Colors.white38,
+                                    color: context.colors.textDisabled,
                                   ),
                                 )
                               : CachedNetworkImage(
@@ -84,9 +84,9 @@ class LineupPlaceIndicator extends StatelessWidget {
                                   fadeOutDuration: Duration.zero,
                                   errorWidget: (_, _, _) => Container(
                                     color: Colors.white12,
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.storefront,
-                                      color: Colors.white38,
+                                      color: context.colors.textDisabled,
                                     ),
                                   ),
                                 ),
@@ -101,7 +101,7 @@ class LineupPlaceIndicator extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
-                      color: Colors.white,
+                      color: context.colors.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -118,10 +118,13 @@ class LineupPlaceIndicator extends StatelessWidget {
                       SizedBox(width: 6),
                       Text(
                         '${place.avaliacao}',
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                        style: TextStyle(
+                          color: context.colors.textMuted,
+                          fontSize: 11,
+                        ),
                       ),
                       SizedBox(width: 7),
-                      Icon(Icons.circle, color: Colors.white38, size: 4),
+                      Icon(Icons.circle, color: context.colors.border, size: 4),
                       SizedBox(width: 7),
                       PriceIndicator(nivel: place.nivelPrecoMedio),
                     ],

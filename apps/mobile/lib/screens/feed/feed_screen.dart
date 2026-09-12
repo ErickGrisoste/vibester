@@ -69,7 +69,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   children: [
                     Text(
                       provider.erro!,
-                      style: const TextStyle(color: Colors.white38),
+                      style: TextStyle(color: context.colors.textDisabled),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
@@ -149,7 +149,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   }
                 },
                 backgroundColor: context.colors.ambar,
-                foregroundColor: Colors.white,
+                foregroundColor: context.colors.textPrimary,
                 child: const Icon(Icons.add, size: 48),
               ),
             ),

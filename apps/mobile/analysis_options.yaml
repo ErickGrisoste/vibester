@@ -10,6 +10,12 @@
 analyzer:
   errors:
     deprecated_member_use: ignore
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - macos/**
+    - linux/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

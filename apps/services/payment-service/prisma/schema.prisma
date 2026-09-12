@@ -1,0 +1,23 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Payment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  billId     String   @unique @map("bill_id")
+  externalId String?  @map("external_id")
+  amount     Int
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([externalId])
+  @@map("payments")
+}

@@ -48,13 +48,13 @@ class _NotificationsTabState extends State<NotificationsTab> {
     }
 
     if (provider.notifications.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
         child: Center(
           child: Text(
             'Nenhuma notificação ainda',
             style: TextStyle(
-              color: Colors.white38,
+              color: context.colors.textDisabled,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -93,8 +93,8 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white54,
+        style: TextStyle(
+          color: context.colors.textMuted,
           fontSize: 12,
           fontWeight: FontWeight.bold,
           letterSpacing: 0.5,

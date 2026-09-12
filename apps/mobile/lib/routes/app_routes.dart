@@ -14,6 +14,11 @@ class AppRoutes {
   static const home = '/home';
   static const initialScreen = '/initial';
 
+  //ONBOARDING
+  // As tres telas vivem dentro de uma rota so (PageView), entao existe
+  // apenas um nome aqui.
+  static const onboarding = '/onboarding';
+
   //REGISTER
   static const emailConfirm = '/email-confirm';
   static const login = '/login';

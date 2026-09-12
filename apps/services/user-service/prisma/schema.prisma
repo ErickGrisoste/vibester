@@ -21,6 +21,7 @@ model UserProfile {
   followers   Int      @default(0)
   following   Int      @default(0)
   totalPosts  Int      @default(0)
+  shareCount  Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

@@ -20,7 +20,8 @@ class CloseToYouService {
       final List data = response.data;
       return data.map((json) => PlaceModel.fromJson(json)).toList();
     } on DioException catch (e) {
-      final mensagem = e.response?.data?['message'] ??
+      final mensagem =
+          e.response?.data?['message'] ??
           'Erro ao buscar estabelecimentos próximos';
       throw Exception(mensagem);
     }

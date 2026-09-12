@@ -41,6 +41,18 @@ const feedItemSchema = {
     title: { type: "string", nullable: true },
     content: { type: "string", nullable: true },
     image_urls: { type: "array", items: { type: "string" }, nullable: true },
+    media: {
+      type: "array",
+      nullable: true,
+      items: {
+        type: "object",
+        properties: {
+          url: { type: "string" },
+          type: { type: "string", enum: ["IMAGE", "VIDEO"] },
+          thumbnailUrl: { type: "string", nullable: true },
+        },
+      },
+    },
     tags: { type: "array", items: { type: "string" }, nullable: true },
     total_likes: { type: "integer", nullable: true },
     total_comments: { type: "integer", nullable: true },

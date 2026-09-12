@@ -1,0 +1,1214 @@
+{
+	"info": {
+		"_postman_id": "vibester-microservices-collection-id",
+		"name": "Vibester Microservices",
+		"description": "Collection completa do Postman com todas as requisições organizadas por serviço para a plataforma Vibester.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "jwt_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "auth_service_url",
+			"value": "http://localhost:3001",
+			"type": "string"
+		},
+		{
+			"key": "user_service_url",
+			"value": "http://localhost:3003",
+			"type": "string"
+		},
+		{
+			"key": "event_service_url",
+			"value": "http://localhost:3334",
+			"type": "string"
+		},
+		{
+			"key": "post_service_url",
+			"value": "http://localhost:3000",
+			"type": "string"
+		},
+		{
+			"key": "notification_service_url",
+			"value": "http://localhost:3006",
+			"type": "string"
+		},
+		{
+			"key": "establishment_service_url",
+			"value": "http://localhost:3007",
+			"type": "string"
+		},
+		{
+			"key": "feed_service_url",
+			"value": "http://localhost:3008",
+			"type": "string"
+		},
+		{
+			"key": "payment_service_url",
+			"value": "http://localhost:3009",
+			"type": "string"
+		},
+		{
+			"key": "scrapping_service_url",
+			"value": "http://localhost:3010",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Auth Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{auth_service_url}}/health",
+							"host": ["{{auth_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Register (Iniciar Cadastro)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"joaosilva\",\n  \"name\": \"João Silva\",\n  \"email\": \"joao@email.com\",\n  \"password\": \"senha123\",\n  \"bornAt\": \"1998-05-20\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/register",
+							"host": ["{{auth_service_url}}"],
+							"path": ["register"]
+						}
+					}
+				},
+				{
+					"name": "Verify Email (Confirmar Código)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"joao@email.com\",\n  \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/verify-email",
+							"host": ["{{auth_service_url}}"],
+							"path": ["verify-email"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"joao@email.com\",\n  \"password\": \"senha123\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/login",
+							"host": ["{{auth_service_url}}"],
+							"path": ["login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "User Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{user_service_url}}/health",
+							"host": ["{{user_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Readiness Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{user_service_url}}/ready",
+							"host": ["{{user_service_url}}"],
+							"path": ["ready"]
+						}
+					}
+				},
+				{
+					"name": "Criar Perfil",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accountId\": \"11111111-1111-1111-1111-111111111111\",\n  \"name\": \"João Silva\",\n  \"username\": \"joaosilva\"\n}"
+						},
+						"url": {
+							"raw": "{{user_service_url}}/users/profile",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", "profile"]
+						}
+					}
+				},
+				{
+					"name": "Buscar Perfil por accountId",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{user_service_url}}/users/profile/:accountId",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", "profile", ":accountId"],
+							"variable": [
+								{
+									"key": "accountId",
+									"value": "11111111-1111-1111-1111-111111111111"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Atualizar Nome e Username",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accountId\": \"11111111-1111-1111-1111-111111111111\",\n  \"name\": \"João Silva Atualizado\",\n  \"username\": \"joaosilva_novo\"\n}"
+						},
+						"url": {
+							"raw": "{{user_service_url}}/users/profile/info",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", "profile", "info"]
+						}
+					}
+				},
+				{
+					"name": "Atualizar Bio",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accountId\": \"11111111-1111-1111-1111-111111111111\",\n  \"bio\": \"Amante de festas e vida noturna!\"\n}"
+						},
+						"url": {
+							"raw": "{{user_service_url}}/users/profile/bio",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", "profile", "bio"]
+						}
+					}
+				},
+				{
+					"name": "Atualizar Avatar",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"accountId\": \"11111111-1111-1111-1111-111111111111\",\n  \"avatarUrl\": \"https://images.unsplash.com/photo-1534528741775-53994a69daeb\"\n}"
+						},
+						"url": {
+							"raw": "{{user_service_url}}/users/profile/avatar",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", "profile", "avatar"]
+						}
+					}
+				},
+				{
+					"name": "Seguir Usuário",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"followerId\": \"11111111-1111-1111-1111-111111111111\",\n  \"followingId\": \"22222222-2222-2222-2222-222222222222\"\n}"
+						},
+						"url": {
+							"raw": "{{user_service_url}}/users/profile/followers/increase",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", "profile", "followers", "increase"]
+						}
+					}
+				},
+				{
+					"name": "Deixar de Seguir Usuário",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"followerId\": \"11111111-1111-1111-1111-111111111111\",\n  \"followingId\": \"22222222-2222-2222-2222-222222222222\"\n}"
+						},
+						"url": {
+							"raw": "{{user_service_url}}/users/profile/followers/decrease",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", "profile", "followers", "decrease"]
+						}
+					}
+				},
+				{
+					"name": "Listar Seguidores",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{user_service_url}}/users/:accountId/followers",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", ":accountId", "followers"],
+							"variable": [
+								{
+									"key": "accountId",
+									"value": "11111111-1111-1111-1111-111111111111"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Listar Seguindo",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{user_service_url}}/users/:accountId/following",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", ":accountId", "following"],
+							"variable": [
+								{
+									"key": "accountId",
+									"value": "11111111-1111-1111-1111-111111111111"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Verificar se Segue",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{user_service_url}}/users/:followerId/follows/:followingId",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", ":followerId", "follows", ":followingId"],
+							"variable": [
+								{
+									"key": "followerId",
+									"value": "11111111-1111-1111-1111-111111111111"
+								},
+								{
+									"key": "followingId",
+									"value": "22222222-2222-2222-2222-222222222222"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Pesquisar Perfis",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{user_service_url}}/users/search?q=joao&limit=10&page=1",
+							"host": ["{{user_service_url}}"],
+							"path": ["users", "search"],
+							"query": [
+								{
+									"key": "q",
+									"value": "joao"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Event Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_service_url}}/health",
+							"host": ["{{event_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Criar Evento",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Festa de Verão Vibester\",\n  \"photoUrl\": \"https://images.unsplash.com/photo-1514525253161-7a46d19cd819\",\n  \"category\": \"Balada\",\n  \"organizer\": \"Vibester Events\",\n  \"location\": \"Av. Paulista, 1000 - São Paulo, SP\",\n  \"informacoes\": \"Open bar e DJs convidados\",\n  \"startDate\": \"2026-08-01T22:00:00.000Z\",\n  \"endDate\": \"2026-08-02T05:00:00.000Z\",\n  \"latitude\": -23.5505,\n  \"longitude\": -46.6333,\n  \"establishmentId\": \"33333333-3333-3333-3333-333333333333\"\n}"
+						},
+						"url": {
+							"raw": "{{event_service_url}}/events",
+							"host": ["{{event_service_url}}"],
+							"path": ["events"]
+						}
+					}
+				},
+				{
+					"name": "Listar Eventos Próximos",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_service_url}}/events/nearby?latitude=-23.5505&longitude=-46.6333&radiusKm=10",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", "nearby"],
+							"query": [
+								{
+									"key": "latitude",
+									"value": "-23.5505"
+								},
+								{
+									"key": "longitude",
+									"value": "-46.6333"
+								},
+								{
+									"key": "radiusKm",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Detalhes do Evento",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_service_url}}/events/:eventId",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", ":eventId"],
+							"variable": [
+								{
+									"key": "eventId",
+									"value": "44444444-4444-4444-4444-444444444444"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Eventos por Estabelecimento",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_service_url}}/events/establishment/:establishmentId",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", "establishment", ":establishmentId"],
+							"variable": [
+								{
+									"key": "establishmentId",
+									"value": "33333333-3333-3333-3333-333333333333"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Eventos em Destaque",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_service_url}}/events/featured",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", "featured"]
+						}
+					}
+				},
+				{
+					"name": "Eventos da Semana",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_service_url}}/events/week",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", "week"]
+						}
+					}
+				},
+				{
+					"name": "Destacar/Remover Destaque",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"isFeatured\": true\n}"
+						},
+						"url": {
+							"raw": "{{event_service_url}}/events/:eventId/featured",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", ":eventId", "featured"],
+							"variable": [
+								{
+									"key": "eventId",
+									"value": "44444444-4444-4444-4444-444444444444"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Marcar Presença (Check-in)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"11111111-1111-1111-1111-111111111111\"\n}"
+						},
+						"url": {
+							"raw": "{{event_service_url}}/events/:eventId/checkin",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", ":eventId", "checkin"],
+							"variable": [
+								{
+									"key": "eventId",
+									"value": "44444444-4444-4444-4444-444444444444"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Remover Presença (Check-out)",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"11111111-1111-1111-1111-111111111111\"\n}"
+						},
+						"url": {
+							"raw": "{{event_service_url}}/events/:eventId/checkin",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", ":eventId", "checkin"],
+							"variable": [
+								{
+									"key": "eventId",
+									"value": "44444444-4444-4444-4444-444444444444"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Listar Check-ins do Usuário",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_service_url}}/events/checkins/:userId",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", "checkins", ":userId"],
+							"variable": [
+								{
+									"key": "userId",
+									"value": "11111111-1111-1111-1111-111111111111"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Verificar se Usuário fez Check-in",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_service_url}}/events/:eventId/checkin/:userId",
+							"host": ["{{event_service_url}}"],
+							"path": ["events", ":eventId", "checkin", ":userId"],
+							"variable": [
+								{
+									"key": "eventId",
+									"value": "44444444-4444-4444-4444-444444444444"
+								},
+								{
+									"key": "userId",
+									"value": "11111111-1111-1111-1111-111111111111"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Post Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{post_service_url}}/health",
+							"host": ["{{post_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Gerar URLs Pré-Assinadas de Upload",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"11111111-1111-1111-1111-111111111111\",\n  \"count\": 2\n}"
+						},
+						"url": {
+							"raw": "{{post_service_url}}/posts/upload-url",
+							"host": ["{{post_service_url}}"],
+							"path": ["posts", "upload-url"]
+						}
+					}
+				},
+				{
+					"name": "Criar Post",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"11111111-1111-1111-1111-111111111111\",\n  \"caption\": \"Noite incrível no Vibester! 🎉\",\n  \"imageUrls\": [\n    \"https://images.unsplash.com/photo-1514525253161-7a46d19cd819\"\n  ],\n  \"tags\": [\"balada\", \"fds\"]\n}"
+						},
+						"url": {
+							"raw": "{{post_service_url}}/posts",
+							"host": ["{{post_service_url}}"],
+							"path": ["posts"]
+						}
+					}
+				},
+				{
+					"name": "Buscar Post por ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{post_service_url}}/posts/:postId",
+							"host": ["{{post_service_url}}"],
+							"path": ["posts", ":postId"],
+							"variable": [
+								{
+									"key": "postId",
+									"value": "55555555-5555-5555-5555-555555555555"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Listar Posts de um Usuário",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{post_service_url}}/users/:userId/posts",
+							"host": ["{{post_service_url}}"],
+							"path": ["users", ":userId", "posts"],
+							"variable": [
+								{
+									"key": "userId",
+									"value": "11111111-1111-1111-1111-111111111111"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Listar Posts de um Estabelecimento",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{post_service_url}}/establishments/:establishmentId/posts",
+							"host": ["{{post_service_url}}"],
+							"path": ["establishments", ":establishmentId", "posts"],
+							"variable": [
+								{
+									"key": "establishmentId",
+									"value": "33333333-3333-3333-3333-333333333333"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Curtir Post",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"11111111-1111-1111-1111-111111111111\"\n}"
+						},
+						"url": {
+							"raw": "{{post_service_url}}/posts/:postId/likes",
+							"host": ["{{post_service_url}}"],
+							"path": ["posts", ":postId", "likes"],
+							"variable": [
+								{
+									"key": "postId",
+									"value": "55555555-5555-5555-5555-555555555555"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Descurtir Post",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"11111111-1111-1111-1111-111111111111\"\n}"
+						},
+						"url": {
+							"raw": "{{post_service_url}}/posts/:postId/likes",
+							"host": ["{{post_service_url}}"],
+							"path": ["posts", ":postId", "likes"],
+							"variable": [
+								{
+									"key": "postId",
+									"value": "55555555-5555-5555-5555-555555555555"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Criar Comentário",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"postId\": \"55555555-5555-5555-5555-555555555555\",\n  \"userId\": \"11111111-1111-1111-1111-111111111111\",\n  \"content\": \"Que festa insana! 🔥\"\n}"
+						},
+						"url": {
+							"raw": "{{post_service_url}}/comments",
+							"host": ["{{post_service_url}}"],
+							"path": ["comments"]
+						}
+					}
+				},
+				{
+					"name": "Listar Comentários de um Post",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{post_service_url}}/posts/:postId/comments",
+							"host": ["{{post_service_url}}"],
+							"path": ["posts", ":postId", "comments"],
+							"variable": [
+								{
+									"key": "postId",
+									"value": "55555555-5555-5555-5555-555555555555"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Notification Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{notification_service_url}}/health",
+							"host": ["{{notification_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Listar Notificações (Com JWT)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{notification_service_url}}/notifications?limit=20",
+							"host": ["{{notification_service_url}}"],
+							"path": ["notifications"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Contagem de Não Lidas (Com JWT)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{notification_service_url}}/notifications/unread-count",
+							"host": ["{{notification_service_url}}"],
+							"path": ["notifications", "unread-count"]
+						}
+					}
+				},
+				{
+					"name": "Marcar Todas Como Lidas (Com JWT)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{notification_service_url}}/notifications/read",
+							"host": ["{{notification_service_url}}"],
+							"path": ["notifications", "read"]
+						}
+					}
+				},
+				{
+					"name": "Enviar Código 2FA por E-mail",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"to\": \"joao@email.com\",\n  \"name\": \"João Silva\"\n}"
+						},
+						"url": {
+							"raw": "{{notification_service_url}}/notifications/2fa",
+							"host": ["{{notification_service_url}}"],
+							"path": ["notifications", "2fa"]
+						}
+					}
+				},
+				{
+					"name": "Validar Código 2FA",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"joao@email.com\",\n  \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{notification_service_url}}/notifications/2fa/validate",
+							"host": ["{{notification_service_url}}"],
+							"path": ["notifications", "2fa", "validate"]
+						}
+					}
+				},
+				{
+					"name": "Enviar E-mail de Boas-Vindas",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"to\": \"joao@email.com\",\n  \"name\": \"João Silva\"\n}"
+						},
+						"url": {
+							"raw": "{{notification_service_url}}/notifications/welcome",
+							"host": ["{{notification_service_url}}"],
+							"path": ["notifications", "welcome"]
+						}
+					}
+				},
+				{
+					"name": "Enviar E-mail de Recuperação de Senha",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"to\": \"joao@email.com\",\n  \"name\": \"João Silva\",\n  \"resetLink\": \"https://vibester.com.br/reset/abc123token\"\n}"
+						},
+						"url": {
+							"raw": "{{notification_service_url}}/notifications/reset-password",
+							"host": ["{{notification_service_url}}"],
+							"path": ["notifications", "reset-password"]
+						}
+					}
+				},
+				{
+					"name": "Listar Notificações por userId (Legacy)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{notification_service_url}}/notifications/:userId",
+							"host": ["{{notification_service_url}}"],
+							"path": ["notifications", ":userId"],
+							"variable": [
+								{
+									"key": "userId",
+									"value": "11111111-1111-1111-1111-111111111111"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Establishment Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{establishment_service_url}}/health",
+							"host": ["{{establishment_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Listar Estabelecimentos",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{establishment_service_url}}/establishments",
+							"host": ["{{establishment_service_url}}"],
+							"path": ["establishments"]
+						}
+					}
+				},
+				{
+					"name": "Buscar Estabelecimento por ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{establishment_service_url}}/establishments/:id",
+							"host": ["{{establishment_service_url}}"],
+							"path": ["establishments", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "33333333-3333-3333-3333-333333333333"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Feed Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{feed_service_url}}/health",
+							"host": ["{{feed_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Obter Feed Principal",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{feed_service_url}}/feed",
+							"host": ["{{feed_service_url}}"],
+							"path": ["feed"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Payment Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{payment_service_url}}/health",
+							"host": ["{{payment_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Criar Pagamento Pix (AbacatePay)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": 5000,\n  \"description\": \"Ingresso Festa Vibester\"\n}"
+						},
+						"url": {
+							"raw": "{{payment_service_url}}/payments",
+							"host": ["{{payment_service_url}}"],
+							"path": ["payments"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Scrapping Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{scrapping_service_url}}/health",
+							"host": ["{{scrapping_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Executar Scrape",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{scrapping_service_url}}/scrape",
+							"host": ["{{scrapping_service_url}}"],
+							"path": ["scrape"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

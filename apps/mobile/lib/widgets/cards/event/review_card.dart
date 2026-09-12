@@ -43,8 +43,8 @@ class ReviewCard extends StatelessWidget {
                     children: [
                       Text(
                         nomeUsuario,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: context.colors.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
                         ),
@@ -57,7 +57,7 @@ class ReviewCard extends StatelessWidget {
                 Text(
                   tempo,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: context.colors.textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -70,7 +70,7 @@ class ReviewCard extends StatelessWidget {
             Text(
               comentario,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.85),
+                color: context.colors.textSecondary,
                 fontSize: 14,
                 height: 1.5,
               ),

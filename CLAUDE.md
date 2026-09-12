@@ -210,7 +210,9 @@ Entre as funcionalidades existentes estão:
 
 - cadastro de usuários;
 - autenticação;
-- criação de postagens;
+- criação de postagens, com múltiplas mídias por post misturando foto e vídeo
+  (contrato de upload e leitura em
+  [`apps/services/post-service/docs/midias-no-post.md`](apps/services/post-service/docs/midias-no-post.md));
 - feed;
 - scraping da movimentação de estabelecimentos;
 - notificações;

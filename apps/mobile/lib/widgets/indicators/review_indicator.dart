@@ -37,8 +37,8 @@ class ReviewIndicator extends StatelessWidget {
               children: [
                 Text(
                   avaliacao.toStringAsFixed(1),
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: context.colors.textPrimary,
                     fontSize: 52,
                     fontWeight: FontWeight.bold,
                     height: 1,
@@ -50,7 +50,7 @@ class ReviewIndicator extends StatelessWidget {
                 Text(
                   '$totalReviews reviews',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.5),
+                    color: context.colors.textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -103,10 +103,7 @@ class ReviewIndicator extends StatelessWidget {
             width: 12,
             child: Text(
               '$estrela',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
-                fontSize: 12,
-              ),
+              style: TextStyle(color: context.colors.textMuted, fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ),
@@ -117,7 +114,7 @@ class ReviewIndicator extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: percent,
                 minHeight: 6,
-                backgroundColor: Colors.white.withOpacity(0.1),
+                backgroundColor: context.colors.border,
                 valueColor: AlwaysStoppedAnimation<Color>(context.colors.brasa),
               ),
             ),
@@ -127,10 +124,7 @@ class ReviewIndicator extends StatelessWidget {
             width: 32,
             child: Text(
               '${(percent * 100).toInt()}%',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
-                fontSize: 12,
-              ),
+              style: TextStyle(color: context.colors.textMuted, fontSize: 12),
               textAlign: TextAlign.right,
             ),
           ),

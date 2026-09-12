@@ -94,7 +94,10 @@ class CustomNavbar extends StatelessWidget {
   }) {
     final icon = Icon(
       isActive ? activeItems[index] : items[index],
-      color: isActive ? Colors.white : Colors.white54,
+      // Ícone ativo fica sobre o círculo context.colors.ambar (cor de marca,
+      // fixa nos dois temas), então continua branco; o inativo fica direto
+      // sobre context.colors.navy, que agora varia por tema.
+      color: isActive ? Colors.white : context.colors.textMuted,
       size: Platform.isIOS ? 26 : 24,
     );
 

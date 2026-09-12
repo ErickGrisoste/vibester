@@ -178,10 +178,13 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                         ),
                       )
                     : eventsProvider.featuredEvents.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           'Nenhum evento em destaque',
-                          style: TextStyle(color: Colors.white38, fontSize: 14),
+                          style: TextStyle(
+                            color: context.colors.textDisabled,
+                            fontSize: 14,
+                          ),
                         ),
                       )
                     : PageView.builder(
@@ -208,7 +211,7 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                     child: Text(
                       "Categorias",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.colors.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 22,
                       ),
@@ -223,7 +226,7 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                     child: Text(
                       "Descubra",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.colors.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 22,
                       ),
@@ -238,7 +241,7 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                     child: Text(
                       "Eventos da Semana",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.colors.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 22,
                       ),
@@ -258,11 +261,11 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                               ),
                             )
                           : eventsProvider.weekEvents.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Text(
                                 'Nenhum evento esta semana',
                                 style: TextStyle(
-                                  color: Colors.white38,
+                                  color: context.colors.textDisabled,
                                   fontSize: 14,
                                 ),
                               ),
@@ -289,7 +292,7 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                     child: Text(
                       "Ofertas Exclusivas",
                       style: GoogleFonts.inter(
-                        color: Colors.white,
+                        color: context.colors.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 22,
                       ),
@@ -320,27 +323,27 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                       Text(
                         "Perto de Você",
                         style: GoogleFonts.inter(
-                          color: Colors.white,
+                          color: context.colors.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 22,
                         ),
                       ),
                       _atualizandoLocalizacao
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
+                          ? Padding(
+                              padding: const EdgeInsets.all(12),
                               child: SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
-                                  color: Colors.white,
+                                  color: context.colors.textPrimary,
                                   strokeWidth: 2.5,
                                 ),
                               ),
                             )
                           : IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.sync,
-                                color: Colors.white,
+                                color: context.colors.textPrimary,
                                 size: 27,
                               ),
                               onPressed: _atualizarLocalizacaoManualmente,
@@ -369,19 +372,19 @@ class _HighlightsSectionScreenState extends State<HighlightsSectionScreen> {
                         return Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.location_off,
-                              color: Colors.white38,
+                              color: context.colors.textDisabled,
                               size: 40,
                             ),
                             const SizedBox(height: 12),
-                            const Text(
+                            Text(
                               'Não foi possível acessar sua localização. '
                               'Verifique se o GPS está ativado e se o app '
                               'tem permissão de localização.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: Colors.white38,
+                                color: context.colors.textDisabled,
                                 fontSize: 14,
                               ),
                             ),

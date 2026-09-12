@@ -1,3 +1,5 @@
+import { MediaItem } from "../utils/media";
+
 export interface Post {
     postId: string;
 
@@ -12,6 +14,7 @@ export interface Post {
     establishmentCategory?: string;
 
     imageUrls: string[];
+    media?: MediaItem[];
     caption?: string;
     tags?: string[];
 

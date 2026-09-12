@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["tests/**/*.spec.ts", "src/**/*.test.ts"],
+    exclude: ["tests/integration-real/**"],
     setupFiles: ["tests/setup/vitest.setup.ts"],
     coverage: {
       provider: "v8",

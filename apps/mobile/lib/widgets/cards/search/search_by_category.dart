@@ -4,6 +4,7 @@ import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/places/place_service.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/place/place_card.dart';
+
 class SearchByCategory extends StatefulWidget {
   final String categoria;
 
@@ -69,11 +70,11 @@ class _SearchByCategoryState extends State<SearchByCategory> {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.wifi_off, color: Colors.white38, size: 48),
+          Icon(Icons.wifi_off, color: context.colors.textDisabled, size: 48),
           const SizedBox(height: 12),
           Text(
             _erro!,
-            style: const TextStyle(color: Colors.white38, fontSize: 16),
+            style: TextStyle(color: context.colors.textDisabled, fontSize: 16),
           ),
           const SizedBox(height: 16),
           TextButton(
@@ -97,18 +98,18 @@ class _SearchByCategoryState extends State<SearchByCategory> {
             child: Image.asset('assets/img/mascote/lupa.png'),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Nenhum lugar encontrado',
             style: TextStyle(
-              color: Colors.white38,
+              color: context.colors.textDisabled,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Ainda não há estabelecimentos nessa categoria',
-            style: TextStyle(color: Colors.white24, fontSize: 13),
+            style: TextStyle(color: context.colors.textDisabled, fontSize: 13),
           ),
         ],
       );

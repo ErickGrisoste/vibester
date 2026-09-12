@@ -43,7 +43,7 @@ class PlaceFavoriteCard extends StatelessWidget {
                         textAlign: TextAlign.center,
                         place.nome,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.colors.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),

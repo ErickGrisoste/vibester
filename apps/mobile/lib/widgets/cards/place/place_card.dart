@@ -67,7 +67,7 @@ class PlaceCard extends StatelessWidget {
                         Text(
                           place.nome,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: context.colors.textPrimary,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
@@ -81,10 +81,14 @@ class PlaceCard extends StatelessWidget {
                             SizedBox(width: 4),
                             Text(
                               '${place.avaliacao}',
-                              style: TextStyle(color: Colors.white54),
+                              style: TextStyle(color: context.colors.textMuted),
                             ),
                             SizedBox(width: 4),
-                            Icon(Icons.circle, color: Colors.white38, size: 6),
+                            Icon(
+                              Icons.circle,
+                              color: context.colors.border,
+                              size: 6,
+                            ),
                             SizedBox(width: 4),
                             PriceIndicator(nivel: place.nivelPrecoMedio),
                           ],
@@ -92,7 +96,7 @@ class PlaceCard extends StatelessWidget {
                         Text(
                           'Movimento',
                           style: TextStyle(
-                            color: Colors.white.withAlpha(150),
+                            color: context.colors.textSecondary,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

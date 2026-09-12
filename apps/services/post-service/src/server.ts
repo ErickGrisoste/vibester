@@ -1,17 +1,15 @@
 import Fastify from "fastify";
-import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import compress from "@fastify/compress";
-import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import { getCassandraClient } from "./config/cassandra";
 import { redis } from "./config/redis";
 import { routes } from "./routes";
 import { registerSwagger } from "./config/swagger";
-import { ZodError } from "zod";
 import { producer } from "./kafka/producer";
 import { env } from "./config/env";
-import { HttpError } from "./errors/http.error";
+import { registerErrorHandler } from "./errors/error.handler";
+import { registerCorsAndRateLimit, registerHttpMetrics } from "./plugins";
 
 const app = Fastify({
     logger: {
@@ -24,22 +22,13 @@ const app = Fastify({
     requestTimeout: 30000,
 });
 
-app.register(cors, { origin: true });
+registerHttpMetrics(app);
 
 app.register(helmet, {
     contentSecurityPolicy: false,
 });
 
 app.register(compress, { global: true });
-
-app.register(rateLimit, {
-    global: true,
-    max: env.rate_limit_max,
-    timeWindow: "1 minute",
-    errorResponseBuilder: (_req, context) => ({
-        message: `Rate limit excedido. Tente novamente em ${Math.ceil(context.ttl / 1000)}s.`,
-    }),
-});
 
 app.register(multipart, {
     limits: {
@@ -48,34 +37,21 @@ app.register(multipart, {
     },
 });
 
-app.setErrorHandler((error, _request, reply) => {
-    if (error instanceof ZodError) {
-        return reply.status(400).send({
-            message: "Validation error",
-            errors: error.issues.map((issue) => ({
-                field: issue.path.join("."),
-                message: issue.message,
-            })),
-        });
-    }
-
-    if (error instanceof HttpError) {
-        return reply.status(error.statusCode).send({ message: error.message });
-    }
-
-    const fastifyError = error as { statusCode?: number; message?: string };
-    if (typeof fastifyError.statusCode === "number" && fastifyError.statusCode < 500) {
-        return reply.status(fastifyError.statusCode).send({ message: fastifyError.message });
-    }
-
-    app.log.error({ err: error }, "Unhandled error");
-    return reply.status(500).send({
-        message: "Internal server error",
-    });
-});
+registerErrorHandler(app);
 
 async function start() {
     try {
+        // Precisa ser aguardado antes de qualquer outro register/listen: a
+        // função é async (faz `await app.register(cors, ...)` internamente
+        // antes de registrar o rate limit), então chamá-la sem await deixava
+        // o registro do rate limit dependente de sorte de timing em vez de
+        // uma garantia explícita de ordem.
+        await registerCorsAndRateLimit(app, {
+            corsAllowedOrigins: env.cors_allowed_origins,
+            rateLimitMax: env.rate_limit_max,
+            redis,
+        });
+
         await redis.connect();
         await producer.connect();
         await getCassandraClient().connect();

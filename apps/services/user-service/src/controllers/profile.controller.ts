@@ -8,6 +8,8 @@ import { GetFollowersService } from "../services/getFollowers.service.js";
 import { SearchProfilesService } from "../services/searchProfiles.service.js";
 import type { UserProfile as UserProfileModel } from "@prisma/client";
 import { CheckFollowService } from "../services/checkFollow.service.js";
+import { GenerateShareLinkService } from "../services/generateShareLink.service.js";
+import { ResolveShareLinkService } from "../services/resolveShareLink.service.js";
 import { env } from "../config/env.js";
 
 const profileService = new CreateProfileService();
@@ -16,6 +18,8 @@ const getProfileService = new GetProfileService();
 const getFollowersService = new GetFollowersService();
 const checkFollowService = new CheckFollowService();
 const searchProfilesService = new SearchProfilesService();
+const generateShareLinkService = new GenerateShareLinkService();
+const resolveShareLinkService = new ResolveShareLinkService();
 
 const errorSchema = z.object({ message: z.string() });
 
@@ -69,6 +73,20 @@ const followerActionSchema = z.object({
 
 const accountIdParamsSchema = z.object({
   accountId: z.string().uuid(),
+});
+
+const generateShareLinkSchema = z.object({
+  accountId: z.string().uuid(),
+});
+
+const shareLinkResponseSchema = z.object({
+  token: z.string().uuid(),
+  shareUrl: z.string().url(),
+  expiresAt: z.coerce.date(),
+});
+
+const shareTokenParamsSchema = z.object({
+  token: z.string().uuid(),
 });
 
 const followerEntrySchema = z.object({
@@ -148,6 +166,59 @@ export async function profileRoutes(app: FastifyInstance) {
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send({ message: "Error fetching profile" });
+    }
+  });
+
+  router.post("/share", {
+    config: {
+      rateLimit: {
+        max: env.rateLimitShareMax,
+        timeWindow: 60000,
+        keyGenerator: (request: FastifyRequest) => {
+          const body = request.body as { accountId?: string };
+          return `rate:share:${body?.accountId ?? request.ip}`;
+        },
+      },
+    },
+    schema: {
+      tags: ["Profile"],
+      summary: "Gerar link de compartilhamento",
+      description:
+        "Gera um token opaco de compartilhamento para o perfil informado, válido por " +
+        `${env.shareLinkTtlSeconds / 3600}h. Incrementa o contador de compartilhamentos do perfil.`,
+      body: generateShareLinkSchema,
+      response: { 201: shareLinkResponseSchema, 500: errorSchema },
+    },
+  }, async (request, reply) => {
+    try {
+      const result = await generateShareLinkService.generate(request.body);
+      return reply.status(201).send(result);
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({ message: "Error generating share link" });
+    }
+  });
+
+  router.get("/share/:token", {
+    schema: {
+      tags: ["Profile"],
+      summary: "Resolver link de compartilhamento",
+      description: "Resolve um token de compartilhamento para o perfil correspondente, se ainda válido.",
+      params: shareTokenParamsSchema,
+      response: {
+        200: userProfileSchema,
+        404: errorSchema,
+        500: errorSchema,
+      },
+    },
+  }, async (request, reply) => {
+    try {
+      const profile = await resolveShareLinkService.resolve(request.params.token);
+      if (!profile) return reply.status(404).send({ message: "Link de compartilhamento inválido ou expirado" });
+      return reply.status(200).send(toProfileResponse(profile));
+    } catch (error) {
+      request.log.error(error);
+      return reply.status(500).send({ message: "Error resolving share link" });
     }
   });
 

@@ -9,3 +9,22 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+
+  cassandra-test:
+    image: cassandra:4.1
+    ports:
+      - "9042:9042"
+    environment:
+      # Heap reduzido para inicializar mais rápido em CI/local (default seria bem maior)
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
+      # Mantém explícito o nome do datacenter usado pela app/migrate (CASSANDRA_LOCAL_DATA_CENTER)
+      CASSANDRA_DC: datacenter1
+      CASSANDRA_ENDPOINT_SNITCH: GossipingPropertyFileSnitch
+    healthcheck:
+      # Cassandra é lento pra subir (~30-60s) — retries generosos e start_period longo
+      test: ["CMD-SHELL", "cqlsh -e 'describe cluster' localhost 9042 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 60s

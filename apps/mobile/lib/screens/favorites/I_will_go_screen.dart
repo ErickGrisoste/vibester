@@ -22,9 +22,9 @@ class _IWillGoScreenState extends State<IWillGoScreen> {
       final userId = context.read<UserProvider>().user?.accountId;
       if (userId != null) {
         context.read<EventsListProvider>().fetchCheckIns(
-              userId: userId,
-              force: true,
-            );
+          userId: userId,
+          force: true,
+        );
       }
     });
   }
@@ -52,7 +52,7 @@ class _IWillGoScreenState extends State<IWillGoScreen> {
                       Text(
                         'Eventos confirmados',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.colors.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -64,7 +64,7 @@ class _IWillGoScreenState extends State<IWillGoScreen> {
                       Text(
                         'Os eventos que você já confirmou presença.',
                         style: TextStyle(
-                          color: Colors.white38,
+                          color: context.colors.textDisabled,
                           fontSize: 12.5,
                           fontWeight: FontWeight.bold,
                         ),

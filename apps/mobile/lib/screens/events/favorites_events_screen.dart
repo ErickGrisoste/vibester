@@ -58,7 +58,7 @@ class _FavoritesEventsScreenState extends State<FavoritesEventsScreen>
                 child: Text(
                   'Nenhum evento confirmado',
                   style: TextStyle(
-                    color: Colors.white38,
+                    color: context.colors.textDisabled,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
                   ),

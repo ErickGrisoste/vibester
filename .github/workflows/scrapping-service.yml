@@ -36,10 +36,64 @@ jobs:
         working-directory: apps/services/scrapping-service
         run: npm test
 
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: scrapping_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: apps/services/scrapping-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/services/scrapping-service
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/scrapping_test_db
+        run: npm ci
+
+      - name: Run migrations
+        working-directory: apps/services/scrapping-service
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/scrapping_test_db
+        run: npx prisma migrate deploy
+
+      - name: Run integration tests
+        working-directory: apps/services/scrapping-service
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/scrapping_test_db
+          JWT_SECRET: ci-test-secret
+          SERP_API_KEY: ci-test-serpapi-key
+          GOOGLE_API_KEY: ci-test-google-key
+          ESTABLISHMENT_SERVICE_URL: http://localhost:3005
+          KAFKA_BROKERS: localhost:9092
+        run: npm run test:integration
+
   build-and-push:
     name: Build & Push
     runs-on: ubuntu-latest
-    needs: test
+    needs: integration-test
     permissions:
       contents: read
       packages: write

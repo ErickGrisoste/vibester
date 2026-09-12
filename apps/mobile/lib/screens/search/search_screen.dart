@@ -180,7 +180,9 @@ class _SearchScreenState extends State<SearchScreen> {
               if (_isSearchingUsers)
                 SliverFillRemaining(
                   child: Center(
-                    child: CircularProgressIndicator(color: context.colors.ambar),
+                    child: CircularProgressIndicator(
+                      color: context.colors.ambar,
+                    ),
                   ),
                 )
               else if (_searchError != null)
@@ -188,7 +190,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: Center(
                     child: Text(
                       _searchError!,
-                      style: const TextStyle(color: Colors.white38),
+                      style: TextStyle(color: context.colors.textDisabled),
                     ),
                   ),
                 )
@@ -203,10 +205,10 @@ class _SearchScreenState extends State<SearchScreen> {
                         child: Image.asset('assets/img/mascote/lupa.png'),
                       ),
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'Nenhum usuário encontrado',
                         style: TextStyle(
-                          color: Colors.white38,
+                          color: context.colors.textDisabled,
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
@@ -221,7 +223,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: Text(
                       'Usuários',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: context.colors.textPrimary,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -254,10 +256,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     children: [
                       Container(
                         margin: const EdgeInsets.only(left: 16),
-                        child: const Text(
+                        child: Text(
                           "Buscas Recentes",
                           style: TextStyle(
-                            color: Colors.white,
+                            color: context.colors.textPrimary,
                             fontSize: 25,
                             fontWeight: FontWeight.bold,
                           ),
@@ -292,18 +294,20 @@ class _SearchScreenState extends State<SearchScreen> {
                     return Column(
                       children: [
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.history,
-                            color: Colors.white38,
+                            color: context.colors.textDisabled,
                           ),
                           title: Text(
                             pesquisa,
-                            style: const TextStyle(color: Colors.white38),
+                            style: TextStyle(
+                              color: context.colors.textDisabled,
+                            ),
                           ),
                           trailing: IconButton(
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.close,
-                              color: Colors.white38,
+                              color: context.colors.textDisabled,
                             ),
                             onPressed: () {
                               setState(() {
@@ -350,8 +354,8 @@ class _SearchScreenState extends State<SearchScreen> {
                         margin: const EdgeInsets.only(left: 15),
                         child: Text(
                           _categoriaSelecionada ?? "Descubra por Categoria",
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: context.colors.textPrimary,
                             fontSize: 25,
                             fontWeight: FontWeight.bold,
                           ),
@@ -361,7 +365,10 @@ class _SearchScreenState extends State<SearchScreen> {
                         Container(
                           margin: const EdgeInsets.only(right: 7),
                           child: IconButton(
-                            icon: const Icon(Icons.close, color: Colors.white),
+                            icon: Icon(
+                              Icons.close,
+                              color: context.colors.textPrimary,
+                            ),
                             onPressed: _voltarParaInicio,
                           ),
                         ),
@@ -460,18 +467,21 @@ class _SearchScreenState extends State<SearchScreen> {
                           child: Image.asset('assets/img/mascote/lupa.png'),
                         ),
                         const SizedBox(height: 12),
-                        const Text(
+                        Text(
                           'Nenhum lugar encontrado',
                           style: TextStyle(
-                            color: Colors.white38,
+                            color: context.colors.textDisabled,
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                         const SizedBox(height: 4),
-                        const Text(
+                        Text(
                           'Ainda não há estabelecimentos nessa categoria',
-                          style: TextStyle(color: Colors.white24, fontSize: 13),
+                          style: TextStyle(
+                            color: context.colors.textDisabled,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
@@ -527,7 +537,11 @@ class _UserSearchTile extends StatelessWidget {
                   ? CachedNetworkImageProvider(user.avatarUrl!)
                   : null,
               child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-                  ? const Icon(Icons.person, color: Colors.white54, size: 26)
+                  ? Icon(
+                      Icons.person,
+                      color: context.colors.textMuted,
+                      size: 26,
+                    )
                   : null,
             ),
             const SizedBox(width: 12),
@@ -537,8 +551,8 @@ class _UserSearchTile extends StatelessWidget {
                 children: [
                   Text(
                     user.name ?? user.username ?? '',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                     ),
@@ -546,8 +560,8 @@ class _UserSearchTile extends StatelessWidget {
                   if (user.username != null && user.username!.isNotEmpty)
                     Text(
                       '@${user.username}',
-                      style: const TextStyle(
-                        color: Colors.white54,
+                      style: TextStyle(
+                        color: context.colors.textMuted,
                         fontSize: 13,
                       ),
                     ),
@@ -556,7 +570,10 @@ class _UserSearchTile extends StatelessWidget {
             ),
             Text(
               '${user.followers} seguidores',
-              style: const TextStyle(color: Colors.white38, fontSize: 12),
+              style: TextStyle(
+                color: context.colors.textDisabled,
+                fontSize: 12,
+              ),
             ),
           ],
         ),

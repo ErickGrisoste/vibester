@@ -228,6 +228,54 @@ describe("event-service — HTTP Integration", () => {
         });
     });
 
+    describe("GET /events", () => {
+        it("retorna todos os eventos", async () => {
+            mockEvent.findMany.mockResolvedValue([makeEvent(), makeEvent({ id: "outro-id", isFeatured: true })]);
+
+            const res = await app.inject({ method: "GET", url: "/events" });
+
+            expect(res.statusCode).toBe(200);
+            expect(JSON.parse(res.payload)).toHaveLength(2);
+            expect(mockEvent.findMany).toHaveBeenCalledWith({ orderBy: { startDate: "asc" } });
+        });
+
+        it("retorna lista vazia quando não há eventos", async () => {
+            mockEvent.findMany.mockResolvedValue([]);
+
+            const res = await app.inject({ method: "GET", url: "/events" });
+
+            expect(res.statusCode).toBe(200);
+            expect(JSON.parse(res.payload)).toEqual([]);
+        });
+
+        it("usa cache na segunda chamada", async () => {
+            mockEvent.findMany.mockResolvedValue([makeEvent()]);
+
+            await app.inject({ method: "GET", url: "/events" });
+            await app.inject({ method: "GET", url: "/events" });
+
+            expect(mockEvent.findMany).toHaveBeenCalledTimes(1);
+        });
+
+        it("invalida o cache ao criar um evento novo", async () => {
+            mockEvent.findMany.mockResolvedValue([makeEvent()]);
+            await app.inject({ method: "GET", url: "/events" });
+            expect(mockEvent.findMany).toHaveBeenCalledTimes(1);
+
+            mockEvent.create.mockResolvedValue(makeEvent());
+            await app.inject({
+                method: "POST",
+                url: "/events",
+                payload: CREATE_BODY,
+                headers: { authorization: `Bearer ${token}` },
+            });
+
+            mockEvent.findMany.mockResolvedValue([makeEvent(), makeEvent()]);
+            await app.inject({ method: "GET", url: "/events" });
+            expect(mockEvent.findMany).toHaveBeenCalledTimes(2);
+        });
+    });
+
     describe("GET /events/nearby", () => {
         it("retorna 400 para coordenadas inválidas", async () => {
             const res = await app.inject({

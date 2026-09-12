@@ -57,7 +57,7 @@ class _EventListScreenState extends State<EventListScreen> {
                       Text(
                         provider.error!,
                         style: TextStyle(
-                          color: Colors.white38,
+                          color: context.colors.textDisabled,
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),

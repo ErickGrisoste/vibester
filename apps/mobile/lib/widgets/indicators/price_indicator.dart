@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
 class PriceIndicator extends StatelessWidget {
   final String nivel;
@@ -21,7 +22,9 @@ class PriceIndicator extends StatelessWidget {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: index < _quantidade ? Colors.white : Colors.white24,
+            color: index < _quantidade
+                ? context.colors.textPrimary
+                : context.colors.textDisabled,
           ),
         );
       }),

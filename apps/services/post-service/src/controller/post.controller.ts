@@ -5,6 +5,7 @@ import {
     establishmentIdParamsSchema,
     updatePostSchema,
     generateUploadUrlsSchema,
+    createPostSchema,
 } from "../schema/post.schema";
 import { PostService } from "../services/post.service";
 import { UploadService } from "../services/upload.service";
@@ -17,42 +18,21 @@ export class PostController {
         private readonly uploadService: UploadService,
     ) {}
 
-    async create(
-        request: FastifyRequest<{
-            Body: {
-                userId: string;
-                userUsername?: string;
-                userProfilePicture?: string;
-                userVerified?: boolean;
-                imageUrls: string[];
-                caption?: string;
-                tags?: string[];
-                establishmentId?: string;
-                establishmentName?: string;
-                establishmentLogo?: string;
-                establishmentCategory?: string;
-            };
-        }>,
-        reply: FastifyReply
-    ) {
-        const {
-            userId, imageUrls, caption, establishmentId,
-            userUsername, userProfilePicture, userVerified,
-            establishmentName, establishmentLogo, establishmentCategory, tags,
-        } = request.body;
+    async create(request: FastifyRequest, reply: FastifyReply) {
+        const body = createPostSchema.parse(request.body);
 
         const data: CreatePostInput = {
-            userId,
-            userUsername,
-            userProfilePicture,
-            userVerified,
-            imageUrls,
-            caption: caption ?? '',
-            establishmentId,
-            establishmentName,
-            establishmentLogo,
-            establishmentCategory,
-            tags,
+            userId: body.userId,
+            userUsername: body.userUsername,
+            userProfilePicture: body.userProfilePicture,
+            userVerified: body.userVerified,
+            media: body.media,
+            caption: body.caption ?? "",
+            establishmentId: body.establishmentId,
+            establishmentName: body.establishmentName,
+            establishmentLogo: body.establishmentLogo,
+            establishmentCategory: body.establishmentCategory,
+            tags: body.tags,
         };
 
         const post = await this.postService.create(data);
@@ -109,7 +89,7 @@ export class PostController {
     async updateCaption(
         request: FastifyRequest<{
             Params: { postId: string };
-            Body: { caption: string };
+            Body: { caption: string; userId: string };
         }>,
         reply: FastifyReply
     ) {
@@ -118,7 +98,7 @@ export class PostController {
 
         const updateInput: UpdatePostInput = { postId, caption };
 
-        const post = await this.postService.updateCaption(updateInput);
+        const post = await this.postService.updateCaption(updateInput, request.body.userId);
 
         return reply.status(200).send(post);
     }
@@ -126,23 +106,19 @@ export class PostController {
     async softDelete(
         request: FastifyRequest<{
             Params: { postId: string; };
+            Body: { userId: string };
         }>,
         reply: FastifyReply
     ) {
         const { postId } = postIdParamsSchema.parse(request.params);
-        await this.postService.softDelete(postId);
+        await this.postService.softDelete(postId, request.body.userId);
 
         return reply.status(204).send();
     }
 
-    async generateUploadUrls(
-        request: FastifyRequest<{
-            Body: { userId: string; count: number };
-        }>,
-        reply: FastifyReply
-    ) {
-        const { userId, count } = generateUploadUrlsSchema.parse(request.body);
-        const urls = await this.uploadService.generatePresignedUrls(userId, count);
+    async generateUploadUrls(request: FastifyRequest, reply: FastifyReply) {
+        const { userId, files } = generateUploadUrlsSchema.parse(request.body);
+        const urls = await this.uploadService.generatePresignedUrls(userId, files);
 
         return reply.status(200).send(urls);
     }

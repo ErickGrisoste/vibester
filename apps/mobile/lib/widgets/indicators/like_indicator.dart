@@ -40,7 +40,7 @@ class LikeIndicator extends StatelessWidget {
                   Icons.favorite,
                   color: publication.isLiked
                       ? context.colors.brasa
-                      : Colors.white38,
+                      : context.colors.textDisabled,
                 ),
                 SizedBox(width: 10),
                 Text(
@@ -49,7 +49,7 @@ class LikeIndicator extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     color: publication.isLiked
                         ? context.colors.brasa
-                        : Colors.white38,
+                        : context.colors.textDisabled,
                   ),
                 ),
               ],

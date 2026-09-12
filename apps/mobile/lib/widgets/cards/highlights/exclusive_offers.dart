@@ -78,7 +78,7 @@ class _ExclusiveOffersState extends State<ExclusiveOffers> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.white,
+                              color: context.colors.textPrimary,
                               fontSize: 23,
                               fontWeight: FontWeight.bold,
                             ),
@@ -86,7 +86,7 @@ class _ExclusiveOffersState extends State<ExclusiveOffers> {
                           Text(
                             widget.offer.condicao,
                             style: TextStyle(
-                              color: Colors.white38,
+                              color: context.colors.textDisabled,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
                             ),

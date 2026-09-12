@@ -45,7 +45,10 @@ class EventsListProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> fetchCheckIns({required String userId, bool force = false}) async {
+  Future<void> fetchCheckIns({
+    required String userId,
+    bool force = false,
+  }) async {
     if (_checkIns.isNotEmpty && !force) {
       return;
     }

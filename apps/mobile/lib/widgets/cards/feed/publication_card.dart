@@ -79,7 +79,7 @@ class PublicationCard extends StatelessWidget {
                             Text(
                               publication.autor,
                               style: GoogleFonts.inter(
-                                color: Colors.white,
+                                color: context.colors.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -87,7 +87,7 @@ class PublicationCard extends StatelessWidget {
                             Text(
                               _timeAgo(publication.publicatedAt),
                               style: GoogleFonts.inter(
-                                color: Colors.white.withAlpha(80),
+                                color: context.colors.textMuted,
                                 fontSize: 11,
                               ),
                             ),
@@ -104,7 +104,9 @@ class PublicationCard extends StatelessWidget {
                                   Text(
                                     publication.location!,
                                     style: GoogleFonts.inter(
-                                      color: context.colors.brasa.withAlpha(150),
+                                      color: context.colors.brasa.withAlpha(
+                                        150,
+                                      ),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 12,
                                     ),
@@ -135,13 +137,13 @@ class PublicationCard extends StatelessWidget {
               TextSpan(
                 text: '${publication.autor}: ',
                 style: GoogleFonts.inter(
-                  color: Colors.white,
+                  color: context.colors.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
                 children: [
                   TextSpan(
                     text: publication.description,
-                    style: GoogleFonts.inter(color: Colors.white60),
+                    style: GoogleFonts.inter(color: context.colors.textMuted),
                   ),
                 ],
               ),

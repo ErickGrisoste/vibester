@@ -65,12 +65,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
             backgroundColor: context.colors.noturno,
             appBar: AppBar(
               backgroundColor: context.colors.noturno,
-              foregroundColor: Colors.white,
+              foregroundColor: context.colors.textPrimary,
             ),
             body: Center(
               child: Text(
                 snapshot.error.toString(),
-                style: const TextStyle(color: Colors.white54),
+                style: TextStyle(color: context.colors.textMuted),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -88,7 +88,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
               style: GoogleFonts.inter(fontWeight: FontWeight.bold),
             ),
             backgroundColor: context.colors.noturno,
-            foregroundColor: Colors.white,
+            foregroundColor: context.colors.textPrimary,
           ),
           body: _buildContent(context, place, provider),
         );
@@ -186,8 +186,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
               const SizedBox(height: 40),
               Text(
                 place.nome.toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: context.colors.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 28,
                 ),
@@ -200,7 +200,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
                 width: 350,
                 child: Text(
                   place.bio,
-                  style: const TextStyle(color: Colors.white54),
+                  style: TextStyle(color: context.colors.textMuted),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -211,7 +211,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
                   Icon(Icons.location_on, color: context.colors.brasa),
                   Text(
                     place.endereco,
-                    style: TextStyle(color: Colors.grey.withAlpha(90)),
+                    style: TextStyle(color: context.colors.textMuted),
                   ),
                 ],
               ),
@@ -234,8 +234,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
           delegate: _StickyTabBarDelegate(
             TabBar(
               controller: _tabController,
-              unselectedLabelColor: Colors.white54,
-              labelColor: Colors.white,
+              unselectedLabelColor: context.colors.textMuted,
+              labelColor: context.colors.textPrimary,
               dividerColor: Colors.transparent,
               indicatorColor: context.colors.ambar,
               indicatorPadding: EdgeInsetsGeometry.symmetric(

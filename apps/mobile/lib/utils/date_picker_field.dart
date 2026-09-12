@@ -57,18 +57,17 @@ class _DatePickerFieldView extends StatelessWidget {
               surface: Color(0xFF141414),
               onSurface: Colors.white,
             ),
-            textTheme: Theme.of(
-              context,
-            ).textTheme.apply(bodyColor: Colors.white38, displayColor: Colors.white),
+            textTheme: Theme.of(context).textTheme.apply(
+              bodyColor: Colors.white38,
+              displayColor: Colors.white,
+            ),
             textSelectionTheme: TextSelectionThemeData(
               cursorColor: context.colors.ambar,
               selectionColor: context.colors.ambar.withOpacity(0.4),
               selectionHandleColor: context.colors.ambar,
             ),
             inputDecorationTheme: InputDecorationTheme(
-              labelStyle: TextStyle(
-                color: context.colors.ambar,
-              ),
+              labelStyle: TextStyle(color: context.colors.ambar),
               enabledBorder: OutlineInputBorder(
                 borderSide: const BorderSide(color: Colors.white10),
                 borderRadius: BorderRadius.circular(8),
@@ -109,8 +108,8 @@ class _DatePickerFieldView extends StatelessWidget {
                 color: hasError
                     ? Colors.redAccent
                     : (selectedDate != null
-                        ? context.colors.ambar
-                        : Colors.white10),
+                          ? context.colors.ambar
+                          : Colors.white10),
                 width: 1.3,
               ),
             ),
@@ -122,9 +121,7 @@ class _DatePickerFieldView extends StatelessWidget {
                       ? DateFormat('dd/MM/yyyy', 'pt_BR').format(selectedDate!)
                       : labelText,
                   style: TextStyle(
-                    color: selectedDate != null
-                        ? Colors.white
-                        : Colors.white54,
+                    color: selectedDate != null ? Colors.white : Colors.white54,
                   ),
                 ),
                 Icon(

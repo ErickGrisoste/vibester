@@ -14,28 +14,16 @@ vi.mock("../../kafka/producer", () => ({
 import { PostService } from "../post.service";
 import { PostRepository } from "../../repository/post.repository";
 import { LikeRepository } from "../../repository/like.repository";
-import { Post, CreatePostInput, UpdatePostInput } from "../../types/post.types";
+import { Post, CreatePostInput, UpdatePostInput, MediaType } from "../../types/post.types";
 
 function createMockPostRepository() {
   return {
-    createPostById: vi.fn().mockResolvedValue(undefined),
-    createPostByUser: vi.fn().mockResolvedValue(undefined),
-    createPostByEstablishment: vi.fn().mockResolvedValue(undefined),
+    createInAllViews: vi.fn().mockResolvedValue(undefined),
     findById: vi.fn().mockResolvedValue(null),
     findByUser: vi.fn().mockResolvedValue({ posts: [], nextCursor: null }),
     findByEstablishment: vi.fn().mockResolvedValue({ posts: [], nextCursor: null }),
-    updateCaptionById: vi.fn().mockResolvedValue(undefined),
-    updateCaptionByUser: vi.fn().mockResolvedValue(undefined),
-    updateCaptionByEstablishment: vi.fn().mockResolvedValue(undefined),
-    softDeleteById: vi.fn().mockResolvedValue(undefined),
-    softDeleteByUser: vi.fn().mockResolvedValue(undefined),
-    softDeleteByEstablishment: vi.fn().mockResolvedValue(undefined),
-    updateTotalLikesById: vi.fn().mockResolvedValue(undefined),
-    updateTotalLikesByUser: vi.fn().mockResolvedValue(undefined),
-    updateTotalLikesByEstablishment: vi.fn().mockResolvedValue(undefined),
-    updateTotalCommentsById: vi.fn().mockResolvedValue(undefined),
-    updateTotalCommentsByUser: vi.fn().mockResolvedValue(undefined),
-    updateTotalCommentsByEstablishment: vi.fn().mockResolvedValue(undefined),
+    updateCaptionInAllViews: vi.fn().mockResolvedValue(undefined),
+    softDeleteInAllViews: vi.fn().mockResolvedValue(undefined),
   } as unknown as PostRepository;
 }
 
@@ -49,6 +37,7 @@ function makePost(overrides: Partial<Post> = {}): Post {
   return {
     postId: "post-1",
     userId: "user-1",
+    media: [{ url: "https://img.example.com/1.jpg", type: MediaType.IMAGE }],
     imageUrls: ["https://img.example.com/1.jpg"],
     caption: "Hello world",
     totalLikes: 0,
@@ -76,7 +65,7 @@ describe("PostService", () => {
     it("should create a post without establishmentId", async () => {
       const input: CreatePostInput = {
         userId: "user-1",
-        imageUrls: ["https://img.example.com/1.jpg"],
+        media: [{ url: "https://img.example.com/1.jpg", type: MediaType.IMAGE }],
         caption: "Test caption",
       };
 
@@ -85,29 +74,33 @@ describe("PostService", () => {
       expect(result.postId).toBeDefined();
       expect(result.userId).toBe(input.userId);
       expect(result.caption).toBe(input.caption);
-      expect(result.imageUrls).toEqual(input.imageUrls);
+      expect(result.media).toEqual(input.media);
+      expect(result.imageUrls).toEqual(["https://img.example.com/1.jpg"]);
       expect(result.totalLikes).toBe(0);
       expect(result.totalComments).toBe(0);
       expect(result.isDeleted).toBe(false);
       expect(result.createdAt).toBeInstanceOf(Date);
 
-      expect(repo.createPostById).toHaveBeenCalledOnce();
-      expect(repo.createPostByUser).toHaveBeenCalledOnce();
-      expect(repo.createPostByEstablishment).not.toHaveBeenCalled();
+      expect(repo.createInAllViews).toHaveBeenCalledOnce();
+      expect(repo.createInAllViews).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: "user-1", establishmentId: undefined })
+      );
     });
 
     it("should create a post with establishmentId", async () => {
       const input: CreatePostInput = {
         userId: "user-1",
         establishmentId: "est-1",
-        imageUrls: ["https://img.example.com/1.jpg"],
+        media: [{ url: "https://img.example.com/1.jpg", type: MediaType.IMAGE }],
         caption: "At the bar",
       };
 
       const result = await service.create(input);
 
       expect(result.establishmentId).toBe("est-1");
-      expect(repo.createPostByEstablishment).toHaveBeenCalledOnce();
+      expect(repo.createInAllViews).toHaveBeenCalledWith(
+        expect.objectContaining({ establishmentId: "est-1" })
+      );
     });
   });
 
@@ -186,18 +179,16 @@ describe("PostService", () => {
 
 
   describe("updateCaption", () => {
-    it("should update caption when post exists and is not deleted", async () => {
+    it("should update caption when post exists, belongs to the caller and is not deleted", async () => {
       const post = makePost();
       (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(post);
 
       const input: UpdatePostInput = { postId: "post-1", caption: "Updated caption" };
-      const result = await service.updateCaption(input);
+      const result = await service.updateCaption(input, post.userId);
 
       expect(result.caption).toBe("Updated caption");
       expect(result.updatedAt).toBeInstanceOf(Date);
-      expect(repo.updateCaptionById).toHaveBeenCalledOnce();
-      expect(repo.updateCaptionByUser).toHaveBeenCalledOnce();
-      expect(repo.updateCaptionByEstablishment).not.toHaveBeenCalled();
+      expect(repo.updateCaptionInAllViews).toHaveBeenCalledWith(post, "Updated caption", result.updatedAt);
     });
 
     it("should also update establishment table when post has establishmentId", async () => {
@@ -205,16 +196,27 @@ describe("PostService", () => {
       (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(post);
 
       const input: UpdatePostInput = { postId: "post-1", caption: "Updated" };
-      await service.updateCaption(input);
+      await service.updateCaption(input, post.userId);
 
-      expect(repo.updateCaptionByEstablishment).toHaveBeenCalledOnce();
+      expect(repo.updateCaptionInAllViews).toHaveBeenCalledWith(post, "Updated", expect.any(Date));
     });
 
     it("should throw when post is not found", async () => {
       (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const input: UpdatePostInput = { postId: "nonexistent", caption: "x" };
-      await expect(service.updateCaption(input)).rejects.toThrow("Post not found");
+      await expect(service.updateCaption(input, "user-1")).rejects.toThrow("Post not found");
+    });
+
+    it("should throw 403 when caller is not the post owner", async () => {
+      const post = makePost();
+      (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(post);
+
+      const input: UpdatePostInput = { postId: "post-1", caption: "x" };
+      await expect(service.updateCaption(input, "someone-else")).rejects.toThrow(
+        "You cannot update this post."
+      );
+      expect(repo.updateCaptionInAllViews).not.toHaveBeenCalled();
     });
 
     it("should throw when post is deleted", async () => {
@@ -222,7 +224,7 @@ describe("PostService", () => {
       (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(post);
 
       const input: UpdatePostInput = { postId: "post-1", caption: "x" };
-      await expect(service.updateCaption(input)).rejects.toThrow("Post is deleted");
+      await expect(service.updateCaption(input, post.userId)).rejects.toThrow("Post is deleted");
     });
   });
 
@@ -232,26 +234,34 @@ describe("PostService", () => {
       const post = makePost();
       (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(post);
 
-      await service.softDelete("post-1");
+      await service.softDelete("post-1", post.userId);
 
-      expect(repo.softDeleteById).toHaveBeenCalledWith("post-1");
-      expect(repo.softDeleteByUser).toHaveBeenCalledWith(post.userId, post.createdAt, "post-1");
-      expect(repo.softDeleteByEstablishment).not.toHaveBeenCalled();
+      expect(repo.softDeleteInAllViews).toHaveBeenCalledWith(post);
     });
 
     it("should also soft-delete from establishment table when post has establishmentId", async () => {
       const post = makePost({ establishmentId: "est-1" });
       (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(post);
 
-      await service.softDelete("post-1");
+      await service.softDelete("post-1", post.userId);
 
-      expect(repo.softDeleteByEstablishment).toHaveBeenCalledWith("est-1", post.createdAt, post.postId);
+      expect(repo.softDeleteInAllViews).toHaveBeenCalledWith(post);
     });
 
     it("should throw when post is not found", async () => {
       (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-      await expect(service.softDelete("nonexistent")).rejects.toThrow("Post not found");
+      await expect(service.softDelete("nonexistent", "user-1")).rejects.toThrow("Post not found");
+    });
+
+    it("should throw 403 when caller is not the post owner", async () => {
+      const post = makePost();
+      (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(post);
+
+      await expect(service.softDelete("post-1", "someone-else")).rejects.toThrow(
+        "You cannot delete this post."
+      );
+      expect(repo.softDeleteInAllViews).not.toHaveBeenCalled();
     });
   });
 });

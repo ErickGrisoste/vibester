@@ -14,6 +14,7 @@ export class CreateEventService {
 
         await Promise.allSettled([
             redis.del(`event:establishment:${input.establishmentId}`),
+            redis.del("event:all"),
             invalidateNearbyCache(),
         ]);
 

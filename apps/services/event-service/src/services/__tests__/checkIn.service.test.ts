@@ -67,6 +67,22 @@ describe("CheckInService", () => {
             );
         });
 
+        it("deve lançar erro quando evento não encontrado (P2003 — violação de FK no create do check-in)", async () => {
+            // eventCheckIn.create falha por FK inválida antes de chegar no event.update,
+            // então o Prisma reporta P2003 (não P2025) para um eventId inexistente.
+            mockTransaction.mockRejectedValue(
+                Object.assign(
+                    new Prisma.PrismaClientKnownRequestError("Foreign key constraint failed", {
+                        code: "P2003",
+                        clientVersion: "7.0.0",
+                    }),
+                ),
+            );
+            await expect(service.checkIn("event-1", "user-1")).rejects.toThrow(
+                "Evento não encontrado",
+            );
+        });
+
         it("deve repassar erros desconhecidos", async () => {
             mockTransaction.mockRejectedValue(new Error("DB crashed"));
             await expect(service.checkIn("event-1", "user-1")).rejects.toThrow("DB crashed");

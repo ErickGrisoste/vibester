@@ -1,16 +1,22 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/auth_storage_service.dart';
+import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/providers/events/events_list_provider.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
+import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/service/theme/theme_service.dart';
 import 'package:mobile/theme/app_theme.dart';
 import 'package:mobile/screens/events/event_detail_screen.dart';
 import 'package:mobile/screens/events/event_list_screen.dart';
@@ -20,6 +26,7 @@ import 'package:mobile/screens/feed/new_publication_screen.dart';
 import 'package:mobile/screens/home/home_screen.dart';
 import 'package:mobile/screens/home/initial_screen.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:mobile/screens/onboarding/onboarding_screen.dart';
 import 'package:mobile/screens/places/favorite_places_screen.dart';
 import 'package:mobile/screens/places/hot_places_screen.dart';
 import 'package:mobile/screens/places/place_detail_screen.dart';
@@ -97,25 +104,112 @@ void main() async {
 
   await initializeDateFormatting('pt_BR', null);
   final savedUser = await AuthStorageService.loadSession();
+  final onboardingPendente = await AuthStorageService.onboardingPendente();
   if (savedUser?.token != null) {
     ApiClient.token = savedUser!.token;
   }
-  runApp(MyApp(savedUser: savedUser));
+  final initialThemeMode = await ThemeService.loadThemeMode();
+  runApp(
+    MyApp(
+      savedUser: savedUser,
+      onboardingPendente: onboardingPendente,
+      initialThemeMode: initialThemeMode,
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final UserModel? savedUser;
+  final bool onboardingPendente;
+  final ThemeMode initialThemeMode;
 
-  const MyApp({super.key, this.savedUser});
+  const MyApp({
+    super.key,
+    this.savedUser,
+    this.onboardingPendente = false,
+    required this.initialThemeMode,
+  });
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final AppLinks _appLinks = AppLinks();
+  final UserService _userService = UserService();
+  StreamSubscription<Uri>? _linkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initDeepLinks();
+  }
+
+  Future<void> _initDeepLinks() async {
+    final initialUri = await _appLinks.getInitialLink();
+    if (initialUri != null) _handleUri(initialUri);
+
+    _linkSubscription = _appLinks.uriLinkStream.listen(_handleUri);
+  }
+
+  // Espera vibester://profile/{token}, gerado por
+  // UserService.generateShareLink no backend.
+  Future<void> _handleUri(Uri uri) async {
+    if (uri.scheme != 'vibester' || uri.host != 'profile') return;
+    final token = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    if (token == null) return;
+
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+
+    try {
+      final resolvedAccountId = await _userService.resolveShareToken(token);
+      if (resolvedAccountId == null) {
+        ScaffoldMessenger.of(navigator.context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Este link de compartilhamento expirou ou é inválido.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final currentUserId = navigator.context
+          .read<UserProvider>()
+          .user
+          ?.accountId;
+      if (resolvedAccountId == currentUserId) {
+        navigator.pushNamed(AppRoutes.profile);
+      } else {
+        navigator.pushNamed(
+          AppRoutes.otherProfile,
+          arguments: resolvedAccountId,
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        navigator.context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  @override
+  void dispose() {
+    _linkSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final userProvider = UserProvider();
     final notificationProvider = NotificationProvider();
-    if (savedUser != null) {
-      userProvider.setUser(savedUser!);
-      if (savedUser!.accountId != null) {
-        notificationProvider.fetchUnreadCount(savedUser!.accountId!);
+    final themeProvider = ThemeProvider(widget.initialThemeMode);
+    if (widget.savedUser != null) {
+      userProvider.setUser(widget.savedUser!);
+      if (widget.savedUser!.accountId != null) {
+        notificationProvider.fetchUnreadCount(widget.savedUser!.accountId!);
       }
     }
 
@@ -126,114 +220,131 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PublicationListProvider()),
         ChangeNotifierProvider.value(value: userProvider),
         ChangeNotifierProvider.value(value: notificationProvider),
+        ChangeNotifierProvider.value(value: themeProvider),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        //Chama a classe da propriedade de scroll
-        scrollBehavior: _NoBounceScrollBehavior(),
-        theme: AppTheme.light,
-        initialRoute: savedUser != null
-            ? AppRoutes.home
-            : AppRoutes.initialScreen,
-        onGenerateRoute: (settings) {
-          switch (settings.name) {
-            // EVENTS
-            case AppRoutes.eventList:
-              return _slideRoute(const EventListScreen(), settings);
-            case AppRoutes.favoritesEvents:
-              return _slideRoute(const FavoritesEventsScreen(), settings);
-            case AppRoutes.eventDetail:
-              final event = settings.arguments as EventModel;
-              return _scaleRoute(
-                EventDetailScreen(eventModel: event),
-                settings,
-              );
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => MaterialApp(
+          navigatorKey: _navigatorKey,
+          debugShowCheckedModeBanner: false,
+          //Chama a classe da propriedade de scroll
+          scrollBehavior: _NoBounceScrollBehavior(),
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeProvider.themeMode,
+          // Sessao salva com onboarding pendente = o app foi fechado no meio
+          // do onboarding; retoma dali em vez de pular direto para a home.
+          initialRoute: widget.savedUser == null
+              ? AppRoutes.initialScreen
+              : (widget.onboardingPendente
+                    ? AppRoutes.onboarding
+                    : AppRoutes.home),
+          onGenerateRoute: (settings) {
+            switch (settings.name) {
+              // EVENTS
+              case AppRoutes.eventList:
+                return _slideRoute(const EventListScreen(), settings);
+              case AppRoutes.favoritesEvents:
+                return _slideRoute(const FavoritesEventsScreen(), settings);
+              case AppRoutes.eventDetail:
+                final event = settings.arguments as EventModel;
+                return _scaleRoute(
+                  EventDetailScreen(eventModel: event),
+                  settings,
+                );
 
-            // PLACES
-            case AppRoutes.favoritesPlaces:
-              return _slideRoute(const FavoritePlacesScreen(), settings);
-            case AppRoutes.hotPlaces:
-              return _slideRoute(const HotPlacesScreen(), settings);
-            case AppRoutes.placeDetail:
-              final placeId = settings.arguments as String;
-              return _scaleRoute(PlaceDetailScreen(placeId: placeId), settings);
-            case AppRoutes.placeReviews:
-              final place = settings.arguments as PlaceModel;
-              return _scaleRoute(PlaceReviewsScreen(place: place), settings);
+              // PLACES
+              case AppRoutes.favoritesPlaces:
+                return _slideRoute(const FavoritePlacesScreen(), settings);
+              case AppRoutes.hotPlaces:
+                return _slideRoute(const HotPlacesScreen(), settings);
+              case AppRoutes.placeDetail:
+                final placeId = settings.arguments as String;
+                return _scaleRoute(
+                  PlaceDetailScreen(placeId: placeId),
+                  settings,
+                );
+              case AppRoutes.placeReviews:
+                final place = settings.arguments as PlaceModel;
+                return _scaleRoute(PlaceReviewsScreen(place: place), settings);
 
-            // HOME
-            case AppRoutes.home:
-              return _fadeRoute(const HomeScreen(), settings);
-            case AppRoutes.initialScreen:
-              return _fadeRoute(const InitialScreen(), settings);
+              // HOME
+              case AppRoutes.home:
+                return _fadeRoute(const HomeScreen(), settings);
+              case AppRoutes.initialScreen:
+                return _fadeRoute(const InitialScreen(), settings);
 
-            // REGISTER
-            case AppRoutes.emailConfirm:
-              final args = settings.arguments as Map<String, String>;
-              return _fadeRoute(
-                EmailConfirmScreen(
-                  email: args['email']!,
-                  senha: args['senha']!,
-                ),
-                settings,
-              );
-            case AppRoutes.login:
-              return _fadeRoute(const LoginScreen(), settings);
-            case AppRoutes.recoverPassword:
-              return _fadeRoute(const RecoverPasswordScreen(), settings);
-            case AppRoutes.register:
-              return _fadeRoute(const RegisterScreen(), settings);
-            case AppRoutes.resetPassword:
-              return _fadeRoute(const ResetPasswordScreen(), settings);
+              // ONBOARDING
+              case AppRoutes.onboarding:
+                return _fadeRoute(const OnboardingScreen(), settings);
 
-            // SEARCH
-            case AppRoutes.search:
-              return _slideRoute(const SearchScreen(), settings);
+              // REGISTER
+              case AppRoutes.emailConfirm:
+                final args = settings.arguments as Map<String, String>;
+                return _fadeRoute(
+                  EmailConfirmScreen(
+                    email: args['email']!,
+                    senha: args['senha']!,
+                  ),
+                  settings,
+                );
+              case AppRoutes.login:
+                return _fadeRoute(const LoginScreen(), settings);
+              case AppRoutes.recoverPassword:
+                return _fadeRoute(const RecoverPasswordScreen(), settings);
+              case AppRoutes.register:
+                return _fadeRoute(const RegisterScreen(), settings);
+              case AppRoutes.resetPassword:
+                return _fadeRoute(const ResetPasswordScreen(), settings);
 
-            // SETTINGS
-            case AppRoutes.accountManagementSettings:
-              return _slideRoute(
-                const AccountManagementSettingsScreen(),
-                settings,
-              );
-            case AppRoutes.settings:
-              return _slideRoute(const SettingsScreen(), settings);
-            case AppRoutes.personalInformationSettings:
-              return _slideRoute(
-                const PersonalInformationSettingsScreen(),
-                settings,
-              );
+              // SEARCH
+              case AppRoutes.search:
+                return _slideRoute(const SearchScreen(), settings);
 
-            // USER
-            case AppRoutes.profile:
-              return _slideRoute(const UserProfileScreen(), settings);
-            case AppRoutes.profileEditing:
-              return _slideRoute(const ProfileEditingScreen(), settings);
-            case AppRoutes.userInterests:
-              return _slideRoute(const UserInterestsScreen(), settings);
-            case AppRoutes.otherProfile:
-              final accountid = settings.arguments as String;
-              return _slideRoute(
-                OtherUsersProfileScreen(accountId: accountid),
-                settings,
-              );
+              // SETTINGS
+              case AppRoutes.accountManagementSettings:
+                return _slideRoute(
+                  const AccountManagementSettingsScreen(),
+                  settings,
+                );
+              case AppRoutes.settings:
+                return _slideRoute(const SettingsScreen(), settings);
+              case AppRoutes.personalInformationSettings:
+                return _slideRoute(
+                  const PersonalInformationSettingsScreen(),
+                  settings,
+                );
 
-            // FEED
-            case AppRoutes.feed:
-              return _slideRoute(const FeedScreen(), settings);
-            case AppRoutes.newPublication:
-              return _scaleRoute(const NewPublicationScreen(), settings);
-            case AppRoutes.postDetail:
-              final highlight = settings.arguments as HighlightModel;
-              return _scaleRoute(
-                PostDetailScreen(highlight: highlight),
-                settings,
-              );
+              // USER
+              case AppRoutes.profile:
+                return _slideRoute(const UserProfileScreen(), settings);
+              case AppRoutes.profileEditing:
+                return _slideRoute(const ProfileEditingScreen(), settings);
+              case AppRoutes.userInterests:
+                return _slideRoute(const UserInterestsScreen(), settings);
+              case AppRoutes.otherProfile:
+                final accountid = settings.arguments as String;
+                return _slideRoute(
+                  OtherUsersProfileScreen(accountId: accountid),
+                  settings,
+                );
 
-            default:
-              return null;
-          }
-        },
+              // FEED
+              case AppRoutes.feed:
+                return _slideRoute(const FeedScreen(), settings);
+              case AppRoutes.newPublication:
+                return _scaleRoute(const NewPublicationScreen(), settings);
+              case AppRoutes.postDetail:
+                final highlight = settings.arguments as HighlightModel;
+                return _scaleRoute(
+                  PostDetailScreen(highlight: highlight),
+                  settings,
+                );
+
+              default:
+                return null;
+            }
+          },
+        ),
       ),
     );
   }

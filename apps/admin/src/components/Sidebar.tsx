@@ -1,4 +1,3 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, CalendarDays, BarChart3, Users, Settings, LogOut } from 'lucide-react';
 import { cn } from '../lib/utils';

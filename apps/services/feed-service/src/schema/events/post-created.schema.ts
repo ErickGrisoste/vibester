@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { FeedItemType } from "../../types/feed.types";
+import { MediaType } from "../../utils/media";
+
+export const mediaItemSchema = z.object({
+    url: z.string(),
+    type: z.nativeEnum(MediaType),
+    thumbnailUrl: z.string().optional(),
+});
 
 const baseSchema = z.object({
     itemId: z.string().uuid(),
@@ -18,6 +25,7 @@ const baseSchema = z.object({
     title: z.string().optional(),
     content: z.string().optional(),
     imageUrls: z.array(z.string()).optional(),
+    media: z.array(mediaItemSchema).optional(),
     tags: z.array(z.string()).optional(),
 
     totalLikes: z.number().default(0),
