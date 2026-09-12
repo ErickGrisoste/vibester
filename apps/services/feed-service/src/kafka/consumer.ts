@@ -11,6 +11,8 @@ import { eventConfirmanceSchema } from "../schema/events/event-confirmance";
 import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
 import { kafka } from "./client";
+import { interactionsRawSchema } from "../schema/events/interactions-raw.schema";
+import { RankingFeaturesService } from "../services/ranking_features.service";
 
 const DIRECT_PAYLOAD_TOPICS: Record<string, (data: unknown) => Promise<void>> = {};
 
@@ -26,6 +28,9 @@ export class KafkaConsumer {
         "post.unliked",
         "user.followed",
         "user.unfollowed",
+        // Publicado pelo interaction-service. Alimenta os contadores do ranking; não
+        // altera o conteúdo do feed, só as features usadas para ordená-lo.
+        "interactions.raw",
     ];
 
     private readonly directTopicHandlers: Record<string, (data: unknown) => Promise<void>> = {
@@ -40,6 +45,9 @@ export class KafkaConsumer {
 
         "user.unfollowed": async (data: unknown) =>
             this.feedService.handleUserUnfollowed(followSchema.parse(data)),
+
+        "interactions.raw": async (data: unknown) =>
+            this.rankingFeaturesService.handleInteractions(interactionsRawSchema.parse(data)),
     };
 
     private handlers = {
@@ -77,7 +85,10 @@ export class KafkaConsumer {
             this.feedService.handleEventUnconfirmed(eventUnconfirmanceSchema.parse(data)),
     };
 
-    constructor(private readonly feedService: FeedService) {
+    constructor(
+        private readonly feedService: FeedService,
+        private readonly rankingFeaturesService: RankingFeaturesService = new RankingFeaturesService()
+    ) {
         this.consumer = kafka.consumer({
             groupId: "feed-service-group",
         });

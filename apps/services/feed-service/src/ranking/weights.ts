@@ -60,6 +60,9 @@ export const rankingWeightsSchema = z.object({
     /** Suavização da taxa: média a priori e seu peso em impressões. */
     priorRate: z.number().min(0).max(1),
     priorWeight: z.number().nonnegative(),
+
+    /** Quantos pontos ponderados valem meia afinidade. Ver src/ranking/affinity.ts. */
+    affinitySaturation: z.number().positive(),
 });
 
 export type RankingWeights = z.infer<typeof rankingWeightsSchema>;
@@ -102,6 +105,10 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
     // devem ser recalibrados assim que houver um mês de impressão real.
     priorRate: 0.08,
     priorWeight: 50,
+
+    // 20 pontos = meia afinidade. Uma dezena de curtidas mais um comentário no mesmo
+    // autor chega perto disso. Chute, como o resto.
+    affinitySaturation: 20,
 };
 
 let current: RankingWeights = DEFAULT_WEIGHTS;

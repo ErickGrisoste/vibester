@@ -11,22 +11,35 @@
  * permite trocar um pelo outro sem tocar no pipeline (decisão D4).
  */
 
-/** Tipos de interação que o ranking sabe interpretar. Espelha o interaction-service. */
-export type SignalType =
-    | "IMPRESSION"
-    | "DWELL"
-    | "SKIP"
-    | "TAP_DETAIL"
-    | "PROFILE_OPEN"
-    | "NOT_INTERESTED"
-    | "DIRECTIONS_CLICK"
-    | "TICKET_CLICK"
-    | "LIKE"
-    | "UNLIKE"
-    | "COMMENT"
-    | "FOLLOW"
-    | "SAVE"
-    | "EVENT_CHECKIN";
+/**
+ * Tipos de interação que o ranking sabe interpretar. Espelha o interaction-service.
+ *
+ * É uma lista em runtime, e não só um tipo, porque o que chega do banco e do Kafka é
+ * string: sem a lista não há como descartar um sinal desconhecido antes de ele entrar
+ * no score.
+ */
+export const SIGNAL_TYPES = [
+    "IMPRESSION",
+    "DWELL",
+    "SKIP",
+    "TAP_DETAIL",
+    "PROFILE_OPEN",
+    "NOT_INTERESTED",
+    "DIRECTIONS_CLICK",
+    "TICKET_CLICK",
+    "LIKE",
+    "UNLIKE",
+    "COMMENT",
+    "FOLLOW",
+    "SAVE",
+    "EVENT_CHECKIN",
+] as const;
+
+export type SignalType = (typeof SIGNAL_TYPES)[number];
+
+export function isSignalType(value: string): value is SignalType {
+    return (SIGNAL_TYPES as readonly string[]).includes(value);
+}
 
 /** Contagem de sinais acumulada para um item. Vem dos contadores da fase 1. */
 export type SignalCounts = Partial<Record<SignalType, number>>;
