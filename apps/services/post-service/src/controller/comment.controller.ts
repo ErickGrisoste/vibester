@@ -19,23 +19,29 @@ export class CommentController {
     async findByPost(
         request: FastifyRequest<{
             Params: { postId: string };
+            Querystring: { limit?: number; cursor?: string };
         }>,
         reply: FastifyReply
     ) {
-        const comments = await this.commentService.findByPost(request.params.postId);
+        const limit = request.query.limit ?? 50;
+        const result = await this.commentService.findByPost(request.params.postId, limit, request.query.cursor);
 
-        return reply.status(200).send(comments);
+        if (result.nextCursor) { reply.header("X-Next-Cursor", result.nextCursor); }
+        return reply.status(200).send(result.comments);
     }
 
     async findByUser(
         request: FastifyRequest<{
             Params: { userId: string };
+            Querystring: { limit?: number; cursor?: string };
         }>,
         reply: FastifyReply
     ) {
-        const comments = await this.commentService.findByUser(request.params.userId);
+        const limit = request.query.limit ?? 50;
+        const result = await this.commentService.findByUser(request.params.userId, limit, request.query.cursor);
 
-        return reply.status(200).send(comments);
+        if (result.nextCursor) { reply.header("X-Next-Cursor", result.nextCursor); }
+        return reply.status(200).send(result.comments);
     }
 
     async update(

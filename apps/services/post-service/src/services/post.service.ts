@@ -8,20 +8,10 @@ import {
 } from "../types/post.types";
 import { redis, cacheAside } from "../config/redis";
 import { HttpError } from "../errors/http.error";
-import { producer } from "../kafka/producer";
+import { publishEvent, POSTS_TOPIC } from "../kafka/events";
 import { decodeCursor } from "../utils/cursor";
 import { toLegacyImageUrls } from "../utils/media";
-
-const POSTS_TOPIC = "posts";
-
-function kafkaEnvelope(eventType: string, data: unknown) {
-    return JSON.stringify({
-        eventId: randomUUID(),
-        eventType,
-        occurredAt: new Date().toISOString(),
-        data,
-    });
-}
+import { cacheInvalidationFailureTotal, postsCreatedTotal } from "../metrics/registry";
 
 export class PostService {
 
@@ -53,44 +43,32 @@ export class PostService {
             createdAt: new Date(),
         };
 
-        await Promise.all([
-            this.postRepository.createPostById(post),
-            this.postRepository.createPostByUser(post),
-        ]);
-
-        if (post.establishmentId) {
-            await this.postRepository.createPostByEstablishment(post);
-        }
+        await this.postRepository.createInAllViews(post);
+        postsCreatedTotal.inc();
 
         await this.invalidatePostCaches(post.userId, post.establishmentId, post.postId);
 
-        await producer.send({
-            topic: POSTS_TOPIC,
-            messages: [{
-                key: post.postId,
-                value: kafkaEnvelope("post.created", {
-                    itemId: post.postId,
-                    itemType: post.establishmentId ? "ESTABLISHMENT_POST" : "USER_POST",
-                    authorId: post.userId,
-                    authorUsername: post.userUsername,
-                    authorProfilePicture: post.userProfilePicture,
-                    authorVerified: post.userVerified ?? false,
-                    establishmentId: post.establishmentId,
-                    establishmentName: post.establishmentName,
-                    establishmentLogo: post.establishmentLogo,
-                    establishmentCategory: post.establishmentCategory,
-                    content: post.caption,
-                    media: post.media,
-                    imageUrls: post.imageUrls,
-                    tags: post.tags,
-                    totalLikes: 0,
-                    totalComments: 0,
-                    isLiked: false,
-                    isSponsored: false,
-                    isDeleted: false,
-                    createdAt: post.createdAt.toISOString(),
-                }),
-            }],
+        await publishEvent(POSTS_TOPIC, post.postId, "post.created", {
+            itemId: post.postId,
+            itemType: post.establishmentId ? "ESTABLISHMENT_POST" : "USER_POST",
+            authorId: post.userId,
+            authorUsername: post.userUsername,
+            authorProfilePicture: post.userProfilePicture,
+            authorVerified: post.userVerified ?? false,
+            establishmentId: post.establishmentId,
+            establishmentName: post.establishmentName,
+            establishmentLogo: post.establishmentLogo,
+            establishmentCategory: post.establishmentCategory,
+            content: post.caption,
+            media: post.media,
+            imageUrls: post.imageUrls,
+            tags: post.tags,
+            totalLikes: 0,
+            totalComments: 0,
+            isLiked: false,
+            isSponsored: false,
+            isDeleted: false,
+            createdAt: post.createdAt.toISOString(),
         });
 
         return post;
@@ -138,37 +116,26 @@ export class PostService {
         return posts.map((post) => ({ ...post, isLiked: likedPostIds.has(post.postId) }));
     }
 
-    async updateCaption(input: UpdatePostInput): Promise<Post> {
+    async updateCaption(input: UpdatePostInput, currentUserId: string): Promise<Post> {
         const post = await this.postRepository.findById(input.postId);
 
         if (!post) { throw new HttpError("Post not found", 404); }
+
+        if (post.userId != currentUserId) { throw new HttpError("You cannot update this post.", 403); }
 
         if (post.isDeleted) { throw new HttpError("Post is deleted", 404); }
 
         const updatedAt = new Date();
 
-        await Promise.all([
-            this.postRepository.updateCaptionById(input.postId, input.caption, updatedAt),
-            this.postRepository.updateCaptionByUser(post.userId, post.createdAt, input.postId, input.caption, updatedAt),
-        ]);
-
-        if (post.establishmentId) {
-            await this.postRepository.updateCaptionByEstablishment(post.establishmentId, post.createdAt, input.postId, input.caption, updatedAt);
-        }
+        await this.postRepository.updateCaptionInAllViews(post, input.caption, updatedAt);
 
         await this.invalidatePostCaches(post.userId, post.establishmentId, input.postId);
 
-        await producer.send({
-            topic: POSTS_TOPIC,
-            messages: [{
-                key: input.postId,
-                value: kafkaEnvelope("post.content.updated", {
-                    authorId: post.userId,
-                    postId: input.postId,
-                    createdAt: post.createdAt.toISOString(),
-                    caption: input.caption,
-                }),
-            }],
+        await publishEvent(POSTS_TOPIC, input.postId, "post.content.updated", {
+            authorId: post.userId,
+            postId: input.postId,
+            createdAt: post.createdAt.toISOString(),
+            caption: input.caption,
         });
 
         return {
@@ -178,32 +145,21 @@ export class PostService {
         };
     }
 
-    async softDelete(postId: string) {
+    async softDelete(postId: string, currentUserId: string) {
         const post = await this.postRepository.findById(postId);
 
         if (!post) { throw new HttpError("Post not found", 404); }
 
-        await Promise.all([
-            this.postRepository.softDeleteById(postId),
-            this.postRepository.softDeleteByUser(post.userId, post.createdAt, postId),
-        ]);
+        if (post.userId != currentUserId) { throw new HttpError("You cannot delete this post.", 403); }
 
-        if (post.establishmentId) {
-            await this.postRepository.softDeleteByEstablishment(post.establishmentId, post.createdAt, post.postId);
-        }
+        await this.postRepository.softDeleteInAllViews(post);
 
         await this.invalidatePostCaches(post.userId, post.establishmentId, postId);
 
-        await producer.send({
-            topic: POSTS_TOPIC,
-            messages: [{
-                key: postId,
-                value: kafkaEnvelope("post.deleted", {
-                    authorId: post.userId,
-                    postId,
-                    createdAt: post.createdAt.toISOString(),
-                }),
-            }],
+        await publishEvent(POSTS_TOPIC, postId, "post.deleted", {
+            authorId: post.userId,
+            postId,
+            createdAt: post.createdAt.toISOString(),
         });
     }
 
@@ -220,6 +176,7 @@ export class PostService {
         try {
             await redis.del(...keys);
         } catch (err) {
+            cacheInvalidationFailureTotal.inc();
             const msg = err instanceof Error ? err.message : String(err);
             console.error(JSON.stringify({ level: "warn", service: "post-service", op: "cache-invalidate", msg }));
         }

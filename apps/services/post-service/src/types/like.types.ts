@@ -8,3 +8,8 @@ export interface PostLike {
     userId: string;
     likedAt: Date;
 }
+
+export interface PaginatedLikes {
+    likes: PostLike[];
+    nextCursor: string | null;
+}

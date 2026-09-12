@@ -1,20 +1,32 @@
 import { BaseRepository } from "./base.repository";
-import { PostLike } from "../types/like.types";
+import { PaginatedLikes, PostLike } from "../types/like.types";
+import {
+    LikeByPostCursor,
+    LikeCursor,
+    encodeLikeByPostCursor,
+    encodeLikeCursor,
+} from "../utils/cursor";
 
 export class LikeRepository extends BaseRepository {
 
-    async createLikeByPost(like: PostLike) {
-        return this.execute(
+    // IF NOT EXISTS fecha a corrida de dois likePost concorrentes pro mesmo
+    // (post, user): sem isso, ambos passavam pela checagem prévia em
+    // LikeService e ambos incrementavam o counter atômico, inflando
+    // total_likes mesmo só existindo uma linha aqui no fim.
+    async createLikeByPost(like: PostLike): Promise<boolean> {
+        const result = await this.execute(
             `
             INSERT INTO likes_by_post (
                 post_id,
                 user_id,
                 liked_at
             )
-            VALUES (?, ?, ?);
+            VALUES (?, ?, ?)
+            IF NOT EXISTS;
             `,
             [like.postId, like.userId, like.likedAt]
         );
+        return this.isApplied(result);
     }
 
     async createLikeByUser(like: PostLike) {
@@ -71,51 +83,96 @@ export class LikeRepository extends BaseRepository {
         return new Set(result.rows.map((row) => row.post_id));
     }
 
-    async findLikesByPost(postId: string, limit = 50): Promise<PostLike[]> {
+    // likes_by_post é clusterizada por user_id, não por liked_at (ver
+    // migrations/V005 e o comentário em utils/cursor.ts) — a paginação aqui é
+    // por ordem estável de user_id, não por recência.
+    async findLikesByPost(postId: string, limit = 50, cursor?: LikeByPostCursor): Promise<PaginatedLikes> {
+        const params: unknown[] = [postId];
+        let cursorClause = "";
+
+        if (cursor) {
+            cursorClause = "AND user_id > ?";
+            params.push(cursor.userId);
+        }
+
+        params.push(limit);
+
         const result = await this.execute(
             `
                 SELECT *
                 FROM likes_by_post
                 WHERE post_id = ?
+                ${cursorClause}
                 LIMIT ?;
             `,
-            [postId, limit]
+            params
         );
 
-        return result.rows.map((row) => ({
+        const rows = result.rows;
+        const likes = rows.map((row) => ({
             postId: row.post_id,
             userId: row.user_id,
-            likedAt: row.liked_at
+            likedAt: row.liked_at,
         }));
+        const lastRow = rows[rows.length - 1];
+        const nextCursor = rows.length === limit && lastRow
+            ? encodeLikeByPostCursor({ userId: lastRow.user_id })
+            : null;
+
+        return { likes, nextCursor };
     }
 
-    async findLikesByUser(userId: string, limit = 50): Promise<PostLike[]> {
+    async findLikesByUser(userId: string, limit = 50, cursor?: LikeCursor): Promise<PaginatedLikes> {
+        const params: unknown[] = [userId];
+        let cursorClause = "";
+
+        if (cursor) {
+            cursorClause = "AND (liked_at, post_id) < (?, ?)";
+            params.push(cursor.likedAt, cursor.postId);
+        }
+
+        params.push(limit);
+
         const result = await this.execute(
             `
                 SELECT *
                 FROM likes_by_user
                 WHERE user_id = ?
+                ${cursorClause}
                 LIMIT ?;
             `,
-            [userId, limit]
+            params
         );
 
-        return result.rows.map((row) => ({
+        const rows = result.rows;
+        const likes = rows.map((row) => ({
             postId: row.post_id,
             userId: row.user_id,
-            likedAt: row.liked_at
+            likedAt: row.liked_at,
         }));
+        const lastRow = rows[rows.length - 1];
+        const nextCursor = rows.length === limit && lastRow
+            ? encodeLikeCursor({ likedAt: lastRow.liked_at, postId: lastRow.post_id })
+            : null;
+
+        return { likes, nextCursor };
     }
 
-    async deleteLikeByPost(postId: string, userId: string) {
-        return this.execute(
+    // IF EXISTS fecha a corrida de dois unlikePost concorrentes pro mesmo
+    // (post, user): sem isso, ambos passavam pela checagem prévia em
+    // LikeService e ambos decrementavam o counter atômico, deixando
+    // total_likes negativo mesmo já não existindo like nenhum pra remover.
+    async deleteLikeByPost(postId: string, userId: string): Promise<boolean> {
+        const result = await this.execute(
             `
                 DELETE FROM likes_by_post
                 WHERE post_id = ?
-                AND user_id = ?;
+                AND user_id = ?
+                IF EXISTS;
             `,
             [postId, userId]
         );
+        return this.isApplied(result);
     }
 
     async deleteLikeByUser(userId: string, likedAt: Date, postId: string) {
