@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gal/gal.dart';
 import 'package:mobile/models/media/picked_media.dart';
 import 'package:mobile/service/media/media_failure.dart';
 import 'package:mobile/service/media/media_picker_service.dart';
@@ -13,6 +14,13 @@ import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/theme/vibester_page_route.dart';
 import 'package:mobile/widgets/media/camera/app_camera.dart';
 import 'package:mobile/widgets/media/media_preview.dart';
+
+/// Álbum criado na galeria do aparelho para as capturas do app.
+///
+/// No Android vira a pasta `Pictures/Vibester` (e `Movies/Vibester` para
+/// vídeo); no iOS, um álbum com esse nome no Fotos. O sistema cria sozinho
+/// no primeiro salvamento — não há nada a fazer no boot do app.
+const _galleryAlbum = 'Vibester';
 
 /// Como a tela de câmera terminou.
 sealed class CameraOutcome<T> {
@@ -49,6 +57,15 @@ class CameraScreen<T> extends StatefulWidget {
 
   final bool allowGallery;
   final bool allowVideo;
+
+  /// Copia a captura confirmada para a galeria do aparelho, no álbum
+  /// `Vibester`, antes de processá-la.
+  ///
+  /// Vale só para o que a câmera do app gravou: mídia escolhida da galeria
+  /// nem passa por aqui, e a captura pela câmera do sistema é pulada porque
+  /// vários aparelhos já a gravam sozinhos.
+  final bool saveToGallery;
+
   final Duration maxVideoDuration;
   final CameraLensDirection preferredLens;
 
@@ -58,6 +75,7 @@ class CameraScreen<T> extends StatefulWidget {
     this.review = true,
     this.allowGallery = true,
     this.allowVideo = false,
+    this.saveToGallery = true,
     this.maxVideoDuration = const Duration(seconds: 60),
     this.preferredLens = CameraLensDirection.back,
   });
@@ -68,6 +86,7 @@ class CameraScreen<T> extends StatefulWidget {
     bool review = true,
     bool allowGallery = true,
     bool allowVideo = false,
+    bool saveToGallery = true,
     Duration maxVideoDuration = const Duration(seconds: 60),
     CameraLensDirection preferredLens = CameraLensDirection.back,
   }) async {
@@ -78,6 +97,7 @@ class CameraScreen<T> extends StatefulWidget {
           review: review,
           allowGallery: allowGallery,
           allowVideo: allowVideo,
+          saveToGallery: saveToGallery,
           maxVideoDuration: maxVideoDuration,
           preferredLens: preferredLens,
         ),
@@ -98,6 +118,11 @@ class _CameraScreenState<T> extends State<CameraScreen<T>> {
   PickedMedia? _review;
   bool _confirming = false;
 
+  /// A captura em revisão veio da câmera do sistema (o fallback), não do
+  /// `AppCamera`. Nesse caso o app nativo costuma gravar na galeria antes de
+  /// devolver o arquivo, e salvar de novo criaria uma cópia duplicada.
+  bool _systemCapture = false;
+
   @override
   void dispose() {
     if (_confirming) MediaProcessor.cancel();
@@ -105,7 +130,8 @@ class _CameraScreenState<T> extends State<CameraScreen<T>> {
     super.dispose();
   }
 
-  void _onCapture(PickedMedia media) {
+  void _onCapture(PickedMedia media, {bool fromSystemCamera = false}) {
+    _systemCapture = fromSystemCamera;
     if (widget.review) {
       setState(() => _review = media);
     } else {
@@ -124,6 +150,9 @@ class _CameraScreenState<T> extends State<CameraScreen<T>> {
   Future<void> _confirm(PickedMedia media) async {
     if (_confirming) return;
     setState(() => _confirming = true);
+    // Antes do `onConfirm`: ele comprime, recorta e apaga o original. O que
+    // vai para a galeria é o arquivo em qualidade cheia da câmera.
+    await _saveToGallery(media);
     _progress.value = media.isVideo ? 0 : null;
     try {
       final value = await widget.onConfirm(
@@ -144,10 +173,48 @@ class _CameraScreenState<T> extends State<CameraScreen<T>> {
     }
   }
 
+  /// Copia a captura para o álbum [_galleryAlbum] da galeria.
+  ///
+  /// Falha aqui nunca interrompe a publicação: sem espaço, sem permissão ou
+  /// com formato recusado, a pessoa continua o fluxo e no máximo vê um aviso.
+  Future<void> _saveToGallery(PickedMedia media) async {
+    if (!widget.saveToGallery || _systemCapture) return;
+
+    try {
+      if (!await Gal.hasAccess(toAlbum: true)) {
+        // Só o primeiro uso pergunta. Negado, `putImage` lança logo abaixo e
+        // cai no `accessDenied` — não vale duplicar a checagem aqui.
+        await Gal.requestAccess(toAlbum: true);
+      }
+
+      if (media.isVideo) {
+        await Gal.putVideo(media.path, album: _galleryAlbum);
+      } else {
+        await Gal.putImage(media.path, album: _galleryAlbum);
+      }
+    } on GalException catch (e) {
+      debugPrint('Não foi possível salvar na galeria: ${e.type.message}');
+      _showError(switch (e.type) {
+        GalExceptionType.accessDenied =>
+          'Ative o acesso às suas fotos para guardar uma cópia na galeria.',
+        GalExceptionType.notEnoughSpace =>
+          'Sem espaço no aparelho para guardar uma cópia na galeria.',
+        GalExceptionType.notSupportedFormat ||
+        GalExceptionType.unexpected =>
+          'Não foi possível guardar uma cópia na galeria.',
+      });
+    } catch (e) {
+      // Canal da plataforma quebrado, aparelho sem galeria: segue o fluxo.
+      debugPrint('Falha inesperada ao salvar na galeria: $e');
+    }
+  }
+
   Future<void> _useSystemCamera() async {
     try {
       final photo = await _picker.captureWithSystemCamera();
-      if (photo != null && mounted) _onCapture(photo);
+      if (photo != null && mounted) {
+        _onCapture(photo, fromSystemCamera: true);
+      }
     } on MediaException catch (e) {
       _showError(e.message);
     }
