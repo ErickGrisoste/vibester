@@ -147,8 +147,8 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
 
       await followService.handleUserFollowed({ followerId: FOLLOWER_ID, followedId: AUTHOR_ID });
 
-      const relation = await userFollowerRepository.findFollowersByUser(AUTHOR_ID);
-      expect(relation).toContain(FOLLOWER_ID);
+      const relation = await userFollowerRepository.findFollowersByUser(AUTHOR_ID, 100);
+      expect(relation.followerIds).toContain(FOLLOWER_ID);
 
       const followerFeed = await feedRepository.findByUser(FOLLOWER_ID, 10);
       expect(followerFeed.rows).toHaveLength(1);
@@ -166,8 +166,8 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
 
       await followService.handleUserUnfollowed({ followerId: FOLLOWER_ID, followedId: AUTHOR_ID });
 
-      const relation = await userFollowerRepository.findFollowersByUser(AUTHOR_ID);
-      expect(relation).not.toContain(FOLLOWER_ID);
+      const relation = await userFollowerRepository.findFollowersByUser(AUTHOR_ID, 100);
+      expect(relation.followerIds).not.toContain(FOLLOWER_ID);
 
       const afterUnfollow = await feedRepository.findByUser(FOLLOWER_ID, 10);
       expect(afterUnfollow.rows).toHaveLength(0);
