@@ -184,7 +184,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               comingSoon: true,
             ),
             SettingsRow(
-              icon: FontAwesomeIcons.ghost,
+              icon: FontAwesomeIcons.ghost.data,
               label: 'Ghost vibe',
               description:
                   'Ficar invisível nos lugares em que você faz check-in',

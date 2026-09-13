@@ -20,10 +20,15 @@ void main() {
       expect(dark.noturno, const Color(0xFF0C0910));
     });
 
-    test('âmbar e brasa são idênticos nos dois temas', () {
-      // São cor de marca: não clareiam nem escurecem conforme o tema.
-      expect(AppColors.light.ambar, AppColors.dark.ambar);
-      expect(AppColors.light.brasa, AppColors.dark.brasa);
+    test('o tema claro tem o par de acento frio próprio', () {
+      // O claro não repete o laranja/vermelho do escuro: espelha a relação de
+      // matiz entre âmbar e brasa em azul (ciano → índigo). Ver o comentário
+      // de `AppColors.light`.
+      const light = AppColors.light;
+
+      expect(light.ambar, const Color(0xFF4DBEFF));
+      expect(light.brasa, const Color(0xFF4A3FD6));
+      expect(light.gradient.colors, [light.ambar, light.brasa]);
     });
 
     test('as superfícies derivadas saem da paleta, não de cor nova', () {

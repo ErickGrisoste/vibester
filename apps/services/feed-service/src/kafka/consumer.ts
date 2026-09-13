@@ -132,7 +132,7 @@ export class KafkaConsumer {
 
             const directHandler = this.directTopicHandlers[topic];
             if (directHandler) {
-                await directHandler(rawEvent);
+                await directHandler(unwrapEventData(rawEvent));
                 return;
             }
 

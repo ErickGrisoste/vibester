@@ -152,6 +152,10 @@ export class PostService {
 
         if (post.userId != currentUserId) { throw new HttpError("You cannot delete this post.", 403); }
 
+        // Sem isso, apagar de novo republica post.deleted e desconta o post
+        // duas vezes no contador do perfil (user-service).
+        if (post.isDeleted) { throw new HttpError("Post not found", 404); }
+
         await this.postRepository.softDeleteInAllViews(post);
 
         await this.invalidatePostCaches(post.userId, post.establishmentId, postId);

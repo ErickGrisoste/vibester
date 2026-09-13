@@ -83,8 +83,6 @@ class _FeedScreenState extends State<FeedScreen> {
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              const SliverToBoxAdapter(child: _FeedMasthead()),
-
               if (provider.isLoading && publications.isEmpty)
                 const SliverToBoxAdapter(child: _FeedSkeleton())
               else if (provider.erro != null && publications.isEmpty)
@@ -140,40 +138,6 @@ class _FeedScreenState extends State<FeedScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _FeedMasthead extends StatelessWidget {
-  const _FeedMasthead();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screen,
-        AppSpacing.lg,
-        AppSpacing.screen,
-        AppSpacing.sm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'QUEM SAIU',
-            style: context.typography.monoEyebrow.copyWith(color: colors.ambar),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            'O rolê de quem\nvocê segue',
-            style: context.typography.displayMedium.copyWith(
-              color: colors.textPrimary,
-            ),
-          ),
-        ],
       ),
     );
   }

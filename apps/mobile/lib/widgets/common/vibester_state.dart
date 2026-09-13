@@ -26,8 +26,14 @@ class VibesterState extends StatelessWidget {
   /// Ícone de sistema exibido acima da manchete.
   final IconData icon;
 
+  /// Ilustração (asset) exibida no lugar do bloco com ícone — ex.: o mascote.
+  final String? illustration;
+
   /// Usa `brasa` no lugar de `ambar` e trata a manchete como falha.
   final bool isError;
+
+  /// Altura da ilustração. Largura segue a proporção do asset.
+  static const double _illustrationHeight = 160;
 
   const VibesterState({
     super.key,
@@ -36,6 +42,7 @@ class VibesterState extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.icon = Icons.explore_off_outlined,
+    this.illustration,
     this.isError = false,
   });
 
@@ -48,7 +55,8 @@ class VibesterState extends StatelessWidget {
     this.actionLabel = 'Tentar de novo',
     this.onAction,
     this.icon = Icons.wifi_off_rounded,
-  }) : isError = true;
+  }) : illustration = null,
+       isError = true;
 
   @override
   Widget build(BuildContext context) {
@@ -65,22 +73,36 @@ class VibesterState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Bloco de "parede": superfície com grão e o ícone dentro. Dá
-            // presença ao vazio sem precisar de ilustração.
-            ClipRRect(
-              borderRadius: AppRadius.smAll,
-              child: SizedBox(
-                width: 64,
-                height: 64,
-                child: ColoredBox(
-                  color: colors.surface,
-                  child: Grain(
-                    opacity: 0.08,
-                    child: Center(child: Icon(icon, size: 26, color: accent)),
+            if (illustration != null)
+              // Decodifica no tamanho exibido: o asset original é enorme e
+              // decodificá-lo inteiro custaria centenas de MB de memória.
+              Image.asset(
+                illustration!,
+                height: _illustrationHeight,
+                cacheHeight:
+                    (_illustrationHeight *
+                            MediaQuery.devicePixelRatioOf(context))
+                        .round(),
+                fit: BoxFit.contain,
+                excludeFromSemantics: true,
+              )
+            else
+              // Bloco de "parede": superfície com grão e o ícone dentro. Dá
+              // presença ao vazio sem precisar de ilustração.
+              ClipRRect(
+                borderRadius: AppRadius.smAll,
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: ColoredBox(
+                    color: colors.surface,
+                    child: Grain(
+                      opacity: 0.08,
+                      child: Center(child: Icon(icon, size: 26, color: accent)),
+                    ),
                   ),
                 ),
               ),
-            ),
             const SizedBox(height: AppSpacing.xl),
             Stack(
               clipBehavior: Clip.none,
