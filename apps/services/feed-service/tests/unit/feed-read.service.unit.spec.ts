@@ -50,5 +50,41 @@ describe("FeedReadService — Unitários", () => {
         expect.anything()
       );
     });
+
+    // Mesmo cenário de empate de created_at na fronteira da página coberto em
+    // tests/unit/feed.repository.unit.spec.ts (bug corrigido na Fase 3), mas
+    // exercitado aqui a partir do service (getFeedByUser só mocka
+    // getCassandraClient.execute, não FeedRepository, então o comportamento real
+    // de findByUser/extendPageAcrossTiedTimestamps roda de ponta a ponta e
+    // confirma que o service não perde itens do grupo empatado).
+    it("não perde itens quando há empate de created_at na fronteira da página (mesmo cenário do repository, agora a partir do service)", async () => {
+      const t1 = new Date("2024-01-15T12:00:00.000Z");
+      const tTied = new Date("2024-01-15T11:00:00.000Z");
+
+      // "espiada" (limit + 1 = 3): post-2 e post-3 empatados na fronteira do corte.
+      mockExecute.mockResolvedValueOnce({
+        rows: [
+          { item_id: "post-1", created_at: t1, user_id: "user-123" },
+          { item_id: "post-2", created_at: tTied, user_id: "user-123" },
+          { item_id: "post-3", created_at: tTied, user_id: "user-123" },
+        ],
+      });
+
+      // extensão do grupo empatado: revela post-4, que não tinha aparecido na espiada.
+      mockExecute.mockResolvedValueOnce({
+        rows: [
+          { item_id: "post-2", created_at: tTied, user_id: "user-123" },
+          { item_id: "post-3", created_at: tTied, user_id: "user-123" },
+          { item_id: "post-4", created_at: tTied, user_id: "user-123" },
+        ],
+      });
+
+      const result = await feedReadService.getFeedByUser("user-123", 2);
+
+      expect(mockExecute).toHaveBeenCalledTimes(2);
+      const itemIds = result.items.map((item: any) => item.item_id);
+      expect(itemIds).toEqual(expect.arrayContaining(["post-1", "post-2", "post-3", "post-4"]));
+      expect(itemIds).toHaveLength(4);
+    });
   });
 });
