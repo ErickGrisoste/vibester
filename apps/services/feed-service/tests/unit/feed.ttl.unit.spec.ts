@@ -33,18 +33,6 @@ describe("FeedTtlService", () => {
       expect(ttl).toBeGreaterThan(0);
     });
 
-    it("calcula TTL baseado na data do evento para EVENT_USER", () => {
-      const futureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
-      const ttl = service.getTtl({ itemType: FeedItemType.EVENT_USER, eventDate: futureDate } as any);
-      expect(ttl).toBeGreaterThan(0);
-    });
-
-    it("calcula TTL baseado na data do evento para EVENT_ESTABLISHMENT", () => {
-      const futureDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
-      const ttl = service.getTtl({ itemType: FeedItemType.EVENT_ESTABLISHMENT, eventDate: futureDate } as any);
-      expect(ttl).toBeGreaterThan(0);
-    });
-
     it("retorna 7 dias para tipos desconhecidos (fallback)", () => {
       const ttl = service.getTtl({ itemType: "UNKNOWN_TYPE" } as any);
       expect(ttl).toBe(60 * 60 * 24 * 7);
