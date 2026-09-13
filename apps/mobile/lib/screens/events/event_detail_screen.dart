@@ -3,6 +3,7 @@ import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/event/event_service.dart';
+import 'package:mobile/service/share_links.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/event_time.dart';
@@ -14,8 +15,10 @@ import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/graffiti/sticker_tag.dart';
 import 'package:mobile/widgets/indicators/lineup_indicator.dart';
+import 'package:mobile/widgets/motion/presence_pop.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/motion/vibester_shake.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -54,6 +57,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   late EventModel _event = widget.eventModel;
   bool _isTogglingPresence = false;
 
+  /// Gatilhos da reação do botão de presença. Contadores (e não o
+  /// `isFavorite`) para que só a ação do usuário anime — o status carregado
+  /// da API ao abrir a tela troca o estado sem celebrar.
+  int _presencePops = 0;
+  int _presenceShakes = 0;
+
   @override
   void initState() {
     super.initState();
@@ -86,6 +95,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final confirmadoAntes = _event.isFavorite;
     setState(() {
       _isTogglingPresence = true;
+      if (confirmadoAntes) {
+        _presenceShakes++;
+      } else {
+        _presencePops++;
+      }
       _event = _event.copyWith(
         isFavorite: !confirmadoAntes,
         totalConfirmed: confirmadoAntes
@@ -104,6 +118,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       final is409 = e.toString().contains('409');
       if (!is409 && mounted) {
         setState(() {
+          // Voltar atrás por erro treme, nunca celebra.
+          _presenceShakes++;
           _event = _event.copyWith(
             isFavorite: confirmadoAntes,
             totalConfirmed: _event.totalConfirmed + (confirmadoAntes ? 1 : -1),
@@ -119,14 +135,20 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Future<void> _compartilhar() async {
+    final eventId = _event.id;
     final texto = [
       _event.titulo,
       '${_event.fullDateLabel} · ${_event.timeLabel}',
       if (_event.localizacao.isNotEmpty) _event.localizacao,
-      'Visto no Vibester',
+      if (eventId != null)
+        'Olha esse rolê no Vibester: ${ShareLinks.event(eventId)}'
+      else
+        'Visto no Vibester',
     ].join('\n');
 
-    await SharePlus.instance.share(ShareParams(text: texto));
+    await SharePlus.instance.share(
+      ShareParams(text: texto, subject: _event.titulo),
+    );
   }
 
   Future<void> _abrirIngresso() async {
@@ -279,6 +301,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             child: _ActionBar(
               event: _event,
               busy: _isTogglingPresence,
+              pops: _presencePops,
+              shakes: _presenceShakes,
               onPresence: _alternarPresenca,
               onTicket: hasTicket ? _abrirIngresso : null,
             ),
@@ -327,6 +351,7 @@ class _EventHero extends StatelessWidget {
                 source: event.imageUrl,
                 alignment: Alignment.topCenter,
                 placeholderIcon: Icons.local_activity_outlined,
+                fullResolution: true,
               ),
             ),
             const Grain(opacity: 0.07, density: 0.45),
@@ -574,12 +599,16 @@ class _Block extends StatelessWidget {
 class _ActionBar extends StatelessWidget {
   final EventModel event;
   final bool busy;
+  final int pops;
+  final int shakes;
   final VoidCallback onPresence;
   final VoidCallback? onTicket;
 
   const _ActionBar({
     required this.event,
     required this.busy,
+    required this.pops,
+    required this.shakes,
     required this.onPresence,
     this.onTicket,
   });
@@ -603,19 +632,28 @@ class _ActionBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: VibesterButton(
-              label: 'Vou nessa',
-              successLabel: 'Presença confirmada',
-              icon: Icons.bolt_rounded,
-              variant: confirmed
-                  ? VibesterButtonVariant.outline
-                  : VibesterButtonVariant.accent,
-              state: busy
-                  ? VibesterButtonState.loading
-                  : confirmed
-                  ? VibesterButtonState.success
-                  : VibesterButtonState.idle,
-              onPressed: onPresence,
+            // Confirmar celebra como a curtida; desconfirmar (ou voltar atrás
+            // por erro) mantém a tremida.
+            child: VibesterShake(
+              trigger: shakes,
+              child: PresencePop(
+                trigger: pops,
+                child: VibesterButton(
+                  shakeOnStateChange: false,
+                  label: 'Vou nessa',
+                  successLabel: 'Presença confirmada',
+                  icon: Icons.bolt_rounded,
+                  variant: confirmed
+                      ? VibesterButtonVariant.outline
+                      : VibesterButtonVariant.accent,
+                  state: busy
+                      ? VibesterButtonState.loading
+                      : confirmed
+                      ? VibesterButtonState.success
+                      : VibesterButtonState.idle,
+                  onPressed: onPresence,
+                ),
+              ),
             ),
           ),
           if (onTicket != null) ...[

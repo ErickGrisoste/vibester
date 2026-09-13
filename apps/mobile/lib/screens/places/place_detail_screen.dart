@@ -7,6 +7,7 @@ import 'package:mobile/screens/events/event_list_screen.dart';
 import 'package:mobile/screens/highlights/property_highlights_screen.dart';
 import 'package:mobile/screens/places/place_ambience_gallery_screen.dart';
 import 'package:mobile/service/places/place_service.dart';
+import 'package:mobile/service/share_links.dart';
 import 'package:mobile/theme/app_colors.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
@@ -168,10 +169,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
                 place: place,
                 onShare: () => SharePlus.instance.share(
                   ShareParams(
+                    subject: place.nome,
                     text: [
                       place.nome,
                       if (place.endereco.isNotEmpty) place.endereco,
-                      'Visto no Vibester',
+                      'Olha esse lugar no Vibester: '
+                          '${ShareLinks.place(widget.placeId)}',
                     ].join('\n'),
                   ),
                 ),

@@ -55,6 +55,8 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="vibester" android:host="profile"/>
+                <data android:scheme="vibester" android:host="event"/>
+                <data android:scheme="vibester" android:host="place"/>
             </intent-filter>
         </activity>
         <!-- Recorte da foto de perfil (image_cropper → uCrop). -->

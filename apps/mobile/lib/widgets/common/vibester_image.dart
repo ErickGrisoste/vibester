@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:mobile/service/media/image_cache.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
@@ -34,6 +35,11 @@ class VibesterImage extends StatelessWidget {
   /// centro para cartaz de evento (o título fica no topo da arte).
   final Alignment alignment;
 
+  /// Decodifica a foto de rede inteira, sem reduzir ao tamanho da caixa. Use
+  /// nas duas pontas de um `Hero`: com a mesma entrada de memória, a imagem
+  /// voa pronta em vez de piscar o esqueleto enquanto redecodifica.
+  final bool fullResolution;
+
   const VibesterImage({
     super.key,
     required this.source,
@@ -42,11 +48,32 @@ class VibesterImage extends StatelessWidget {
     this.height,
     this.placeholderIcon = Icons.image_outlined,
     this.alignment = Alignment.center,
+    this.fullResolution = false,
   });
 
   @override
   Widget build(BuildContext context) {
     Widget image;
+
+    if (source.startsWith('http')) {
+      return SizedBox(
+        width: width,
+        height: height,
+        child: fullResolution
+            ? _network(context, null)
+            : LayoutBuilder(
+                builder: (context, constraints) => _network(
+                  context,
+                  VibesterImageCache.decodeWidth(
+                    boxWidth: width ?? constraints.maxWidth,
+                    boxHeight: height ?? constraints.maxHeight,
+                    devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+                    fit: fit,
+                  ),
+                ),
+              ),
+      );
+    }
 
     if (source.isEmpty) {
       image = _Placeholder(icon: placeholderIcon);
@@ -59,7 +86,7 @@ class VibesterImage extends StatelessWidget {
         alignment: alignment,
         errorBuilder: (_, _, _) => _Placeholder(icon: placeholderIcon),
       );
-    } else if (!source.startsWith('http')) {
+    } else {
       image = Image.file(
         File(source),
         fit: fit,
@@ -68,21 +95,25 @@ class VibesterImage extends StatelessWidget {
         alignment: alignment,
         errorBuilder: (_, _, _) => _Placeholder(icon: placeholderIcon),
       );
-    } else {
-      image = CachedNetworkImage(
-        imageUrl: source,
-        fit: fit,
-        width: width,
-        height: height,
-        alignment: alignment,
-        fadeInDuration: AppMotion.imageFade,
-        fadeOutDuration: AppMotion.imageFade,
-        placeholder: (_, _) => const VibesterSkeleton(),
-        errorWidget: (_, _, _) => _Placeholder(icon: placeholderIcon),
-      );
     }
 
     return SizedBox(width: width, height: height, child: image);
+  }
+
+  Widget _network(BuildContext context, int? decodeWidth) {
+    return CachedNetworkImage(
+      imageUrl: source,
+      cacheManager: VibesterImageCache.manager,
+      memCacheWidth: decodeWidth,
+      fit: fit,
+      width: width,
+      height: height,
+      alignment: alignment,
+      fadeInDuration: AppMotion.imageFade,
+      fadeOutDuration: AppMotion.imageFade,
+      placeholder: (_, _) => const VibesterSkeleton(),
+      errorWidget: (_, _, _) => _Placeholder(icon: placeholderIcon),
+    );
   }
 }
 
