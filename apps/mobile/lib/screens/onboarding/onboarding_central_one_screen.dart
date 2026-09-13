@@ -86,7 +86,7 @@ class OnboardingCentralOneScreen extends StatelessWidget {
 
                   const SizedBox(height: AppSpacing.xl),
                   Text(
-                    'Listas não te contam se o rolê tá bom. Quem tá lá conta. '
+                    'Pesquisas não te contam se o rolê tá bom. Quem tá lá conta. '
                     'Segue a galera que curte o que você curte e vê a noite '
                     'acontecer em tempo real com nosso feed!',
                     style: type.bodyLarge.copyWith(color: colors.textSecondary),
