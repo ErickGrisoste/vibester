@@ -131,10 +131,36 @@ class _MyAppState extends State<MyApp> {
   final UserService _userService = UserService();
   StreamSubscription<Uri>? _linkSubscription;
 
+  /// Providers de sessão vivem como campos do State, não como variáveis
+  /// locais do `build`.
+  ///
+  /// Criados dentro do `build` e entregues com `.value`, eles nasciam de novo
+  /// a cada reconstrução deste widget: o usuário logado sumia, o contador de
+  /// notificações voltava a zero e as instâncias antigas ficavam sem
+  /// `dispose`, ainda ouvindo. Hoje nada aqui chama `setState`, então o
+  /// defeito estava dormente — mas é o tipo de armadilha que explode na
+  /// primeira mudança inocente neste arquivo.
+  late final UserProvider _userProvider;
+  late final NotificationProvider _notificationProvider;
+  late final ThemeProvider _themeProvider;
+
   @override
   void initState() {
     super.initState();
     ApiClient.onSessionExpired = _handleSessionExpired;
+
+    _userProvider = UserProvider();
+    _notificationProvider = NotificationProvider();
+    _themeProvider = ThemeProvider(widget.initialThemeMode);
+
+    // A busca do contador de não lidas saiu daqui: a HomeScreen agora a faz
+    // ao montar e ao voltar do segundo plano, o que cobre também quem entra
+    // pelo login (e não só a sessão restaurada do disco). Mantê-la nos dois
+    // lugares só produzia duas chamadas idênticas no primeiro segundo.
+    if (widget.savedUser != null) {
+      _userProvider.setUser(widget.savedUser!);
+    }
+
     _initDeepLinks();
 
     if (widget.sessaoExpirada) {
@@ -172,6 +198,11 @@ class _MyAppState extends State<MyApp> {
 
     await userProvider.logout();
     if (!mounted) return;
+
+    // O provider vive acima do navigator e sobrevive ao logout: sem isto, a
+    // próxima conta a entrar herdava o selo e a lista da anterior até a
+    // primeira busca terminar.
+    _notificationProvider.clear();
 
     navigator.pushNamedAndRemoveUntil(AppRoutes.initialScreen, (_) => false);
     navigator.pushNamed(AppRoutes.login);
@@ -245,30 +276,23 @@ class _MyAppState extends State<MyApp> {
   void dispose() {
     _linkSubscription?.cancel();
     ApiClient.onSessionExpired = null;
+    _userProvider.dispose();
+    _notificationProvider.dispose();
+    _themeProvider.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = UserProvider();
-    final notificationProvider = NotificationProvider();
-    final themeProvider = ThemeProvider(widget.initialThemeMode);
-    if (widget.savedUser != null) {
-      userProvider.setUser(widget.savedUser!);
-      if (widget.savedUser!.accountId != null) {
-        notificationProvider.fetchUnreadCount(widget.savedUser!.accountId!);
-      }
-    }
-
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => PlaceListProvider()),
         ChangeNotifierProvider(create: (_) => NearbyProvider()),
         ChangeNotifierProvider(create: (_) => EventsListProvider()),
         ChangeNotifierProvider(create: (_) => PublicationListProvider()),
-        ChangeNotifierProvider.value(value: userProvider),
-        ChangeNotifierProvider.value(value: notificationProvider),
-        ChangeNotifierProvider.value(value: themeProvider),
+        ChangeNotifierProvider.value(value: _userProvider),
+        ChangeNotifierProvider.value(value: _notificationProvider),
+        ChangeNotifierProvider.value(value: _themeProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) => MaterialApp(

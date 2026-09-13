@@ -513,6 +513,20 @@ class _BellButton extends StatelessWidget {
 
   const _BellButton({required this.unread});
 
+  /// A tela de notificações marca tudo como lido ao abrir, então o selo aqui
+  /// está desatualizado no instante em que o usuário volta. O push era
+  /// disparado sem `await`, e o contador só se corrigia no próximo gatilho
+  /// (troca de aba ou volta do segundo plano) — quem abria e fechava a lista
+  /// via a bolinha continuar lá.
+  Future<void> _abrirNotificacoes(BuildContext context) async {
+    final userId = context.read<UserProvider>().user?.accountId;
+
+    await Navigator.pushNamed(context, AppRoutes.notifications);
+    if (!context.mounted || userId == null) return;
+
+    context.read<NotificationProvider>().fetchUnreadCount(userId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -522,7 +536,7 @@ class _BellButton extends StatelessWidget {
       label: unread > 0 ? 'Notificações, $unread não lidas' : 'Notificações',
       child: VibesterPressable(
         borderRadius: AppRadius.pillAll,
-        onTap: () => Navigator.pushNamed(context, AppRoutes.notifications),
+        onTap: () => _abrirNotificacoes(context),
         child: SizedBox(
           width: 44,
           height: 44,

@@ -366,7 +366,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
             'Não achamos "$_query" em lugares, rolês ou pessoas. Tenta um '
             'termo mais curto, ou busca pela categoria.',
         icon: Icons.search_off_rounded,
-        illustration: 'assets/img/mascote/lupa.png',
+        illustration: Theme.of(context).brightness == Brightness.light
+            ? 'assets/img/mascote/lupa_azul.png'
+            : 'assets/img/mascote/lupa.png',
       );
     }
 
