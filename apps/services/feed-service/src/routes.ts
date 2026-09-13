@@ -1,6 +1,8 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import "@fastify/jwt";
 import { FeedController } from "./controllers/feed.controller";
+import { getCassandraClient } from "./config/cassandra";
+import { registry } from "./metrics/registry";
 
 declare module "@fastify/jwt" {
     interface FastifyJWT {
@@ -77,10 +79,15 @@ const errorSchema = {
 };
 
 export async function feedRoutes(app: FastifyInstance) {
+  // Liveness — só confirma que o processo Fastify está de pé, sem tocar em
+  // Cassandra/Kafka. Uma degradação externa não deve derrubar o pod: matar o
+  // processo não conserta o Astra/Kafka fora do ar, só causa reconexão em
+  // massa quando (se) o pod novo sobe no meio da mesma instabilidade. Ver
+  // /ready para a checagem de dependências.
   app.get("/health", {
     schema: {
       tags: ["Health"],
-      summary: "Health check",
+      summary: "Liveness — processo vivo, sem checar dependências externas",
       response: {
         200: {
           type: "object",
@@ -89,6 +96,66 @@ export async function feedRoutes(app: FastifyInstance) {
       },
     },
   }, async () => ({ status: "ok" }));
+
+  // Readiness — controla se o pod recebe tráfego (não reinicia nada).
+  // Cassandra é dependência crítica: toda leitura de feed depende dele, então
+  // uma falha aqui derruba o readiness com 503. O consumer Kafka
+  // deliberadamente NÃO é checado aqui — não há hoje uma forma barata de
+  // verificar "o consumer está processando" sem manter estado extra (ex.:
+  // timestamp da última mensagem processada), e uma checagem especulativa
+  // (ping no broker, por exemplo) não provaria que o loop de consumo em si
+  // está vivo. Essa lacuna fica documentada em vez de fingida como coberta —
+  // ver CLAUDE.md, seção "Infra deste Serviço".
+  app.get("/ready", {
+    schema: {
+      tags: ["Health"],
+      summary: "Readiness — Cassandra crítico (Kafka consumer não é checado, ver CLAUDE.md)",
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            status: { type: "string", example: "ok" },
+            dependencies: {
+              type: "object",
+              properties: { cassandra: { type: "string" } },
+            },
+          },
+        },
+        503: {
+          type: "object",
+          properties: {
+            status: { type: "string", example: "degraded" },
+            dependencies: {
+              type: "object",
+              properties: { cassandra: { type: "string" } },
+            },
+          },
+        },
+      },
+    },
+  }, async (_request, reply) => {
+    const cassandraOk = await getCassandraClient()
+      .execute("SELECT now() FROM system.local")
+      .then(() => true)
+      .catch(() => false);
+
+    const dependencies = { cassandra: cassandraOk ? "ok" : "error" };
+
+    if (cassandraOk) {
+      return reply.status(200).send({ status: "ok", dependencies });
+    }
+    return reply.status(503).send({ status: "degraded", dependencies });
+  });
+
+  app.get("/metrics", {
+    schema: {
+      tags: ["Health"],
+      summary: "Métricas Prometheus",
+    },
+  }, async (_request, reply) => {
+    reply.header("Content-Type", registry.contentType);
+    return reply.send(await registry.metrics());
+  });
 
   app.get("/feed/:userId", {
     onRequest: [async (request: FastifyRequest<{ Params: { userId: string } }>, reply) => {

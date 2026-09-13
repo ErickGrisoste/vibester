@@ -176,4 +176,35 @@ describe('feed-service — HTTP Integration', () => {
       expect(JSON.parse(res.payload)).toEqual({ status: 'ok' });
     });
   });
+
+  describe('GET /ready', () => {
+    it('retorna 200 com dependencies.cassandra ok quando a query de readiness tem sucesso', async () => {
+      mockExecute.mockResolvedValueOnce({ rows: [] });
+
+      const res = await app.inject({ method: 'GET', url: '/ready' });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toEqual({ status: 'ok', dependencies: { cassandra: 'ok' } });
+    });
+
+    it('retorna 503 com dependencies.cassandra error quando o Cassandra falha', async () => {
+      mockExecute.mockRejectedValueOnce(new Error('cassandra down'));
+
+      const res = await app.inject({ method: 'GET', url: '/ready' });
+
+      expect(res.statusCode).toBe(503);
+      expect(JSON.parse(res.payload)).toEqual({ status: 'degraded', dependencies: { cassandra: 'error' } });
+    });
+  });
+
+  describe('GET /metrics', () => {
+    it('retorna métricas no formato texto do Prometheus', async () => {
+      const res = await app.inject({ method: 'GET', url: '/metrics' });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('text/plain');
+      expect(res.payload).toContain('# HELP');
+      expect(res.payload).toContain('http_request_duration_seconds');
+    });
+  });
 });

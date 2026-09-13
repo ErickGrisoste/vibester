@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
+import { httpRequestDuration, httpRequestsTotal, rateLimitExceededTotal } from "./metrics/registry";
 
 export interface CorsAndRateLimitOptions {
     // undefined ou lista vazia = fallback para `origin: true` (aceita qualquer
@@ -49,5 +50,27 @@ export async function registerCorsAndRateLimit(app: FastifyInstance, options: Co
         max: options.rateLimitMax,
         timeWindow: "1 minute",
         nameSpace: "feed-service-rate-limit-",
+        onExceeded: (req) => {
+            rateLimitExceededTotal.inc({ route: req.routeOptions.url ?? req.url });
+        },
+    });
+}
+
+/**
+ * Hook `onResponse` global — grava latência e contagem por rota usando o
+ * padrão da rota (`request.routeOptions.url`, ex.: `/feed/:userId`), nunca a
+ * URL crua, para não explodir cardinalidade com UUIDs reais. Mesmo padrão do
+ * post-service (src/plugins.ts).
+ */
+export function registerHttpMetrics(app: FastifyInstance) {
+    app.addHook("onResponse", async (request, reply) => {
+        const route = request.routeOptions.url ?? "unknown";
+        const labels = {
+            method: request.method,
+            route,
+            status_code: String(reply.statusCode),
+        };
+        httpRequestsTotal.inc(labels);
+        httpRequestDuration.observe(labels, reply.elapsedTime / 1000);
     });
 }

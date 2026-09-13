@@ -2,7 +2,7 @@ import Fastify from "fastify";
 import jwt from "@fastify/jwt";
 import { feedRoutes } from "./routes";
 import { registerSwagger } from "./config/swagger";
-import { registerCorsAndRateLimit } from "./plugins";
+import { registerCorsAndRateLimit, registerHttpMetrics } from "./plugins";
 import { KafkaConsumer } from "./kafka/consumer";
 import { FeedFanoutService } from "./services/feed-fanout.service";
 import { FollowService } from "./services/follow.service";
@@ -24,6 +24,7 @@ async function start() {
         corsAllowedOrigins: env.cors_allowed_origins,
         rateLimitMax: env.rate_limit_max,
     });
+    registerHttpMetrics(app);
 
     await app.register(jwt, { secret: env.jwt_secret });
 

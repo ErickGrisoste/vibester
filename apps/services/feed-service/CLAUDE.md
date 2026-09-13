@@ -37,6 +37,7 @@ Este serviço **não** possui lógica de criação de posts, eventos, perfis ou 
 - `uuid`, `@faker-js/faker` — usados por scripts de desenvolvimento/seed, não em código de produção do `src` (ver `scripts/seed-feed.sh`, que popula o feed via `kubectl exec` publicando eventos Kafka reais em vez de chamar a API).
 - `ioredis`/`ioredis-mock` estão nas dependências mas **não há nenhum uso de Redis no `src`** — nem cache, nem rate limit. O papel que Redis cumpre em `user-service`/`establishment-service` (cache-aside) é substituído aqui pelo próprio modelo de dados do Cassandra: partições por usuário + **TTL nativo** (`USING TTL` em praticamente todo `INSERT`) fazem o papel de "cache com expiração automática" (ver `src/services/ttl_service.ts`).
 - Vitest para testes (unit + integration), mockando sempre `getCassandraClient` (nunca infra real) na suíte padrão (`npm test`). Existe também `tests/integration-real` (Cassandra real via `docker-compose.test.yml`, rodada via `npm run test:integration` / `vitest.integration.config.ts`), no mesmo padrão dos outros serviços — este documento já afirmou o contrário no passado; se voltar a divergir do código, o código manda.
+- `prom-client` (Fase 8) — métricas Prometheus expostas em `GET /metrics`, ver `src/metrics/registry.ts` e a seção "Infra deste Serviço" abaixo para a lista completa. Mesma versão usada pelo `post-service`.
 
 Não introduza Prisma/Postgres, um segundo client Cassandra, ou volte a usar Redis sem antes confirmar que o modelo de TTL do Cassandra não resolve o caso de uso.
 
@@ -75,19 +76,31 @@ src/
                    followers_by_user.repository.ts         → followers_by_user (espelho local de quem segue um usuário)
                    followers_by_establishment.repository.ts→ followers_by_establishment (idem para estabelecimentos)
                    attendees_by_event.repository.ts        → attendees_by_event (quem confirmou presença)
-                   base.repository.ts                      → execute(query, params) com prepare:true sobre o client singleton
+                   base.repository.ts                      → execute(query, params) com prepare:true sobre o client singleton,
+                                                             instrumentado com cassandra_query_duration_seconds (Fase 8, tabela
+                                                             extraída da própria query, ver src/metrics/registry.ts)
   kafka/         client.ts (singleton), consumer.ts (assinatura de tópicos + dispatch para FeedFanoutService/FollowService/
-                 EventAttendanceService, injetados via construtor) — sem producer.ts (removido na Fase 7, era código morto)
+                 EventAttendanceService, injetados via construtor) — sem producer.ts (removido na Fase 7, era código morto).
+                 catch de handleMessage incrementa kafka_handler_error_total (topic/eventType) — ver src/metrics/registry.ts
   schema/events/ um schema Zod por payload de evento Kafka (post-created, post-deleted, post-liked/unliked, post-content/stats-updated,
                  follow, event-confirmance, event-unconfirmance, kafka-event → envelope genérico {eventId, eventType, occurredAt, data})
   types/         feed.types.ts (FeedItem, FeedItemType), post.types.ts (Post), event.type.ts (Event)
+  metrics/       registry.ts (Fase 8) → Registry do prom-client + toda métrica do serviço (única fonte — não crie
+                 Counter/Histogram solto em outro arquivo): http_request_duration_seconds/http_requests_total,
+                 cassandra_query_duration_seconds, cassandra_fanout_partial_failure_total, kafka_handler_error_total,
+                 rate_limit_exceeded_total
   utils/         media.ts                                → conversão UDT media_item <-> domínio + fallback de image_urls legado
-                 fanout.ts                                → runFanout() — Promise.allSettled + log de falha parcial, usado em toda
+                 fanout.ts                                → runFanout() — Promise.allSettled + log de falha parcial +
+                                                             cassandra_fanout_partial_failure_total (Fase 8), usado em toda
                                                              propagação multi-linha (ver Performance #4)
-  routes.ts      /health + GET /feed/:userId (schema JSON Schema, onRequest com jwtVerify + checagem de dono)
-  plugins.ts     registerCorsAndRateLimit() → CORS (allowlist via env / fallback origin:true) + @fastify/rate-limit (global, em memória — sem Redis)
-  server.ts      bootstrap Fastify, registerCorsAndRateLimit, JWT, swagger, registerErrorHandler, inicia o KafkaConsumer antes do listen,
-                 shutdown gracioso em SIGTERM/SIGINT (fecha Fastify, KafkaConsumer.stop(), Cassandra)
+  routes.ts      /health (liveness) + /ready (readiness, Cassandra crítico — Fase 8) + /metrics (Prometheus — Fase 8) +
+                 GET /feed/:userId (schema JSON Schema, onRequest com jwtVerify + checagem de dono)
+  plugins.ts     registerCorsAndRateLimit() → CORS (allowlist via env / fallback origin:true) + @fastify/rate-limit
+                 (global, em memória — sem Redis; onExceeded incrementa rate_limit_exceeded_total, Fase 8) +
+                 registerHttpMetrics() (Fase 8) → hook onResponse, grava http_request_duration_seconds/http_requests_total
+  server.ts      bootstrap Fastify, registerCorsAndRateLimit, registerHttpMetrics, JWT, swagger, registerErrorHandler,
+                 inicia o KafkaConsumer antes do listen, shutdown gracioso em SIGTERM/SIGINT (fecha Fastify,
+                 KafkaConsumer.stop(), Cassandra)
   generate-spec.ts  script standalone (não referenciado em package.json scripts) que gera o JSON do OpenAPI para um arquivo
 migrations/      *.cql versionadas (V000..V009), aplicadas por scripts/migrate.ts (runner próprio, sem Flyway/Liquibase)
 scripts/         migrate.ts (roda .cql pendentes e registra em feed_keyspace.schema_migrations), seed-feed.sh (seed manual via Kafka real)
@@ -95,10 +108,13 @@ tests/
   unit/          um arquivo de teste por service novo: feed-read.service.unit.spec.ts, feed-fanout.service.unit.spec.ts,
                  feed-item.mapper.unit.spec.ts, feed.repository.unit.spec.ts, fanout.unit.spec.ts, feed.ttl.unit.spec.ts —
                  mocka getCassandraClient (FollowService/EventAttendanceService ainda não têm spec unitário dedicado, só
-                 integração mockada abaixo — ver Testes)
-  integration/    feed.integration.spec.ts (app.inject na rota, via FeedReadService) e três specs "consumer" simulando o
-                 KafkaConsumer chamando o service certo diretamente: feed-fanout.consumer.spec.ts, follow.consumer.spec.ts,
-                 event-attendance.consumer.spec.ts — todos mockam getCassandraClient, nenhum roda contra Cassandra real
+                 integração mockada abaixo — ver Testes). kafka.consumer.unit.spec.ts (Fase 8) cobre só a instrumentação
+                 nova de kafka_handler_error_total no catch de handleMessage — não cobre o parsing/roteamento completo
+                 do consumer (gap pré-existente e documentado, ver tests/integration-real/feed.consumer.real.spec.ts)
+  integration/    feed.integration.spec.ts (app.inject na rota, via FeedReadService, + /health, /ready, /metrics — Fase 8)
+                 e três specs "consumer" simulando o KafkaConsumer chamando o service certo diretamente:
+                 feed-fanout.consumer.spec.ts, follow.consumer.spec.ts, event-attendance.consumer.spec.ts — todos mockam
+                 getCassandraClient, nenhum roda contra Cassandra real
   integration-real/ feed.integration.real.spec.ts, feed.consumer.real.spec.ts (agora instancia os 3 services de consumer
                    separadamente) — mesma cobertura, mas contra Cassandra real (docker-compose.test.yml), rodados só via
                    `npm run test:integration`, nunca em `npm test`
@@ -181,5 +197,7 @@ Propague qualquer variável nova no `k8s/deployment.yaml` (via `envFrom.secretRe
 - `docker-compose.yml` local sobe **Kafka** (+ `kafka-init` criando os tópicos `posts`/`users`/`establishments`/`events` e `kafka-ui`) **e também o próprio `feed-service`** (`build: .`, porta `3006`, `depends_on: kafka`/`kafka-init`) — mas só define `KAFKA_BROKERS` como env var; `ASTRA_*`/`JWT_SECRET` não são setados no compose, então o container do `feed-service` só sobe de fato se essas variáveis vierem de fora (`.env`/shell). **Não há Cassandra local no compose**; rodar este serviço localmente depende de credenciais reais de uma instância Astra (ou mockar `getCassandraClient` como os testes fazem). Se for melhorar o setup local, considere isso antes de assumir que `docker-compose up` sobe o serviço fim-a-fim.
 - `k8s/`: só existem `deployment.yaml` e `service.yaml` — **não há `hpa.yaml` nem `pdb.yaml`** neste serviço (diferente dos outros três, que ao menos têm autoscaling configurado, mesmo que fixo). `replicas: 1` é hardcoded no `deployment.yaml`; hoje o serviço **não escala horizontalmente**. Ao tornar este serviço apto a múltiplas réplicas, lembre que o consumer Kafka já usa `groupId: "feed-service-group"` (`consumer.ts`), então múltiplas réplicas já dividiriam partições corretamente — falta apenas o HPA/PDB, não uma mudança de lógica de consumo.
 - O secure connect bundle da Astra é montado como `Secret` (`astra-bundle`) em `/secure-connect` (`volumeMounts`/`volumes` no `deployment.yaml`) — a env var `ASTRA_SECURE_CONNECT_BUNDLE` (do `feed-service-secret`) precisa apontar para um caminho dentro desse mount; se o nome do arquivo dentro do secret mudar, atualize os dois lados juntos.
-- `readinessProbe`/`livenessProbe` apontam para `/health`, que hoje só retorna `{ status: "ok" }` estático (`routes.ts`) — **não verifica conectividade real com Cassandra ou Kafka**. Diferente do `/ready` do `user-service`/`establishment-service`, um pod pode passar no readiness mesmo com a conexão Astra ou o consumer Kafka quebrados. Se for melhorar observabilidade, esse é o primeiro lugar a mexer.
-- Sem métricas Prometheus e sem tracing (OpenTelemetry) neste serviço — nenhum dos dois está presente nas dependências.
+- **`readinessProbe`/`livenessProbe` ainda apontam só para `/health`** (`k8s/deployment.yaml`) — isso **não foi alterado nesta fase** (outro agente mexe em `k8s/*.yaml` em paralelo). `/ready` já existe (`routes.ts`, Fase 8, ver abaixo) e está pronto para ser usado como `readinessProbe` assim que o `k8s/deployment.yaml` for atualizado para apontar para ele — até lá, um pod pode passar no readiness real do k8s mesmo com a conexão Astra quebrada, porque o k8s ainda consulta `/health` (liveness, sempre `{status:"ok"}`, não toca infra), não `/ready`.
+- **`/ready` (Fase 8) verifica Cassandra, que é a única dependência crítica deste serviço** — `SELECT now() FROM system.local` (mesmo padrão do `post-service`); falha → `503 { status: "degraded", dependencies: { cassandra: "error" } }`. **O consumer Kafka deliberadamente não é checado em `/ready`**: não existe hoje uma forma barata de verificar "o consumer está processando" sem manter estado extra (ex.: timestamp/offset da última mensagem processada), e uma checagem especulativa (ex.: ping no broker) não provaria que o loop `eachMessage` em si está vivo — inventar isso seria fingir uma cobertura que não existe. Essa lacuna é conhecida e aceita por ora; se a confiabilidade do consumer se tornar crítica o suficiente para justificar o esforço, a forma correta é instrumentar um heartbeat de "última mensagem processada com sucesso" e checar seu recency aqui, não simular uma checagem sem sinal real por trás.
+- **Métricas Prometheus em `/metrics` (Fase 8)** — `src/metrics/registry.ts` (`prom-client`, mesma versão do `post-service`), inclui métricas padrão de processo (`collectDefaultMetrics`) e as específicas deste serviço: `http_request_duration_seconds`/`http_requests_total` (hook `onResponse` em `registerHttpMetrics`, `src/plugins.ts`, label `route` = padrão da rota via `request.routeOptions.url`, nunca a URL crua), `cassandra_query_duration_seconds` (tabela extraída da própria query em `BaseRepository.execute`, `src/repositories/base.repository.ts`, sem precisar anotar cada método de repository), `cassandra_fanout_partial_failure_total` (incrementada em `runFanout`, `src/utils/fanout.ts`, junto do `console.warn` já existente — os dois convivem, a métrica não substitui o log), `kafka_handler_error_total` (labels `topic`/`eventType`, incrementada no `catch` de `handleMessage`, `src/kafka/consumer.ts` — antes uma mensagem malformada ou um handler que lança só virava `console.error`, indistinguível de qualquer outro erro; `eventType` fica vazio quando a mensagem nem chega a ter o envelope `{eventId, eventType, ...}` parseado, ex.: JSON inválido) e `rate_limit_exceeded_total` (label `route`, hook `onExceeded` do `@fastify/rate-limit` em `registerCorsAndRateLimit`, `src/plugins.ts`). **Sem métricas de cache/Redis nem de publish Kafka** — este serviço não usa Redis para cache (ver "Stack e Dependências") e só consome Kafka, nunca publica, então essas categorias do `post-service` não se aplicam aqui. Toda métrica nova deste serviço deve ser registrada em `metrics/registry.ts` — não crie `new client.Counter(...)` solto em outro arquivo.
+- Sem tracing distribuído (OpenTelemetry) neste serviço — fora do escopo por enquanto; log estruturado + as métricas acima cobrem a lacuna de observabilidade mais urgente hoje (exceto a lacuna documentada acima sobre o consumer Kafka em `/ready`).
