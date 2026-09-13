@@ -155,10 +155,20 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
       SliverGrid.builder(
         gridDelegate: _gridDelegate,
         itemCount: _highlights.length,
-        itemBuilder: (context, index) => StaggeredEntrance(
-          index: index,
-          child: HighlightsCard(highlight: _highlights[index]),
-        ),
+        itemBuilder: (context, index) {
+          final highlight = _highlights[index];
+          return StaggeredEntrance(
+            index: index,
+            child: HighlightsCard(
+              highlight: highlight,
+              onDeleted: () => setState(
+                () => _highlights = _highlights
+                    .where((h) => h.postId != highlight.postId)
+                    .toList(),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

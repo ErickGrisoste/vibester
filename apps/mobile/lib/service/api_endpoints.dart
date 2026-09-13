@@ -66,6 +66,7 @@ class ApiEndpoints {
 
   //Post
   static String posts() => '$baseUrl/post/posts';
+  static String post(String postId) => '$baseUrl/post/posts/$postId';
   static String postsUploadUrl() => '$baseUrl/post/posts/upload-url';
   static String likePost(String postId) => '$baseUrl/post/posts/$postId/likes';
 

@@ -8,6 +8,7 @@ import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/relative_time.dart';
 import 'package:mobile/utils/username.dart';
+import 'package:mobile/widgets/cards/feed/delete_post_action.dart';
 import 'package:mobile/widgets/common/vibester_image.dart';
 import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/indicators/like_indicator.dart';
@@ -154,7 +155,10 @@ class PublicationCard extends StatelessWidget {
   }
 }
 
-/// Linha de autoria: avatar, @, e o local como destino tocável.
+enum _PostOption { delete }
+
+/// Linha de autoria: avatar, @, e — só no post do próprio usuário — o menu de
+/// opções com a exclusão.
 class _AuthorLine extends StatelessWidget {
   final PublicationModel publication;
 
@@ -165,39 +169,87 @@ class _AuthorLine extends StatelessWidget {
     final colors = context.colors;
     final type = context.typography;
 
+    final viewerId = context.select<UserProvider, String?>(
+      (p) => p.user?.accountId,
+    );
+    final isOwn =
+        viewerId != null &&
+        publication.id != null &&
+        publication.authorId == viewerId;
+
     return Row(
       children: [
-        VibesterPressable(
-          borderRadius: AppRadius.pillAll,
-          onTap: publication.authorId == null
-              ? null
-              : () => Navigator.pushNamed(
-                  context,
-                  AppRoutes.otherProfile,
-                  arguments: publication.authorId,
-                ),
-          child: Row(
-            children: [
-              ClipOval(
-                child: SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: VibesterImage(
-                    source: publication.autorProfileImage,
-                    placeholderIcon: Icons.person_outline_rounded,
+        Flexible(
+          child: VibesterPressable(
+            borderRadius: AppRadius.pillAll,
+            onTap: publication.authorId == null
+                ? null
+                : () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.otherProfile,
+                    arguments: publication.authorId,
+                  ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipOval(
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: VibesterImage(
+                      source: publication.autorProfileImage,
+                      placeholderIcon: Icons.person_outline_rounded,
+                    ),
                   ),
                 ),
+                const SizedBox(width: AppSpacing.md),
+                Flexible(
+                  child: Text(
+                    publication.autor.isEmpty
+                        ? 'Alguém'
+                        : formatHandle(publication.autor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.titleSmall.copyWith(color: colors.textPrimary),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (isOwn) ...[
+          const Spacer(),
+          PopupMenuButton<_PostOption>(
+            tooltip: 'Opções da publicação',
+            color: colors.surfaceRaised,
+            icon: Icon(Icons.more_horiz_rounded, color: colors.textMuted),
+            onSelected: (option) => switch (option) {
+              _PostOption.delete => confirmAndDeletePost(
+                context,
+                postId: publication.id!,
               ),
-              const SizedBox(width: AppSpacing.md),
-              Text(
-                publication.autor.isEmpty
-                    ? 'Alguém'
-                    : formatHandle(publication.autor),
-                style: type.titleSmall.copyWith(color: colors.textPrimary),
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: _PostOption.delete,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.delete_outline_rounded,
+                      size: 20,
+                      color: colors.error,
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Text(
+                      'Excluir publicação',
+                      style: type.titleSmall.copyWith(color: colors.error),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        ),
+        ],
       ],
     );
   }

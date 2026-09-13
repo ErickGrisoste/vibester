@@ -75,6 +75,25 @@ class PostService {
     }
   }
 
+  /// Soft delete no post-service. Só o dono consegue: o serviço compara o
+  /// `userId` do corpo com o autor e responde 403 para qualquer outro.
+  /// 404 conta como sucesso — o post já não existe, que é o estado desejado
+  /// (ex.: exclusão repetida por um toque duplo ou outra tela).
+  Future<void> deletePost({
+    required String postId,
+    required String userId,
+  }) async {
+    try {
+      await ApiClient.dio.delete(
+        ApiEndpoints.post(postId),
+        data: {'userId': userId},
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return;
+      throw Exception(apiErrorMessage(e, 'Erro ao excluir post'));
+    }
+  }
+
   String? _nonEmpty(String? value) =>
       value == null || value.trim().isEmpty ? null : value;
 }
