@@ -23,15 +23,16 @@ class PostMediaCarousel extends StatefulWidget {
   /// nunca intercepta toque — senão o arrastar do carrossel morreria nele.
   final bool grain;
 
-  /// Indicador no topo (feed, onde o selo de local ocupa a base) ou na base
-  /// (detalhe, onde o topo é do botão de voltar).
-  final bool indicatorOnTop;
+  /// As bolinhas ficam sempre na base. O contador "2/4" vai junto delas
+  /// (detalhe, onde o topo é do botão de voltar) ou sozinho no canto superior
+  /// direito (feed).
+  final bool counterOnTop;
 
   const PostMediaCarousel({
     super.key,
     required this.media,
     this.grain = false,
-    this.indicatorOnTop = false,
+    this.counterOnTop = false,
   });
 
   @override
@@ -104,62 +105,87 @@ class _PostMediaCarouselState extends State<PostMediaCarousel> {
         Positioned(
           left: AppSpacing.lg,
           right: AppSpacing.lg,
-          top: widget.indicatorOnTop ? AppSpacing.md : null,
-          bottom: widget.indicatorOnTop ? null : AppSpacing.lg,
+          bottom: AppSpacing.lg,
           child: IgnorePointer(
-            child: _PageIndicator(count: media.length, page: _page),
+            child: Semantics(
+              label: 'Item ${_page + 1} de ${media.length}',
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _PageDots(count: media.length, page: _page),
+                  ),
+                  if (!widget.counterOnTop) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    _PageCounter(count: media.length, page: _page),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
+        if (widget.counterOnTop)
+          Positioned(
+            top: AppSpacing.md,
+            right: AppSpacing.lg,
+            child: IgnorePointer(
+              child: ExcludeSemantics(
+                child: _PageCounter(count: media.length, page: _page),
+              ),
+            ),
+          ),
       ],
     );
   }
 }
 
-class _PageIndicator extends StatelessWidget {
+class _PageDots extends StatelessWidget {
   final int count;
   final int page;
 
-  const _PageIndicator({required this.count, required this.page});
+  const _PageDots({required this.count, required this.page});
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Semantics(
-      label: 'Item ${page + 1} de $count',
-      child: Row(
-        children: [
-          Expanded(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
-              children: [
-                for (var i = 0; i < count; i++)
-                  AnimatedContainer(
-                    duration: context.adaptiveMotion(AppMotion.micro),
-                    curve: AppMotion.standard,
-                    width: i == page ? 8 : 6,
-                    height: i == page ? 8 : 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: i == page
-                          ? colors.ambar
-                          : colors.onFill(colors.scrim).withValues(alpha: 0.35),
-                    ),
-                  ),
-              ],
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
+      children: [
+        for (var i = 0; i < count; i++)
+          AnimatedContainer(
+            duration: context.adaptiveMotion(AppMotion.micro),
+            curve: AppMotion.standard,
+            width: i == page ? 8 : 6,
+            height: i == page ? 8 : 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: i == page
+                  ? colors.ambar
+                  : colors.onFill(colors.scrim).withValues(alpha: 0.35),
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Text(
-            '${page + 1}/$count',
-            style: context.typography.monoMicro.copyWith(
-              color: colors.onFill(colors.scrim),
-            ),
-          ),
-        ],
+      ],
+    );
+  }
+}
+
+class _PageCounter extends StatelessWidget {
+  final int count;
+  final int page;
+
+  const _PageCounter({required this.count, required this.page});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Text(
+      '${page + 1}/$count',
+      style: context.typography.monoMicro.copyWith(
+        color: colors.onFill(colors.scrim),
       ),
     );
   }

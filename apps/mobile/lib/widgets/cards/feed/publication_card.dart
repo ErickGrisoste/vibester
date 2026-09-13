@@ -96,8 +96,8 @@ class PublicationCard extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // Foto, vídeo ou carrossel — na ordem de `media`. O
-                        // indicador vai no topo porque a base é do selo de local.
+                        // Foto, vídeo ou carrossel — na ordem de `media`. As
+                        // bolinhas ficam na base e o contador no topo.
                         PostMediaCarousel(
                           media: publication.media.isNotEmpty
                               ? publication.media
@@ -108,7 +108,7 @@ class PublicationCard extends StatelessWidget {
                                     ),
                                 ],
                           grain: true,
-                          indicatorOnTop: true,
+                          counterOnTop: true,
                         ),
                         if (publication.location != null &&
                             publication.location!.isNotEmpty)
