@@ -17,18 +17,25 @@ import 'package:mobile/widgets/motion/vibester_pressable.dart';
 class HighlightsCard extends StatelessWidget {
   final HighlightModel highlight;
 
-  const HighlightsCard({super.key, required this.highlight});
+  /// Chamado quando o dono excluiu o post no detalhe, para a grade tirá-lo
+  /// sem refazer a busca.
+  final VoidCallback? onDeleted;
+
+  const HighlightsCard({super.key, required this.highlight, this.onDeleted});
 
   @override
   Widget build(BuildContext context) {
     return VibesterPressable(
       pressScale: AppMotion.scalePress,
       borderRadius: AppRadius.smAll,
-      onTap: () => Navigator.pushNamed(
-        context,
-        AppRoutes.postDetail,
-        arguments: highlight,
-      ),
+      onTap: () async {
+        final excluido = await Navigator.pushNamed(
+          context,
+          AppRoutes.postDetail,
+          arguments: highlight,
+        );
+        if (excluido == true) onDeleted?.call();
+      },
       child: ClipRRect(
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(AppRadius.sm),

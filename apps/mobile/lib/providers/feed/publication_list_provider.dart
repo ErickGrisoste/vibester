@@ -93,6 +93,26 @@ class PublicationListProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Exclusão otimista: tira a publicação da lista antes da resposta e a
+  /// devolve à mesma posição se a API recusar. Funciona também para post que
+  /// não está no feed (aberto pela grade do perfil) — aí só chama a API.
+  /// Relança o erro para a tela avisar o usuário.
+  Future<void> deletePublication(String id, String userId) async {
+    final index = _publications.indexWhere((p) => p.id == id);
+    final removed = index == -1 ? null : _publications.removeAt(index);
+    if (removed != null) notifyListeners();
+
+    try {
+      await _postService.deletePost(postId: id, userId: userId);
+    } catch (e) {
+      if (removed != null) {
+        _publications.insert(min(index, _publications.length), removed);
+        notifyListeners();
+      }
+      rethrow;
+    }
+  }
+
   Future<void> toggleLike(String? id, String? userId) async {
     if (id == null || userId == null) return;
 

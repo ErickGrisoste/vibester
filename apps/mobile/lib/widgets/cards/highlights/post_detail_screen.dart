@@ -5,6 +5,7 @@ import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/posts/post_service.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/cards/feed/delete_post_action.dart';
 import 'package:mobile/widgets/media/post_media_carousel.dart';
 import 'package:mobile/widgets/motion/double_tap_like.dart';
 import 'package:mobile/widgets/motion/like_heart.dart';
@@ -30,6 +31,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   final PostService _postService = PostService();
   late HighlightModel _highlight;
   bool _isTogglingLike = false;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -81,6 +83,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
+  /// Ao excluir, volta para a grade com `true` para ela tirar o post.
+  Future<void> _excluir() async {
+    setState(() => _isDeleting = true);
+    final excluido = await confirmAndDeletePost(
+      context,
+      postId: _highlight.postId,
+    );
+    if (!mounted) return;
+    if (excluido) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() => _isDeleting = false);
+    }
+  }
+
   String _formatarData(String isoDate) {
     if (isoDate.isEmpty) return '';
     try {
@@ -97,6 +114,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final type = context.typography;
     final highlight = _highlight;
     final dataFormatada = _formatarData(highlight.criadoEm);
+    final viewerId = context.select<UserProvider, String?>(
+      (p) => p.user?.accountId,
+    );
+    final isOwn = viewerId != null && highlight.userId == viewerId;
 
     return Scaffold(
       backgroundColor: colors.noturno,
@@ -177,33 +198,58 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           Positioned(
             top: MediaQuery.of(context).padding.top + AppSpacing.sm,
             left: AppSpacing.lg,
-            child: Semantics(
-              button: true,
+            child: _FloatingButton(
+              icon: Icons.arrow_back_rounded,
               label: 'Voltar',
-              child: VibesterPressable(
-                onTap: () => Navigator.maybePop(context),
-                borderRadius: AppRadius.pillAll,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.scrim.withValues(alpha: 0.55),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.14),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_back_rounded,
-                    size: 20,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
+              onTap: () => Navigator.maybePop(context),
             ),
           ),
+
+          // Excluir só aparece para o dono do post.
+          if (isOwn)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+              right: AppSpacing.lg,
+              child: _FloatingButton(
+                icon: Icons.delete_outline_rounded,
+                label: 'Excluir publicação',
+                onTap: _isDeleting ? null : _excluir,
+              ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+/// Botão circular sobre a foto (voltar, excluir), com alvo de 44px.
+class _FloatingButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _FloatingButton({required this.icon, required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: VibesterPressable(
+        onTap: onTap,
+        borderRadius: AppRadius.pillAll,
+        child: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: context.colors.scrim.withValues(alpha: 0.55),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+          ),
+          child: Icon(icon, size: 20, color: Colors.white),
+        ),
       ),
     );
   }
