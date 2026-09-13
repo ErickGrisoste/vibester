@@ -1,23 +1,19 @@
-# Build stage
-FROM golang:1-alpine AS builder
+FROM node:22-alpine
 
 WORKDIR /app
 
-COPY go.mod go.sum* ./
-RUN go mod tidy
+COPY package.json package-lock.json* ./
+
+RUN npm install --ignore-scripts
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o payment-service .
 
-# Runtime stage
-FROM alpine:latest
+RUN npx prisma generate
 
-RUN apk --no-cache add ca-certificates
+RUN npm run build
 
-WORKDIR /root/
-
-COPY --from=builder /app/payment-service .
+RUN npm prune --omit=dev
 
 EXPOSE 8080
 
-CMD ["./payment-service"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]

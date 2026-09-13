@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { env } from "../config/env";
 import { MediaType } from "../types/post.types";
-import { CONTENT_TYPE_BY_MEDIA_TYPE, SUPPORTED_CONTENT_TYPES } from "../services/upload.service";
+import { CONTENT_TYPE_BY_MEDIA_TYPE, MEDIA_KEY_PREFIX, SUPPORTED_CONTENT_TYPES } from "../services/upload.service";
 
 export const MAX_MEDIA_PER_POST = 10;
 
@@ -46,8 +46,33 @@ export const createPostSchema = z.object({
     })
     .transform((body) => ({
         ...body,
-        media: body.media ?? body.imageUrls!.map((url) => ({ url, type: MediaType.IMAGE })),
-    }));
+        media: body.media ?? body.imageUrls!.map((url) => ({ url, type: MediaType.IMAGE, thumbnailUrl: undefined })),
+    }))
+    // A URL já passou pelo bucketUrlSchema (pertence ao bucket), mas isso não
+    // garante que pertence a este usuário — a key carrega o userId do upload
+    // (posts/<userId>/<uuid>.ext), então qualquer mídia fora desse prefixo foi
+    // enviada por (ou aponta para) outro usuário.
+    .superRefine((body, ctx) => {
+        const ownPrefix = `${env.r2_public_url}/${MEDIA_KEY_PREFIX}${body.userId}/`;
+
+        body.media.forEach((item, index) => {
+            if (!item.url.startsWith(ownPrefix)) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "URL de mídia não pertence a este usuário",
+                    path: ["media", index, "url"],
+                });
+            }
+
+            if (item.thumbnailUrl && !item.thumbnailUrl.startsWith(ownPrefix)) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: "thumbnailUrl não pertence a este usuário",
+                    path: ["media", index, "thumbnailUrl"],
+                });
+            }
+        });
+    });
 
 export const updatePostSchema = z.object({ caption: z.string().max(250), });
 

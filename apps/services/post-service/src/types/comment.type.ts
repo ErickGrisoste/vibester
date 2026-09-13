@@ -18,3 +18,8 @@ export interface UpdateCommentInput {
     commentId: string;
     content: string;
 }
+
+export interface PaginatedComments {
+    comments: Comment[];
+    nextCursor: string | null;
+}

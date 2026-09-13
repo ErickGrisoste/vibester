@@ -3,11 +3,15 @@ import { vi, describe, it, expect, beforeAll, afterAll, beforeEach } from "vites
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
+const { mockProducerSend } = vi.hoisted(() => ({
+    mockProducerSend: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("../../src/kafka/producer", () => ({
     producer: {
         connect: vi.fn(),
         disconnect: vi.fn(),
-        send: vi.fn().mockResolvedValue([]),
+        send: mockProducerSend,
     },
 }));
 
@@ -23,7 +27,20 @@ const BASE_PAYLOAD = {
     bornAt: "1998-05-20",
 };
 
-async function getPendingCode(email: string): Promise<{ code: string; passwordHash: string }> {
+// O código em texto puro não é mais persistido no Redis (só o HMAC, ver
+// email-verification.service.ts) — quem "recebe" o código de verdade é o
+// evento Kafka publicado para o notification-service, então é de lá que o
+// teste precisa ler pra simular o que o usuário veria no email.
+function getEmittedCode(email: string): string {
+    const call = mockProducerSend.mock.calls
+        .map(([args]) => JSON.parse(args.messages[0].value) as { email: string; code: string })
+        .reverse()
+        .find((msg) => msg.email === email);
+    if (!call) throw new Error(`Nenhum código emitido via Kafka para ${email}`);
+    return call.code;
+}
+
+async function getPendingCode(email: string): Promise<{ codeHash?: string; passwordHash: string; username: string }> {
     const raw = await redis.get(`pending:reg:${email}`);
     if (!raw) throw new Error(`Nenhum registro pendente para ${email}`);
     return JSON.parse(raw);
@@ -31,7 +48,7 @@ async function getPendingCode(email: string): Promise<{ code: string; passwordHa
 
 async function completeRegistration(app: any, payload: typeof BASE_PAYLOAD) {
     await app.inject({ method: "POST", url: "/register", payload });
-    const { code } = await getPendingCode(payload.email);
+    const code = getEmittedCode(payload.email);
     return app.inject({
         method: "POST",
         url: "/verify-email",
@@ -55,6 +72,7 @@ describe("auth-service — HTTP Integration (Postgres real)", () => {
 
     beforeEach(async () => {
         await prismaClient.access.deleteMany();
+        mockProducerSend.mockClear();
         mockFetch.mockResolvedValue({
             ok: true,
             json: vi.fn().mockResolvedValue({ accountId: "profile-acc-uuid" }),
@@ -74,9 +92,11 @@ describe("auth-service — HTTP Integration (Postgres real)", () => {
             expect(body).toHaveProperty("message");
 
             const pending = await getPendingCode(BASE_PAYLOAD.email);
-            expect(pending).toHaveProperty("code");
-            expect(pending.code).toHaveLength(6);
+            expect(pending).toHaveProperty("codeHash");
             expect(pending.username).toBe("testuser");
+
+            const code = getEmittedCode(BASE_PAYLOAD.email);
+            expect(code).toHaveLength(6);
         });
 
         it("retorna 409 quando email ou username já existe (conta confirmada)", async () => {
@@ -96,7 +116,7 @@ describe("auth-service — HTTP Integration (Postgres real)", () => {
         it("cria conta e persiste no banco após verificação", async () => {
             await app.inject({ method: "POST", url: "/register", payload: BASE_PAYLOAD });
 
-            const { code } = await getPendingCode(BASE_PAYLOAD.email);
+            const code = getEmittedCode(BASE_PAYLOAD.email);
 
             const res = await app.inject({
                 method: "POST",
@@ -123,7 +143,7 @@ describe("auth-service — HTTP Integration (Postgres real)", () => {
             expect(pending.passwordHash).not.toBe("senha123");
             expect(pending.passwordHash).toMatch(/^\$2[aby]\$.{56}$/);
 
-            const { code } = pending;
+            const code = getEmittedCode(BASE_PAYLOAD.email);
             await app.inject({
                 method: "POST",
                 url: "/verify-email",
@@ -160,7 +180,7 @@ describe("auth-service — HTTP Integration (Postgres real)", () => {
             mockFetch.mockResolvedValueOnce({ ok: false });
 
             await app.inject({ method: "POST", url: "/register", payload: BASE_PAYLOAD });
-            const { code } = await getPendingCode(BASE_PAYLOAD.email);
+            const code = getEmittedCode(BASE_PAYLOAD.email);
 
             const res = await app.inject({
                 method: "POST",
