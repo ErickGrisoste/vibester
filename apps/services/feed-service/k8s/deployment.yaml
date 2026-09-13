@@ -53,7 +53,7 @@ spec:
                 - ALL
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: 3006
             initialDelaySeconds: 15
             periodSeconds: 10
