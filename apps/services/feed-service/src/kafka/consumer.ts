@@ -12,8 +12,8 @@ import { eventUnconfirmanceSchema } from "../schema/events/event-unconfirmance";
 import { eventConfirmanceSchema } from "../schema/events/event-confirmance";
 import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
-import { unwrapEventData } from "./envelope";
 import { kafka } from "./client";
+import { unwrapEventData } from "./envelope";
 import { kafkaHandlerErrorTotal } from "../metrics/registry";
 
 export class KafkaConsumer {
