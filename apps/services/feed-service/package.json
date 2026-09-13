@@ -10,8 +10,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/src/server.js",
-    "migrate": "tsx scripts/migrate.ts",
-    "mock:post": "tsx src/scripts/publishPostCreated.ts"
+    "migrate": "tsx scripts/migrate.ts"
   },
   "keywords": [],
   "author": "",

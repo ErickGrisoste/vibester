@@ -35,6 +35,56 @@ describe('FollowService — Kafka Consumers', () => {
       expect(mockExecute).toHaveBeenCalled();
     });
 
+    it('não migra post soft-deletado (is_deleted = true) para o feed do novo seguidor, mas migra os demais', async () => {
+      const activePostId = 'aaaa1111-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
+      const deletedPostId = 'bbbb2222-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
+
+      const basePostRow = {
+        user_id: AUTHOR_ID,
+        created_at: new Date(ISO_DATE),
+        user_username: 'autor',
+        user_profile_picture: null,
+        user_verified: false,
+        establishment_id: null,
+        establishment_name: null,
+        establishment_logo: null,
+        establishment_category: null,
+        image_urls: [],
+        media: null,
+        tags: null,
+        total_likes: 0,
+        total_comments: 0,
+        updated_at: null,
+      };
+      const activePostRow = { ...basePostRow, post_id: activePostId, caption: 'post ativo', is_deleted: false };
+      const deletedPostRow = { ...basePostRow, post_id: deletedPostId, caption: 'post excluído (soft delete)', is_deleted: true };
+
+      mockExecute.mockImplementation(async (query: string) => {
+        if (typeof query === 'string' && query.includes('posts_by_user') && query.trim().startsWith('SELECT')) {
+          return { rows: [activePostRow, deletedPostRow] };
+        }
+        return { rows: [] };
+      });
+
+      await followService.handleUserFollowed({
+        followerId: FOLLOWER_ID,
+        followedId: AUTHOR_ID,
+      });
+
+      // migra o post ativo para o feed_by_user do novo seguidor
+      expect(mockExecute).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO feed_keyspace.feed_by_user'),
+        expect.arrayContaining([activePostId]),
+        expect.anything()
+      );
+
+      // nunca escreve nada referenciando o post soft-deletado
+      const touchedDeletedPost = mockExecute.mock.calls.some(([, params]) =>
+        Array.isArray(params) && params.includes(deletedPostId)
+      );
+      expect(touchedDeletedPost).toBe(false);
+    });
+
     it('migra eventos recentes do autor para o feed do seguidor', async () => {
       const recentEventRow = {
         event_id: EVENT_ID,

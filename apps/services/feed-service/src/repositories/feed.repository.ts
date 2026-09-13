@@ -133,6 +133,19 @@ export class FeedRepository extends BaseRepository {
         );
     }
 
+    async updateEventConfirmedCount(userId: string, createdAt: Date, itemId: string, totalConfirmed: number) {
+        return this.execute(
+            `
+                UPDATE feed_keyspace.feed_by_user
+                SET total_confirmed = ?
+                WHERE user_id = ?
+                    AND created_at = ?
+                    AND item_id = ?;
+            `,
+            [totalConfirmed, userId, createdAt, itemId]
+        );
+    }
+
     async markAsLiked(userId: string, createdAt: Date, itemId: string) {
         return this.execute(
             `

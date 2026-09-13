@@ -80,9 +80,20 @@ export class FollowService {
 
         const result = await this.postByUserRepository.findRecentPostsByUser(followedId, since);
 
+        // findRecentPostsByUser não filtra is_deleted (Cassandra não permite
+        // filtrar por coluna não-indexada sem ALLOW FILTERING, que não deve
+        // ser usado aqui) — desde que posts_by_user passou a soft delete
+        // (handlePostDeleted em FeedFanoutService), um post excluído pode
+        // continuar aparecendo nessa leitura. Filtramos em código de
+        // aplicação, mesmo padrão já usado pelo post-service
+        // (PostRepository.findByUser/findByEstablishment,
+        // `.filter((post) => !post.isDeleted)`).
+        const posts = result.rows
+            .map((row) => rowToPost(row as unknown as PostRow))
+            .filter((post) => !post.isDeleted);
+
         await Promise.all(
-            result.rows.map(async (row) => {
-                const post = rowToPost(row as unknown as PostRow);
+            posts.map(async (post) => {
                 const feedItem = postToFeedItem(post, followerId, itemType);
 
                 await this.feedWriter.addItemToUserFeed(feedItem, 604800);

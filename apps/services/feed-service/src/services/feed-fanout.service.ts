@@ -87,7 +87,13 @@ export class FeedFanoutService {
 
     async handlePostDeleted(postDeleted: PostDeletedEvent) {
         const entries = await this.feedEntriesRepository.findByItemId(postDeleted.postId);
-        await this.postByUserRepository.delete(postDeleted.authorId, new Date(postDeleted.createdAt), postDeleted.postId)
+        // Soft delete: a cópia canônica em posts_by_user é só marcada
+        // is_deleted = true (e continua expirando via TTL de 30 dias), nunca
+        // fisicamente removida. A cópia já distribuída em feed_by_user
+        // (abaixo) continua sendo DELETE físico imediato do feed de cada
+        // seguidor — isso não muda; só a cópia canônica do autor passa a
+        // soft delete.
+        await this.postByUserRepository.softDelete(postDeleted.authorId, new Date(postDeleted.createdAt), postDeleted.postId)
 
         await runFanout(
             "handlePostDeleted",
