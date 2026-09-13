@@ -40,8 +40,10 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver {
   static const _feedIndex = 0;
+  static const _todayIndex = 2;
   static const _profileIndex = 3;
 
   /// Tela inicial do produto — hoje o FEED.
@@ -88,6 +90,46 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    // O contador não vinha de lugar nenhum em quem entrava pelo login: só o
+    // boot com sessão salva o buscava, e a troca de destino (que sai cedo
+    // quando o índice não muda). Resultado: sino sem selo até o usuário
+    // trocar de aba na mão, o que lia como "não chega notificação".
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshUnreadCount());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// O app fica aberto por longos períodos numa aba só. Sem isto o selo
+  /// congela no valor de quando a tela montou: quem volta do segundo plano
+  /// nunca vê o contador subir.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshUnreadCount();
+    }
+  }
+
+  /// Leitura leve do contador de não lidas. Não mexe na lista carregada nem
+  /// mostra loading, então pode ser chamada sempre que houver chance de o
+  /// número ter mudado.
+  void _refreshUnreadCount() {
+    if (!mounted) return;
+
+    final userId = context.read<UserProvider>().user?.accountId;
+    if (userId == null) return;
+
+    context.read<NotificationProvider>().fetchUnreadCount(userId);
+  }
+
   void _handleBackPress() {
     // Qualquer destino que não seja a tela inicial volta pra ela — a tela
     // inicial do produto é uma só, e sair do app nunca acontece por acidente
@@ -129,10 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Não há push, então o badge não se atualiza sozinho: uma leitura leve a
     // cada troca de destino é o suficiente e não custa uma tela de loading.
-    final userId = context.read<UserProvider>().user?.accountId;
-    if (userId != null) {
-      context.read<NotificationProvider>().fetchUnreadCount(userId);
-    }
+    _refreshUnreadCount();
 
     // As telas do IndexedStack são montadas uma única vez, então o perfil não
     // busca dados novos sozinho ao voltar a ficar visível.
@@ -208,7 +247,10 @@ class _HomeScreenState extends State<HomeScreen> {
           currentIndex: _currentIndex,
           onDestinationSelected: _selectDestination,
           onCreate: _openComposer,
-          badgeIndex: _profileIndex,
+          // As notificações moram no sino do cabeçalho de HOJE. O selo estava
+          // apontando para VOCÊ — sobra de quando elas ficavam dentro do
+          // perfil, e que mandava o usuário procurar no lugar errado.
+          badgeIndex: _todayIndex,
           badgeCount: unread,
           visible: _dockVisible,
         ),
