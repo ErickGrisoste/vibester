@@ -151,6 +151,85 @@ describe('FollowService — Kafka Consumers', () => {
 
       expect(mockExecute).toHaveBeenCalled();
     });
+
+    // Mesma profundidade do teste equivalente em handleUserFollowed acima:
+    // addRecentPostsToFollowerFeed é o mesmo método privado compartilhado entre
+    // follow de usuário e de estabelecimento (só muda o FeedItemType passado),
+    // incluindo o filtro de soft delete em código de aplicação — mas isso não
+    // estava exercitado explicitamente pelo lado de estabelecimento.
+    it('não migra post soft-deletado (is_deleted = true) para o feed do novo seguidor do estabelecimento, mas migra os demais', async () => {
+      const activePostId = 'cccc3333-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
+      const deletedPostId = 'dddd4444-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
+
+      const basePostRow = {
+        user_id: ESTAB_ID,
+        created_at: new Date(ISO_DATE),
+        user_username: 'estab_do_bar',
+        user_profile_picture: null,
+        user_verified: false,
+        establishment_id: ESTAB_ID,
+        establishment_name: 'Bar do Zé',
+        establishment_logo: null,
+        establishment_category: null,
+        image_urls: [],
+        media: null,
+        tags: null,
+        total_likes: 0,
+        total_comments: 0,
+        updated_at: null,
+      };
+      const activePostRow = { ...basePostRow, post_id: activePostId, caption: 'promoção ativa', is_deleted: false };
+      const deletedPostRow = { ...basePostRow, post_id: deletedPostId, caption: 'promoção excluída (soft delete)', is_deleted: true };
+
+      mockExecute.mockImplementation(async (query: string) => {
+        if (typeof query === 'string' && query.includes('posts_by_user') && query.trim().startsWith('SELECT')) {
+          return { rows: [activePostRow, deletedPostRow] };
+        }
+        return { rows: [] };
+      });
+
+      await followService.handleEstablishmentFollowed({
+        followerId: FOLLOWER_ID,
+        followedId: ESTAB_ID,
+      });
+
+      // migra o post ativo do estabelecimento para o feed_by_user do novo seguidor
+      expect(mockExecute).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO feed_keyspace.feed_by_user'),
+        expect.arrayContaining([activePostId]),
+        expect.anything()
+      );
+
+      // nunca escreve nada referenciando o post soft-deletado do estabelecimento
+      const touchedDeletedPost = mockExecute.mock.calls.some(([, params]) =>
+        Array.isArray(params) && params.includes(deletedPostId)
+      );
+      expect(touchedDeletedPost).toBe(false);
+    });
+
+    it('migra eventos recentes do estabelecimento para o feed do seguidor', async () => {
+      const recentEventRow = {
+        event_id: EVENT_ID,
+        created_at: new Date(ISO_DATE),
+        author_id: ESTAB_ID,
+        author_username: 'estab_do_bar',
+        author_verified: false,
+        event_title: 'Noite de Samba',
+        event_date: new Date(ISO_DATE),
+      };
+      mockExecute.mockResolvedValue({ rows: [recentEventRow] });
+
+      await followService.handleEstablishmentFollowed({
+        followerId: FOLLOWER_ID,
+        followedId: ESTAB_ID,
+      });
+
+      expect(mockExecute).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO feed_keyspace.feed_by_user'),
+        expect.arrayContaining([FOLLOWER_ID, EVENT_ID]),
+        expect.anything()
+      );
+    });
   });
 
   describe('handleEstablishmentUnfollowed', () => {
@@ -163,6 +242,34 @@ describe('FollowService — Kafka Consumers', () => {
       });
 
       expect(mockExecute).toHaveBeenCalled();
+    });
+
+    // Mesma profundidade do teste equivalente em handleUserUnfollowed acima:
+    // removeEventsFromFeedByAuthor é o método privado compartilhado entre
+    // unfollow de usuário e de estabelecimento.
+    it('remove eventos recentes do estabelecimento do feed do seguidor quando há entries', async () => {
+      const recentEventRow = { event_id: EVENT_ID, created_at: new Date(ISO_DATE) };
+      const feedEntryRow = { item_id: EVENT_ID, user_id: FOLLOWER_ID, created_at: new Date(ISO_DATE) };
+      mockExecute.mockImplementation(async (query: string) => {
+        if (typeof query === 'string' && query.includes('events_by_user')) {
+          return { rows: [recentEventRow] };
+        }
+        if (typeof query === 'string' && query.includes('feed_entries')) {
+          return { rows: [feedEntryRow] };
+        }
+        return { rows: [] };
+      });
+
+      await followService.handleEstablishmentUnfollowed({
+        followerId: FOLLOWER_ID,
+        followedId: ESTAB_ID,
+      });
+
+      expect(mockExecute).toHaveBeenCalledWith(
+        expect.stringContaining('DELETE FROM feed_keyspace.feed_by_user'),
+        expect.arrayContaining([FOLLOWER_ID, feedEntryRow.created_at, EVENT_ID]),
+        expect.anything()
+      );
     });
   });
 });
