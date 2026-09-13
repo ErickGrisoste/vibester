@@ -28,7 +28,7 @@ Nunca adicione regras de negócio de autenticação, feed, posts ou pagamento aq
 - Prisma 7 com `@prisma/adapter-pg` (driver adapter sobre `pg.Pool`, mesmo padrão do auth-service)
 - PostgreSQL
 - Redis (`ioredis`) — usado para **cache-aside** de leitura (`cacheAside` em `src/config/redis.ts`) e como **store do rate limit** (`@fastify/rate-limit` com `redis` em vez de memória local — importante para funcionar corretamente com múltiplas réplicas)
-- Kafka (`kafkajs`) — **produtor e consumidor** neste serviço (diferente do auth-service, que só produz): consome `user.registered` para criar perfil, produz `user.followed`/`user.unfollowed`
+- Kafka (`kafkajs`) — **produtor e consumidor** neste serviço (diferente do auth-service, que só produz): consome `user.registered` para criar perfil e o tópico `posts` (`post.created`/`post.deleted`, envelope do post-service) para manter `totalPosts` — idempotente por `eventId` no Redis, decremento nunca abaixo de zero —, produz `user.followed`/`user.unfollowed`
 - OpenTelemetry (`@opentelemetry/sdk-node` + auto-instrumentations) — tracing distribuído opcional, ativado só se `OTEL_EXPORTER_OTLP_ENDPOINT` estiver definido (`src/config/tracing.ts`)
 - Vitest para testes (unit + integration), `ioredis-mock` para mockar Redis nos testes
 
@@ -44,7 +44,7 @@ src/
   controllers/   profile.controller.ts                       → define as ZodTypeProvider routes (schemas + handlers inline), registra prefixo /users
   services/      *.service.ts                                 → regra de negócio, acesso a Prisma/Redis/Kafka
     __tests__/                                                → testes unitários co-localizados (Vitest)
-  kafka/         producer.ts (singleton lazy), consumer.ts    → producer envia eventos de follow/unfollow; consumer cria perfil a partir de user.registered
+  kafka/         producer.ts (singleton lazy), consumer.ts    → producer envia eventos de follow/unfollow; consumer cria perfil a partir de user.registered e atualiza totalPosts a partir de posts
   prisma/        index.ts                                     → singleton do PrismaClient com adapter pg.Pool
   types/         profile.types.ts                             → interfaces de input por operação (sem output types formais — response é o próprio retorno do Prisma)
   routes.ts                                                   → /health, /ready, registra profileRoutes com prefix /users

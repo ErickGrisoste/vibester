@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/models/feed/publication_model.dart';
 import 'package:mobile/models/media/post_media.dart';
+import 'package:mobile/providers/feed/publication_list_provider.dart';
+import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
@@ -10,7 +12,9 @@ import 'package:mobile/widgets/common/vibester_image.dart';
 import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/indicators/like_indicator.dart';
 import 'package:mobile/widgets/media/post_media_carousel.dart';
+import 'package:mobile/widgets/motion/double_tap_like.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:provider/provider.dart';
 
 /// Publicação no feed.
 ///
@@ -38,6 +42,15 @@ class PublicationCard extends StatelessWidget {
   const PublicationCard({super.key, required this.publication, this.index = 0});
 
   double get _tilt => (index.isEven ? 1 : -1) * 0.0055;
+
+  /// Toque duplo na foto só curte — se já está curtido, o coração grande
+  /// aparece mas nada vai para a API.
+  void _likeFromPhoto(BuildContext context) {
+    if (publication.isLiked) return;
+    final userId = context.read<UserProvider>().user?.accountId;
+    if (userId == null) return;
+    context.read<PublicationListProvider>().toggleLike(publication.id, userId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,32 +90,37 @@ class PublicationCard extends StatelessWidget {
                 ),
                 child: AspectRatio(
                   aspectRatio: 4 / 5,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Foto, vídeo ou carrossel — na ordem de `media`. O
-                      // indicador vai no topo porque a base é do selo de local.
-                      PostMediaCarousel(
-                        media: publication.media.isNotEmpty
-                            ? publication.media
-                            : [
-                                if (publication.publicationImage.isNotEmpty)
-                                  PostMedia.image(publication.publicationImage),
-                              ],
-                        grain: true,
-                        indicatorOnTop: true,
-                      ),
-                      if (publication.location != null &&
-                          publication.location!.isNotEmpty)
-                        Positioned(
-                          left: AppSpacing.md,
-                          bottom: AppSpacing.md,
-                          child: VibesterTag(
-                            publication.location!,
-                            icon: Icons.place_outlined,
-                          ),
+                  child: DoubleTapLike(
+                    onLike: () => _likeFromPhoto(context),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Foto, vídeo ou carrossel — na ordem de `media`. O
+                        // indicador vai no topo porque a base é do selo de local.
+                        PostMediaCarousel(
+                          media: publication.media.isNotEmpty
+                              ? publication.media
+                              : [
+                                  if (publication.publicationImage.isNotEmpty)
+                                    PostMedia.image(
+                                      publication.publicationImage,
+                                    ),
+                                ],
+                          grain: true,
+                          indicatorOnTop: true,
                         ),
-                    ],
+                        if (publication.location != null &&
+                            publication.location!.isNotEmpty)
+                          Positioned(
+                            left: AppSpacing.md,
+                            bottom: AppSpacing.md,
+                            child: VibesterTag(
+                              publication.location!,
+                              icon: Icons.place_outlined,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),

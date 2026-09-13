@@ -36,20 +36,20 @@ import 'package:provider/provider.dart';
 /// automático de eventos da semana misturado com ofertas fictícias, e "em
 /// alta" era uma lista de estabelecimentos com busca.
 ///
-/// Aqui a tela é uma sequência editorial numerada, e cada bloco responde uma
+/// Aqui a tela é uma sequência editorial, e cada bloco responde uma
 /// pergunta concreta, na ordem em que ela ocorre a quem está decidindo o
 /// rolê:
 ///
 /// ```text
-/// 01  ACONTECENDO AGORA   → dá pra sair agora?
-/// 02  AINDA HOJE          → e mais tarde?
-/// 03  PERTO DE VOCÊ       → o que tem do meu lado?
-/// 04  EM ALTA             → onde tem gente?
-/// 05  ESSA SEMANA         → e se eu quiser planejar?
+/// ACONTECENDO AGORA   → dá pra sair agora?   (carrossel automático)
+/// AINDA HOJE          → e mais tarde?
+/// PERTO DE VOCÊ       → o que tem do meu lado?
+/// EM ALTA             → onde tem gente?
+/// ESSA SEMANA         → e se eu quiser planejar?
 /// ```
 ///
-/// As seções que não têm dado real simplesmente não aparecem, e a numeração
-/// se ajusta — a tela nunca mostra um trilho vazio nem uma promessa que os
+/// As seções que não têm dado real simplesmente não aparecem — a tela nunca
+/// mostra um trilho vazio nem uma promessa que os
 /// dados não sustentam. A seção de "ofertas exclusivas" da versão anterior
 /// foi removida: ela era alimentada por uma lista fixa no código (descontos,
 /// nomes de bares e condições inventados), e conteúdo fabricado apresentado
@@ -126,9 +126,7 @@ class _TodayScreenState extends State<TodayScreen> {
     final week =
         _filterEvents([...events.weekEvents, ...events.events])
             .where((e) => e.isUpcoming && !e.isToday)
-            .where(
-              (e) => seenWeek.add(e.id ?? '${e.titulo}|${e.dataDoEvento}'),
-            )
+            .where((e) => seenWeek.add(e.id ?? '${e.titulo}|${e.dataDoEvento}'))
             .toList()
           ..sort((a, b) => a.dataDoEvento.compareTo(b.dataDoEvento));
 
@@ -147,7 +145,8 @@ class _TodayScreenState extends State<TodayScreen> {
     final nothingToday = happeningNow.isEmpty && laterToday.isEmpty;
     final weekTakesOver = nothingToday && week.isNotEmpty;
 
-    // Numeração corrida: só conta as seções que realmente vão à tela.
+    // Contador das seções que realmente vão à tela: a primeira ganha o traço
+    // de pincel.
     var section = 0;
     int next() => ++section;
 
@@ -177,11 +176,14 @@ class _TodayScreenState extends State<TodayScreen> {
               const SliverToBoxAdapter(child: _HomeSkeleton())
             else ...[
               if (happeningNow.isNotEmpty)
-                _rail(
-                  index: next(),
+                _EventCarousel(
                   eyebrow: 'ACONTECENDO AGORA',
                   title: 'Tá rolando',
-                  items: happeningNow,
+                  events: happeningNow,
+                  brush: next() == 1,
+                  // Primeira seção da tela: é ela que participa da transição
+                  // de Hero pro detalhe do evento.
+                  hero: true,
                 ),
 
               if (laterToday.isNotEmpty)
@@ -193,8 +195,9 @@ class _TodayScreenState extends State<TodayScreen> {
                 ),
 
               if (weekTakesOver)
-                _WeekCarousel(
-                  index: next(),
+                _EventCarousel(
+                  eyebrow: 'ESSA SEMANA',
+                  title: 'Dá pra se planejar',
                   events: week.take(12).toList(),
                   subtitle: _category == null
                       ? 'Isso é o que vem aí.'
@@ -205,17 +208,12 @@ class _TodayScreenState extends State<TodayScreen> {
 
               if (nearby.status != LocationStatus.unavailable ||
                   nearbyPlaces.isNotEmpty)
-                _NearbySection(
-                  index: next(),
-                  places: nearbyPlaces,
-                  provider: nearby,
-                ),
+                _NearbySection(places: nearbyPlaces, provider: nearby),
 
-              if (hot.isNotEmpty)
-                _HotSection(index: next(), places: hot.take(5).toList()),
+              if (hot.isNotEmpty) _HotSection(places: hot.take(5).toList()),
 
               if (week.isNotEmpty && !weekTakesOver)
-                _WeekSection(index: next(), events: week.take(6).toList()),
+                _WeekSection(events: week.take(6).toList()),
             ],
 
             const SliverToBoxAdapter(child: _Colophon()),
@@ -240,7 +238,6 @@ class _TodayScreenState extends State<TodayScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader(
-            index: index,
             eyebrow: eyebrow,
             title: title,
             brush: index == 1,
@@ -402,6 +399,13 @@ class _Headline extends StatelessWidget {
   /// Precisa estar declarado no `pubspec.yaml` (ver `flutter: assets:`).
   static const _asset = 'assets/img/mascote/mascote.png';
 
+  /// Versão fria do mascote, para o tema claro.
+  ///
+  /// Não é um arquivo solto: os três tons do fogo são exatamente `brasa`,
+  /// `ambar` e a interpolação entre os dois na paleta clara. Trocar aqui é o
+  /// que impede o mascote de ser a única coisa quente numa tela fria.
+  static const _assetLight = 'assets/img/mascote/mascote_azul.png';
+
   /// Abaixo disso o mascote fica irreconhecível — melhor não desenhar.
   static const _minWidth = 64.0;
 
@@ -417,6 +421,11 @@ class _Headline extends StatelessWidget {
     final colors = context.colors;
     final style = context.typography.displayHuge;
     final scaler = MediaQuery.textScalerOf(context);
+    // Segue o brilho efetivo do tema, não o `ThemeMode` do provider: assim
+    // `ThemeMode.system` também acerta o mascote.
+    final mascote = Theme.of(context).brightness == Brightness.light
+        ? _assetLight
+        : _asset;
     final direction = Directionality.of(context);
 
     Size measure(String text) {
@@ -482,7 +491,7 @@ class _Headline extends StatelessWidget {
             child: SizedBox(
               height: blockHeight,
               child: Image.asset(
-                _asset,
+                mascote,
                 fit: BoxFit.contain,
                 alignment: Alignment.centerRight,
                 filterQuality: FilterQuality.medium,
@@ -628,10 +637,11 @@ class _CategoryRailDelegate extends SliverPersistentHeaderDelegate {
 // Seções
 // -----------------------------------------------------------------------
 
-/// "Essa semana" em carrossel — só aparece no lugar do dia vazio.
+/// Carrossel de eventos que anda sozinho. Usado em "Acontecendo agora" e em
+/// "Essa semana" quando ela ocupa o lugar do dia vazio.
 ///
-/// O card é o mesmo [EventPosterCard] usado nos trilhos de "Acontecendo
-/// agora"/"Ainda hoje" (variante `hero`, cartaz com imagem e texto por cima),
+/// O card é o mesmo [EventPosterCard] usado no trilho de "Ainda hoje"
+/// (variante `hero`, cartaz com imagem e texto por cima),
 /// em vez de um cartão próprio: o carrossel é só um *layout* diferente
 /// (`PageView` de um item por vez) para o mesmo componente de evento do
 /// resto do app, não uma composição visual à parte.
@@ -646,22 +656,33 @@ class _CategoryRailDelegate extends SliverPersistentHeaderDelegate {
 /// a volta pro começo é `jumpToPage`, não `animateToPage`: animar do último
 /// pro primeiro é o que fazia o carrossel rebobinar passando por todos os
 /// cards de trás pra frente.
-class _WeekCarousel extends StatefulWidget {
-  final int index;
+class _EventCarousel extends StatefulWidget {
+  final String eyebrow;
+  final String title;
+  final String? subtitle;
   final List<EventModel> events;
-  final String subtitle;
 
-  const _WeekCarousel({
-    required this.index,
+  /// Traço de pincel no cabeçalho — só na primeira seção da tela.
+  final bool brush;
+
+  /// Se os cartazes participam do Hero pro detalhe. Só uma seção por tela
+  /// pode ligar isso, senão o mesmo evento gera duas tags iguais.
+  final bool hero;
+
+  const _EventCarousel({
+    required this.eyebrow,
+    required this.title,
     required this.events,
-    required this.subtitle,
+    this.subtitle,
+    this.brush = false,
+    this.hero = false,
   });
 
   @override
-  State<_WeekCarousel> createState() => _WeekCarouselState();
+  State<_EventCarousel> createState() => _EventCarouselState();
 }
 
-class _WeekCarouselState extends State<_WeekCarousel> {
+class _EventCarouselState extends State<_EventCarousel> {
   /// Fração da viewport que cada página ocupa. É o valor que faz o cartaz da
   /// semana sair com a mesma largura do cartaz dos trilhos
   /// (`EventPosterCard.railWidth`, 74% da tela) — a semana é a mesma fileira
@@ -688,7 +709,7 @@ class _WeekCarouselState extends State<_WeekCarousel> {
   }
 
   @override
-  void didUpdateWidget(covariant _WeekCarousel old) {
+  void didUpdateWidget(covariant _EventCarousel old) {
     super.didUpdateWidget(old);
     // A lista muda quando o filtro de categoria muda, e o índice atual pode
     // acabar apontando pra fora dela.
@@ -747,10 +768,10 @@ class _WeekCarouselState extends State<_WeekCarousel> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader(
-            index: widget.index,
-            eyebrow: 'ESSA SEMANA',
-            title: 'Dá pra se planejar',
+            eyebrow: widget.eyebrow,
+            title: widget.title,
             subtitle: widget.subtitle,
+            brush: widget.brush,
             onActionTap: () =>
                 Navigator.pushNamed(context, AppRoutes.eventList),
           ),
@@ -776,7 +797,7 @@ class _WeekCarouselState extends State<_WeekCarousel> {
                     child: EventPosterCard(
                       event: widget.events[i],
                       width: cardWidth,
-                      hero: false,
+                      hero: widget.hero,
                     ),
                   ),
                 ),
@@ -790,15 +811,10 @@ class _WeekCarouselState extends State<_WeekCarousel> {
 }
 
 class _NearbySection extends StatelessWidget {
-  final int index;
   final List<PlaceModel> places;
   final NearbyProvider provider;
 
-  const _NearbySection({
-    required this.index,
-    required this.places,
-    required this.provider,
-  });
+  const _NearbySection({required this.places, required this.provider});
 
   @override
   Widget build(BuildContext context) {
@@ -853,11 +869,7 @@ class _NearbySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionHeader(
-            index: index,
-            eyebrow: 'PERTO DE VOCÊ',
-            title: 'Do seu lado',
-          ),
+          SectionHeader(eyebrow: 'PERTO DE VOCÊ', title: 'Do seu lado'),
           body,
         ],
       ),
@@ -866,10 +878,9 @@ class _NearbySection extends StatelessWidget {
 }
 
 class _HotSection extends StatelessWidget {
-  final int index;
   final List<PlaceModel> places;
 
-  const _HotSection({required this.index, required this.places});
+  const _HotSection({required this.places});
 
   @override
   Widget build(BuildContext context) {
@@ -878,7 +889,6 @@ class _HotSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader(
-            index: index,
             eyebrow: 'EM ALTA',
             title: 'Onde tem gente',
             subtitle: 'Movimento medido pelo próprio Vibester.',
@@ -904,10 +914,9 @@ class _HotSection extends StatelessWidget {
 }
 
 class _WeekSection extends StatelessWidget {
-  final int index;
   final List<EventModel> events;
 
-  const _WeekSection({required this.index, required this.events});
+  const _WeekSection({required this.events});
 
   @override
   Widget build(BuildContext context) {
@@ -916,7 +925,6 @@ class _WeekSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader(
-            index: index,
             eyebrow: 'ESSA SEMANA',
             title: 'Dá pra se planejar',
             onActionTap: () =>

@@ -12,6 +12,7 @@ import { eventUnconfirmanceSchema } from "../schema/events/event-unconfirmance";
 import { eventConfirmanceSchema } from "../schema/events/event-confirmance";
 import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
+import { unwrapEventData } from "./envelope";
 import { kafka } from "./client";
 import { kafkaHandlerErrorTotal } from "../metrics/registry";
 
@@ -132,7 +133,11 @@ export class KafkaConsumer {
 
             const directHandler = this.directTopicHandlers[topic];
             if (directHandler) {
-                await directHandler(rawEvent);
+                // user.followed/user.unfollowed (únicos aqui hoje) sempre chegam
+                // com payload cru — unwrapEventData é um passthrough nesse caso
+                // (ver src/kafka/envelope.ts). Mantido por segurança caso o
+                // user-service passe a envelopar esses eventos no futuro.
+                await directHandler(unwrapEventData(rawEvent));
                 return;
             }
 

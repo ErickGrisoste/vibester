@@ -14,6 +14,10 @@ import 'package:mobile/utils/clock_format.dart';
 import 'package:mobile/widgets/media/camera/camera_session.dart';
 
 void main() {
+  // CameraSession se registra como observer do ciclo de vida do app
+  // (WidgetsBinding) no start/dispose.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('PostMedia — leitura de media[]', () {
     test('lê foto e vídeo na ordem, com a capa do vídeo', () {
       final media = PostMedia.listFromJson([

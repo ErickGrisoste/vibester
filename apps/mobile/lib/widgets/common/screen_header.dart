@@ -52,7 +52,7 @@ class ScreenHeader extends StatelessWidget {
           if (showBack || action != null)
             Row(
               children: [
-                if (showBack) const _BackButton(),
+                if (showBack) const VibesterBackButton(),
                 const Spacer(),
                 ?action,
               ],
@@ -75,8 +75,11 @@ class ScreenHeader extends StatelessWidget {
   }
 }
 
-class _BackButton extends StatelessWidget {
-  const _BackButton();
+/// Botão de voltar do cabeçalho. Público para telas que não montam um
+/// [ScreenHeader] completo — como o estado de erro de uma tela de detalhe,
+/// que sem ele deixaria o usuário preso.
+class VibesterBackButton extends StatelessWidget {
+  const VibesterBackButton({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -15,6 +15,8 @@ import 'package:mobile/widgets/common/vibester_chip.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/indicators/movement_indicator.dart';
+import 'package:mobile/widgets/motion/double_tap_like.dart';
+import 'package:mobile/widgets/motion/like_heart.dart';
 import 'package:mobile/widgets/navigation/navbar_background.dart';
 import 'package:mobile/widgets/navigation/navbar_center_action.dart';
 import 'package:mobile/widgets/navigation/navbar_item.dart';
@@ -433,6 +435,21 @@ void main() {
       expect(tentou, 1);
     });
 
+    testWidgets('ilustração substitui o ícone', (tester) async {
+      await pumpComponent(
+        tester,
+        const VibesterState(
+          headline: 'Nada com esse nome',
+          message: 'Tenta um termo mais curto.',
+          icon: Icons.search_off_rounded,
+          illustration: 'assets/img/mascote/lupa.png',
+        ),
+      );
+
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.byIcon(Icons.search_off_rounded), findsNothing);
+    });
+
     testWidgets('erro traz a mensagem tratada, nunca a exceção crua', (
       tester,
     ) async {
@@ -706,6 +723,70 @@ void main() {
       expect(inativo.hasFlag(SemanticsFlag.isSelected), isFalse);
 
       semantica.dispose();
+    });
+  });
+
+  group('curtida', () {
+    Widget coracao(bool curtido) => MaterialApp(
+      theme: AppTheme.dark,
+      home: Scaffold(
+        body: Center(
+          child: LikeHeart(liked: curtido, inactiveColor: Colors.grey),
+        ),
+      ),
+    );
+
+    testWidgets('LikeHeart troca o ícone e anima só quando o estado muda', (
+      tester,
+    ) async {
+      await tester.pumpWidget(coracao(false));
+      expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+
+      // Rebuild com o mesmo estado não anima.
+      await tester.pumpWidget(coracao(false));
+      expect(tester.hasRunningAnimations, isFalse);
+
+      await tester.pumpWidget(coracao(true));
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(tester.hasRunningAnimations, isTrue);
+
+      await tester.pumpAndSettle();
+      expect(tester.hasRunningAnimations, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('DoubleTapLike curte no toque duplo e ignora o simples', (
+      tester,
+    ) async {
+      var curtidas = 0;
+      await pumpComponent(
+        tester,
+        SizedBox(
+          height: 300,
+          child: DoubleTapLike(
+            onLike: () => curtidas++,
+            child: const ColoredBox(color: Colors.black),
+          ),
+        ),
+        width: 300,
+      );
+
+      await tester.tap(find.byType(DoubleTapLike));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(curtidas, 0);
+
+      await tester.tap(find.byType(DoubleTapLike));
+      await tester.pump(const Duration(milliseconds: 60));
+      await tester.tap(find.byType(DoubleTapLike));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(curtidas, 1);
+      // O coração grande está na tela durante a animação e some ao final.
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(tester.takeException(), isNull);
     });
   });
 
