@@ -10,7 +10,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/src/server.js",
-    "migrate": "tsx scripts/migrate.ts"
+    "migrate": "tsx scripts/migrate.ts",
+    "backfill:feed-likes": "tsx scripts/backfill-feed-likes.ts"
   },
   "keywords": [],
   "author": "",
