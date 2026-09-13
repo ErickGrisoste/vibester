@@ -22,6 +22,7 @@ spec:
     spec:
       imagePullSecrets:
         - name: ghcr-secret
+      terminationGracePeriodSeconds: 60
       containers:
         - name: feed-service
           image: ghcr.io/victormarchidev/vibester-feed-service:latest
@@ -42,6 +43,14 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
           readinessProbe:
             httpGet:
               path: /health
