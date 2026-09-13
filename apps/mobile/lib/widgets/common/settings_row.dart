@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
 
 /// Peças das telas de ajuste: rótulo de grupo e linha de item.
 ///
-/// Ficam num arquivo próprio porque `settings_screen` e
-/// `account_management_settings_screen` desenhavam a mesma coisa com códigos
-/// diferentes — dois cartões arredondados de altura fixa, com paddings e
-/// tamanhos de fonte que já tinham divergido entre si (19.5px num, 18 no
-/// outro).
+/// Ficam num arquivo próprio para que toda tela de ajuste desenhe grupos e
+/// linhas do mesmo jeito, sem paddings e tamanhos de fonte divergindo.
 
 class SettingsGroupLabel extends StatelessWidget {
   final String label;
@@ -46,9 +42,6 @@ class SettingsRow extends StatelessWidget {
   final VoidCallback? onTap;
   final Widget? trailing;
 
-  /// Item ainda sem destino: fica visível, apagado e intocável, com o selo.
-  final bool comingSoon;
-
   /// Destaca em `ambar` (usado no item de assinatura).
   final bool accent;
 
@@ -61,7 +54,6 @@ class SettingsRow extends StatelessWidget {
     this.description,
     this.onTap,
     this.trailing,
-    this.comingSoon = false,
     this.accent = false,
     this.loading = false,
   });
@@ -70,7 +62,7 @@ class SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final type = context.typography;
-    final disabled = comingSoon || (onTap == null && trailing == null);
+    final disabled = onTap == null && trailing == null;
 
     final content = Container(
       padding: const EdgeInsets.symmetric(
@@ -113,8 +105,6 @@ class SettingsRow extends StatelessWidget {
                 color: colors.ambar,
               ),
             )
-          else if (comingSoon)
-            const VibesterTag('EM BREVE', tone: TagTone.outline)
           else if (trailing != null)
             trailing!
           else

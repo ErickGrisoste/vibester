@@ -40,7 +40,6 @@ import 'package:mobile/screens/register/recover_password_screen.dart';
 import 'package:mobile/screens/register/register_screen.dart';
 import 'package:mobile/screens/register/reset_password_screen.dart';
 import 'package:mobile/screens/explore/explore_screen.dart';
-import 'package:mobile/screens/settings/account_management_settings_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
 import 'package:mobile/screens/user/other_users_profile_screen.dart';
@@ -366,11 +365,6 @@ class _MyAppState extends State<MyApp> {
                 return vibesterSlideRoute(const ExploreScreen(), settings);
 
               // SETTINGS
-              case AppRoutes.accountManagementSettings:
-                return vibesterSlideRoute(
-                  const AccountManagementSettingsScreen(),
-                  settings,
-                );
               case AppRoutes.settings:
                 return vibesterSlideRoute(const SettingsScreen(), settings);
               case AppRoutes.personalInformationSettings:

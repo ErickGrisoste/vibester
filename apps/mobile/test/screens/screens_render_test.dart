@@ -23,7 +23,6 @@ import 'package:mobile/screens/register/recover_password_screen.dart';
 import 'package:mobile/screens/register/register_screen.dart';
 import 'package:mobile/screens/register/reset_password_screen.dart';
 import 'package:mobile/screens/saved/saved_screen.dart';
-import 'package:mobile/screens/settings/account_management_settings_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
 import 'package:mobile/screens/user/other_users_profile_screen.dart';
@@ -93,8 +92,6 @@ void main() {
     'FavoritePlacesScreen': () => const FavoritePlacesScreen(),
     'HotPlacesScreen': () => const HotPlacesScreen(),
     'SettingsScreen': () => const SettingsScreen(),
-    'AccountManagementSettingsScreen': () =>
-        const AccountManagementSettingsScreen(),
     'UserInterestsScreen': () => const UserInterestsScreen(),
     'NewPublicationScreen': () => const NewPublicationScreen(),
   };
