@@ -6,6 +6,8 @@ import 'package:mobile/service/posts/post_service.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/media/post_media_carousel.dart';
+import 'package:mobile/widgets/motion/double_tap_like.dart';
+import 'package:mobile/widgets/motion/like_heart.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
 import 'package:provider/provider.dart';
 
@@ -105,7 +107,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             children: [
               AspectRatio(
                 aspectRatio: 4 / 5,
-                child: PostMediaCarousel(media: highlight.midias),
+                child: DoubleTapLike(
+                  // Toque duplo só curte, nunca descurte.
+                  onLike: () {
+                    if (!_highlight.curtidoPeloUsuario) _alternarCurtida();
+                  },
+                  child: PostMediaCarousel(media: highlight.midias),
+                ),
               ),
 
               Padding(
@@ -116,16 +124,25 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     Row(
                       children: [
                         _Action(
-                          icon: highlight.curtidoPeloUsuario
-                              ? Icons.favorite
-                              : Icons.favorite_border_rounded,
+                          icon: LikeHeart(
+                            liked: highlight.curtidoPeloUsuario,
+                            inactiveColor: colors.textSecondary,
+                            size: 22,
+                          ),
                           value: highlight.totalCurtidas,
                           active: highlight.curtidoPeloUsuario,
+                          semanticLabel: highlight.curtidoPeloUsuario
+                              ? 'Descurtir'
+                              : 'Curtir',
                           onTap: _alternarCurtida,
                         ),
                         const SizedBox(width: AppSpacing.lg),
                         _Action(
-                          icon: Icons.mode_comment_outlined,
+                          icon: Icon(
+                            Icons.mode_comment_outlined,
+                            size: 22,
+                            color: colors.textSecondary,
+                          ),
                           value: highlight.totalComentarios,
                         ),
                       ],
@@ -195,15 +212,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 /// Ação com contador (curtir, comentar). Contador em DM Mono; alvo de 44px
 /// mesmo com o ícone pequeno.
 class _Action extends StatelessWidget {
-  final IconData icon;
+  final Widget icon;
   final int value;
   final bool active;
+  final String? semanticLabel;
   final VoidCallback? onTap;
 
   const _Action({
     required this.icon,
     required this.value,
     this.active = false,
+    this.semanticLabel,
     this.onTap,
   });
 
@@ -211,21 +230,25 @@ class _Action extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = active ? context.colors.brasa : context.colors.textSecondary;
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        height: 44,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 22, color: color),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              value.toString().padLeft(2, '0'),
-              style: context.typography.mono.copyWith(color: color),
-            ),
-          ],
+    return Semantics(
+      button: onTap != null,
+      label: semanticLabel,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          height: 44,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              icon,
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                value.toString().padLeft(2, '0'),
+                style: context.typography.mono.copyWith(color: color),
+              ),
+            ],
+          ),
         ),
       ),
     );

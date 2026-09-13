@@ -120,6 +120,9 @@ class PublicationListProvider extends ChangeNotifier {
           e.toString().contains('already liked') ||
           e.toString().contains('already unliked');
       if (!is409) {
+        // Sem este log a falha era invisível: a UI só voltava ao estado
+        // anterior e parecia que o toque nem tinha chamado a API.
+        debugPrint('toggleLike falhou para o post $id: $e');
         _publications[index] = pub;
         notifyListeners();
       }

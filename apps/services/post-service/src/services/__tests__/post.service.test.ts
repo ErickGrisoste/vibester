@@ -263,5 +263,13 @@ describe("PostService", () => {
       );
       expect(repo.softDeleteInAllViews).not.toHaveBeenCalled();
     });
+
+    it("should throw 404 and not republish when post is already deleted", async () => {
+      const post = makePost({ isDeleted: true });
+      (repo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(post);
+
+      await expect(service.softDelete("post-1", post.userId)).rejects.toThrow("Post not found");
+      expect(repo.softDeleteInAllViews).not.toHaveBeenCalled();
+    });
   });
 });

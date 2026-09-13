@@ -10,8 +10,8 @@ import 'package:video_player/video_player.dart';
 /// A mídia de um post publicado — feed e tela de detalhe usam o mesmo.
 ///
 /// Foto vira imagem, vídeo vira player (com a capa até o play), na ordem de
-/// `media`. Com mais de um item, o indicador em traços e o contador "2/4" em
-/// DM Mono: com quatro ou mais itens, bolinhas param de dizer onde você está.
+/// `media`. Com mais de um item, o indicador em bolinhas (a atual maior, em
+/// âmbar) e o contador "2/4" em DM Mono, que diz a posição quando há muitas.
 ///
 /// O carrossel não impõe proporção: quem usa põe num `AspectRatio` (4:5 no
 /// feed e no detalhe) e a mídia preenche com `cover`.
@@ -110,21 +110,29 @@ class _PageIndicator extends StatelessWidget {
       label: 'Item ${page + 1} de $count',
       child: Row(
         children: [
-          for (var i = 0; i < count; i++)
-            Expanded(
-              child: AnimatedContainer(
-                duration: context.adaptiveMotion(AppMotion.micro),
-                curve: AppMotion.standard,
-                margin: const EdgeInsets.only(right: AppSpacing.xs),
-                height: 3,
-                decoration: BoxDecoration(
-                  color: i == page
-                      ? colors.ambar
-                      : colors.onFill(colors.scrim).withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+          Expanded(
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: AppSpacing.xs,
+              runSpacing: AppSpacing.xs,
+              children: [
+                for (var i = 0; i < count; i++)
+                  AnimatedContainer(
+                    duration: context.adaptiveMotion(AppMotion.micro),
+                    curve: AppMotion.standard,
+                    width: i == page ? 8 : 6,
+                    height: i == page ? 8 : 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i == page
+                          ? colors.ambar
+                          : colors.onFill(colors.scrim).withValues(alpha: 0.35),
+                    ),
+                  ),
+              ],
             ),
+          ),
           const SizedBox(width: AppSpacing.sm),
           Text(
             '${page + 1}/$count',

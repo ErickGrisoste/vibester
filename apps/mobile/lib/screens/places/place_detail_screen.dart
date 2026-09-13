@@ -14,6 +14,7 @@ import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/theme/vibester_page_route.dart';
 import 'package:mobile/utils/event_time.dart';
 import 'package:mobile/utils/hero_tags.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
 import 'package:mobile/widgets/common/vibester_image.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
@@ -113,12 +114,30 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
           }
 
           if (snapshot.hasError) {
+            // O hero (com o voltar) só existe quando o lugar carrega; sem este
+            // botão, o erro vira beco sem saída.
             return SafeArea(
-              child: VibesterState.error(
-                message:
-                    'Não foi possível carregar esse lugar. Confere sua '
-                    'conexão e tenta de novo.',
-                onAction: _reload,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.screen,
+                      AppSpacing.sm,
+                      AppSpacing.screen,
+                      0,
+                    ),
+                    child: VibesterBackButton(),
+                  ),
+                  Expanded(
+                    child: VibesterState.error(
+                      message:
+                          'Não foi possível carregar esse lugar. Confere sua '
+                          'conexão e tenta de novo.',
+                      onAction: _reload,
+                    ),
+                  ),
+                ],
               ),
             );
           }
