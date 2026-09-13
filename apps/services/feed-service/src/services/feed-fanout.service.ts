@@ -19,6 +19,19 @@ import { runFanout } from "../utils/fanout";
 import { toEventItem, toFeedItem, toPost } from "./feed-item.mapper";
 
 /**
+ * Tamanho de página/lote do fan-out de seguidores: quantos seguidores são
+ * lidos por vez (`LIMIT` da paginação por cursor em `UserFollowerRepository`/
+ * `EstablishmentFollowersRepository`) e, portanto, quantas escritas
+ * concorrentes no feed cada chamada a `runFanout` dispara. 500 é o mesmo
+ * número já usado como teto de segurança em `FeedRepository`
+ * (`MAX_TIED_TIMESTAMP_GROUP`) — grande o bastante para que contas com poucos
+ * seguidores (o caso comum) continuem resolvendo em 1 única leitura, pequeno
+ * o bastante para não gerar uma leva de centenas de milhares de writes
+ * simultâneos no Cassandra por post/evento de uma conta grande.
+ */
+export const FANOUT_BATCH_SIZE = 500;
+
+/**
  * Fan-out on write: consome eventos de criação/atualização/exclusão de posts e
  * eventos, e propaga (distribui) o item já desnormalizado para a partição de
  * feed de cada seguidor. Não decide "quem é seguidor de quem" (isso é
@@ -119,58 +132,30 @@ export class FeedFanoutService {
         }
 
         const ttl = this.feedTtlService.getTtl(feedItem);
-        const followers = await this.establishmentFollowersRepository.findFollowersByEstablishment(feedItem.authorId);
+        const authorId = feedItem.authorId;
+        let cursor: string | undefined;
 
-        await runFanout(
-            "distributeEventToFollowers",
-            followers.map((followerId) => () =>
-                this.feedWriter.addItemToUserFeed(
-                    {
-                        userId: followerId,
+        // Fan-out em lotes: lê uma página de seguidores por vez (LIMIT
+        // explícito no repository) e só dispara escritas concorrentes para os
+        // seguidores dessa página — nunca para a base inteira de uma vez. Ver
+        // FANOUT_BATCH_SIZE acima e CLAUDE.md deste serviço, seção Performance,
+        // item 3.
+        do {
+            const page = await this.establishmentFollowersRepository.findFollowersByEstablishment(
+                authorId,
+                FANOUT_BATCH_SIZE,
+                cursor
+            );
 
-                        createdAt: feedItem.createdAt,
-
-                        itemId: feedItem.itemId,
-                        itemType: feedItem.itemType,
-
-                        authorId: feedItem.authorId,
-                        authorUsername: feedItem.authorUsername,
-                        authorProfilePicture: feedItem.authorProfilePicture,
-                        authorVerified: feedItem.authorVerified,
-
-                        establishmentId: feedItem.establishmentId,
-                        establishmentName: feedItem.establishmentName,
-                        establishmentLogo: feedItem.establishmentLogo,
-                        establishmentCategory: feedItem.establishmentCategory,
-
-                        eventId: feedItem.eventId,
-                        eventTitle: feedItem.eventTitle,
-                        eventBanner: feedItem.eventBanner,
-                        eventLineup: feedItem.eventLineup,
-                        eventDate: feedItem.eventDate,
-                        eventLocation: feedItem.eventLocation,
-                        eventOrganizerName: feedItem.eventOrganizerName,
-                        eventOrganizerLogo: feedItem.eventOrganizerLogo,
-                        totalConfirmed: feedItem.totalConfirmed,
-
-                        title: feedItem.title,
-                        content: feedItem.content,
-                        imageUrls: feedItem.imageUrls,
-                        media: feedItem.media,
-                        tags: feedItem.tags,
-
-                        totalLikes: feedItem.totalLikes ?? 0,
-                        totalComments: feedItem.totalComments ?? 0,
-
-                        isLiked: feedItem.isLiked,
-                        isSponsored: feedItem.isSponsored,
-                        isDeleted: feedItem.isDeleted,
-                        updatedAt: feedItem.updatedAt,
-                    },
-                    ttl
+            await runFanout(
+                "distributeEventToFollowers",
+                page.followerIds.map((followerId) => () =>
+                    this.feedWriter.addItemToUserFeed(this.buildFollowerFeedItem(feedItem, followerId), ttl)
                 )
-            )
-        );
+            );
+
+            cursor = page.nextCursor ?? undefined;
+        } while (cursor);
     }
 
     private async savePostByUser(post: Post) {
@@ -180,21 +165,51 @@ export class FeedFanoutService {
 
     async distributePostToFollowers(feedItem: Omit<FeedItem, "userId">) {
         const ttl = this.feedTtlService.getTtl(feedItem);
-        let followers: string[];
+        const authorId = feedItem.authorId!;
+        let cursor: string | undefined;
 
-        switch (feedItem.itemType) {
+        // Mesmo padrão de paginação em lote de distributeEventToFollowers: uma
+        // página de seguidores (LIMIT FANOUT_BATCH_SIZE) por vez, distribuída
+        // via runFanout, até o cursor da página não indicar mais próxima
+        // página. Contas com menos seguidores que o tamanho do lote resolvem
+        // em uma única leitura, como antes.
+        do {
+            const page = await this.fetchPostFollowerPage(feedItem.itemType, authorId, cursor);
+
+            await runFanout(
+                "distributePostToFollowers",
+                page.followerIds.map((followerId) => () =>
+                    this.feedWriter.addItemToUserFeed(this.buildFollowerFeedItem(feedItem, followerId), ttl)
+                )
+            );
+
+            cursor = page.nextCursor ?? undefined;
+        } while (cursor);
+    }
+
+    private async fetchPostFollowerPage(itemType: FeedItemType, authorId: string, cursor?: string) {
+        switch (itemType) {
             case FeedItemType.USER_POST:
-                followers = await this.userFollowerRepository.findFollowersByUser(feedItem.authorId!);
-                break;
+                return this.userFollowerRepository.findFollowersByUser(authorId, FANOUT_BATCH_SIZE, cursor);
 
             case FeedItemType.ESTABLISHMENT_POST:
-                followers = await this.establishmentFollowersRepository.findFollowersByEstablishment(feedItem.authorId!);
-                break;
+                return this.establishmentFollowersRepository.findFollowersByEstablishment(authorId, FANOUT_BATCH_SIZE, cursor);
 
-            default: throw new Error(`Unsupported feed item type: ${feedItem.itemType}`);
+            default:
+                throw new Error(`Unsupported feed item type: ${itemType}`);
         }
+    }
 
-        const feedItems = followers.map((followerId) => ({
+    /**
+     * Monta a cópia desnormalizada do item de feed para um seguidor específico
+     * (mesmos campos do `feedItem` original, trocando só `userId` pelo
+     * `followerId`) — extraído para ser reutilizado por
+     * `distributePostToFollowers` e `distributeEventToFollowers`, que
+     * distribuem o mesmo formato de item, só que a partir de fontes de
+     * seguidores diferentes.
+     */
+    private buildFollowerFeedItem(feedItem: Omit<FeedItem, "userId">, followerId: string): FeedItem {
+        return {
             userId: followerId,
 
             createdAt: feedItem.createdAt,
@@ -235,11 +250,6 @@ export class FeedFanoutService {
             isSponsored: feedItem.isSponsored,
             isDeleted: feedItem.isDeleted,
             updatedAt: feedItem.updatedAt,
-        }));
-
-        await runFanout(
-            "distributePostToFollowers",
-            feedItems.map((feedItem) => () => this.feedWriter.addItemToUserFeed(feedItem, ttl))
-        );
+        };
     }
 }
