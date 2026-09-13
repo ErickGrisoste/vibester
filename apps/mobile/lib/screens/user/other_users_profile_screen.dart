@@ -7,12 +7,13 @@ import 'package:mobile/utils/username.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
-import 'package:mobile/widgets/common/vibester_image.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
-import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
+import 'package:mobile/widgets/media/profile_photo_viewer.dart';
+import 'package:mobile/widgets/motion/presence_pop.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/motion/vibester_shake.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -46,6 +47,11 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
 
   bool _isFollowing = false;
   bool _loadingFollow = false;
+
+  // Gatilhos de animação do botão, só por ação do usuário: seguir celebra
+  // como confirmar presença; deixar de seguir (ou voltar atrás por erro) treme.
+  int _followPops = 0;
+  int _followShakes = 0;
 
   Future<UserModel> _loadUser() async {
     final currentUserId = context.read<UserProvider>().user?.accountId;
@@ -85,6 +91,11 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
     final seguiaAntes = _isFollowing;
     setState(() {
       _loadingFollow = true;
+      if (seguiaAntes) {
+        _followShakes++;
+      } else {
+        _followPops++;
+      }
       _isFollowing = !seguiaAntes;
       otherUser.seguidores += seguiaAntes ? -1 : 1;
     });
@@ -104,6 +115,8 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        // Voltar atrás por erro treme, nunca celebra.
+        _followShakes++;
         _isFollowing = seguiaAntes;
         otherUser.seguidores += seguiaAntes ? 1 : -1;
       });
@@ -174,6 +187,8 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
                     user: user,
                     isFollowing: _isFollowing,
                     loading: _loadingFollow,
+                    pops: _followPops,
+                    shakes: _followShakes,
                     onFollow: () => _alternarSeguir(user),
                     onShare: _shareProfile,
                   ),
@@ -212,6 +227,8 @@ class _OtherIdentity extends StatelessWidget {
   final UserModel user;
   final bool isFollowing;
   final bool loading;
+  final int pops;
+  final int shakes;
   final VoidCallback onFollow;
   final VoidCallback onShare;
 
@@ -219,6 +236,8 @@ class _OtherIdentity extends StatelessWidget {
     required this.user,
     required this.isFollowing,
     required this.loading,
+    required this.pops,
+    required this.shakes,
     required this.onFollow,
     required this.onShare,
   });
@@ -319,15 +338,9 @@ class _OtherIdentity extends StatelessWidget {
                           child: SizedBox(
                             width: 92,
                             height: 106,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                VibesterImage(
-                                  source: user.fotoPerfil,
-                                  placeholderIcon: Icons.person_outline_rounded,
-                                ),
-                                const Grain(opacity: 0.06, density: 0.5),
-                              ],
+                            child: ProfilePortraitPhoto(
+                              source: user.fotoPerfil,
+                              accountId: user.accountId ?? '',
                             ),
                           ),
                         ),
@@ -409,19 +422,28 @@ class _OtherIdentity extends StatelessWidget {
                 ),
 
                 const SizedBox(height: AppSpacing.xl),
-                VibesterButton(
-                  label: 'Seguir',
-                  successLabel: 'Seguindo',
-                  icon: Icons.person_add_alt_1_rounded,
-                  variant: isFollowing
-                      ? VibesterButtonVariant.outline
-                      : VibesterButtonVariant.primary,
-                  state: loading
-                      ? VibesterButtonState.loading
-                      : isFollowing
-                      ? VibesterButtonState.success
-                      : VibesterButtonState.idle,
-                  onPressed: onFollow,
+                // Seguir celebra como confirmar presença; deixar de seguir (ou
+                // voltar atrás por erro) mantém a tremida.
+                VibesterShake(
+                  trigger: shakes,
+                  child: PresencePop(
+                    trigger: pops,
+                    child: VibesterButton(
+                      shakeOnStateChange: false,
+                      label: 'Seguir',
+                      successLabel: 'Seguindo',
+                      icon: Icons.person_add_alt_1_rounded,
+                      variant: isFollowing
+                          ? VibesterButtonVariant.outline
+                          : VibesterButtonVariant.primary,
+                      state: loading
+                          ? VibesterButtonState.loading
+                          : isFollowing
+                          ? VibesterButtonState.success
+                          : VibesterButtonState.idle,
+                      onPressed: onFollow,
+                    ),
+                  ),
                 ),
               ],
             ),
