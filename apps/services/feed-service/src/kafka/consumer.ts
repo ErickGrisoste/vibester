@@ -30,12 +30,6 @@ export class KafkaConsumer {
     ];
 
     private readonly directTopicHandlers: Record<string, (data: unknown) => Promise<void>> = {
-        "post.liked": async (data: unknown) =>
-            this.feedFanoutService.handlePostLiked(postLikedSchema.parse(data)),
-
-        "post.unliked": async (data: unknown) =>
-            this.feedFanoutService.handlePostUnliked(postUnlikedSchema.parse(data)),
-
         "user.followed": async (data: unknown) =>
             this.followService.handleUserFollowed(followSchema.parse(data)),
 
@@ -46,6 +40,17 @@ export class KafkaConsumer {
     private handlers = {
         "post.created": async (data: unknown) =>
             this.feedFanoutService.handlePostCreated(feedItemSchema.parse(data)),
+
+        // Diferente de "user.followed"/"user.unfollowed" (directTopicHandlers,
+        // payload cru): post-service publica post.liked/post.unliked sempre
+        // através de publishEvent() (src/kafka/events.ts), que embrulha tudo
+        // no envelope genérico {eventId, eventType, data} — então esses dois
+        // precisam do parsing de envelope abaixo, não de directTopicHandlers.
+        "post.liked": async (data: unknown) =>
+            this.feedFanoutService.handlePostLiked(postLikedSchema.parse(data)),
+
+        "post.unliked": async (data: unknown) =>
+            this.feedFanoutService.handlePostUnliked(postUnlikedSchema.parse(data)),
 
         "post.deleted": async (data: unknown) =>
             this.feedFanoutService.handlePostDeleted(postDeletedDataSchema.parse(data)),
