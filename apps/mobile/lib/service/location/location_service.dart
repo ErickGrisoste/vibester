@@ -25,6 +25,21 @@ class LocationService {
       );
     }
 
-    return Geolocator.getCurrentPosition();
+    // Sem timeLimit, getCurrentPosition pode nunca completar (ambiente
+    // fechado, emulador sem posição simulada) e a seção "perto de você"
+    // ficava no skeleton para sempre. Precisão média basta para raio em km e
+    // resolve bem mais rápido que a alta.
+    try {
+      return await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+    } catch (e) {
+      final ultima = await Geolocator.getLastKnownPosition();
+      if (ultima != null) return ultima;
+      rethrow;
+    }
   }
 }
