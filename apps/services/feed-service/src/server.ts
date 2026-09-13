@@ -1,8 +1,8 @@
 import Fastify from "fastify";
-import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import { feedRoutes } from "./routes";
 import { registerSwagger } from "./config/swagger";
+import { registerCorsAndRateLimit } from "./plugins";
 import { KafkaConsumer } from "./kafka/consumer";
 import { FeedFanoutService } from "./services/feed-fanout.service";
 import { FollowService } from "./services/follow.service";
@@ -20,8 +20,9 @@ registerErrorHandler(app);
 let kafkaConsumer: KafkaConsumer | undefined;
 
 async function start() {
-    await app.register(cors, {
-        origin: true,
+    await registerCorsAndRateLimit(app, {
+        corsAllowedOrigins: env.cors_allowed_origins,
+        rateLimitMax: env.rate_limit_max,
     });
 
     await app.register(jwt, { secret: env.jwt_secret });

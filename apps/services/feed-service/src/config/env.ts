@@ -18,6 +18,15 @@ const envSchema = z.object({
     ASTRA_TOKEN: z.string().optional(),
     CASSANDRA_CONTACT_POINTS: z.string().optional(),
     CASSANDRA_LOCAL_DATACENTER: z.string().default("datacenter1"),
+    // Lista separada por vírgula. Ausente/vazia = fallback para `origin: true`
+    // (aceita qualquer origem, com aviso no log) — ver src/plugins.ts.
+    CORS_ALLOWED_ORIGINS: z.string().optional(),
+    // Limite global do rate limit (req/min) da única rota pública hoje
+    // (GET /feed/:userId). 300/min é generoso o suficiente para um client
+    // legítimo paginando/scrollando o feed continuamente, mas ainda barra
+    // abuso básico. Ver src/plugins.ts para o motivo de não haver store
+    // compartilhado (Redis) por trás desse limite neste serviço.
+    RATE_LIMIT_MAX: z.coerce.number().default(300),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -42,4 +51,8 @@ export const env = {
     jwt_secret: _env.JWT_SECRET,
     cassandra_contact_points: _env.CASSANDRA_CONTACT_POINTS,
     cassandra_local_datacenter: _env.CASSANDRA_LOCAL_DATACENTER,
+    cors_allowed_origins: _env.CORS_ALLOWED_ORIGINS
+        ? _env.CORS_ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+        : undefined,
+    rate_limit_max: _env.RATE_LIMIT_MAX,
 };
