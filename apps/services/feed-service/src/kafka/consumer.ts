@@ -13,6 +13,7 @@ import { eventConfirmanceSchema } from "../schema/events/event-confirmance";
 import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
 import { kafka } from "./client";
+import { kafkaHandlerErrorTotal } from "../metrics/registry";
 
 export class KafkaConsumer {
     private consumer: Consumer;
@@ -114,6 +115,13 @@ export class KafkaConsumer {
 
         if (!value) return;
 
+        // Preenchido só quando o envelope genérico ({eventId, eventType, data})
+        // chega a ser parseado com sucesso — tópicos de `directTopicHandlers`
+        // (payload cru, sem envelope) e falhas antes desse ponto (JSON
+        // inválido, envelope fora do schema) ficam com eventType vazio na
+        // métrica abaixo; `topic` sozinho já identifica o caso nesses cenários.
+        let eventType = "";
+
         try {
             const rawEvent = JSON.parse(value);
 
@@ -124,6 +132,7 @@ export class KafkaConsumer {
             }
 
             const event = kafkaEventSchema.parse(rawEvent);
+            eventType = event.eventType;
             const handler = this.handlers[event.eventType as keyof typeof this.handlers];
 
             if (!handler) {
@@ -134,6 +143,7 @@ export class KafkaConsumer {
             await handler(event.data);
         } catch (error) {
             console.error(error);
+            kafkaHandlerErrorTotal.inc({ topic, eventType });
         }
     }
 
