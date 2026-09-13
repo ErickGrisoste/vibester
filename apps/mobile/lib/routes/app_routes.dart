@@ -37,6 +37,12 @@ class AppRoutes {
   static const profile = '/profile';
   static const profileEditing = '/profile-edit';
   static const userInterests = '/user-interests';
+
+  // Mesma tela dos interesses, dentro do cadastro. Existe como nome próprio
+  // porque `initialRoute` do MaterialApp é só uma string e não carrega
+  // `arguments`: retomando o cadastro pelo boot, a tela chegaria como edição
+  // avulsa e daria `pop` numa pilha vazia.
+  static const userInterestsSetup = '/user-interests-setup';
   static const otherProfile = '/other-profile';
 
   //NOTIFICATIONS

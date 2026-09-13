@@ -167,7 +167,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: themeProvider.isDarkMode
                   ? Icons.dark_mode_outlined
                   : Icons.light_mode_outlined,
-              label: 'Modo escuro',
+              label: themeProvider.isDarkMode ? 'Modo escuro' : 'Modo claro',
               trailing: Switch(
                 value: themeProvider.isDarkMode,
                 activeThumbColor: colors.onAmbar,
