@@ -206,7 +206,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         StaggeredEntrance(
                           index: 3,
                           child: _Block(
-                            label: 'O QUE ROLA',
+                            label: 'O QUE ROLA ?',
                             child: Text(
                               _event.informacoes,
                               style: type.bodyLarge.copyWith(
@@ -220,7 +220,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         StaggeredEntrance(
                           index: 4,
                           child: _Block(
-                            label: 'ONDE É',
+                            label: 'ONDE É ?',
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -256,7 +256,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
                       if (_event.organizador.isNotEmpty)
                         _Block(
-                          label: 'QUEM FAZ',
+                          label: 'QUEM FAZ ?',
                           child: Text(
                             _event.organizador,
                             style: type.bodyLarge.copyWith(

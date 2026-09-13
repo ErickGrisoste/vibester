@@ -4,6 +4,7 @@ import 'package:mobile/models/media/media_item.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
@@ -118,14 +119,16 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
       if (!mounted) return;
       context.read<UserProvider>().setUser(usuarioAtualizado);
 
-      // Esta tela só existe dentro do cadastro hoje, então os interesses que
-      // ela abre são o passo seguinte do fluxo, não uma edição. No dia em que
-      // existir um "editar perfil" a partir do perfil, este `true` precisa
-      // virar um flag desta tela também.
-      Navigator.pushNamed(
+      // Próxima etapa gravada antes de navegar (ver AuthStorageService).
+      await AuthStorageService.marcarEtapa(EtapaCadastro.interesses);
+      if (!mounted) return;
+
+      // Rota de cadastro dos interesses, não a de edição: descarta a pilha e
+      // abre a tela sem seta de voltar.
+      Navigator.pushNamedAndRemoveUntil(
         context,
-        AppRoutes.userInterests,
-        arguments: true,
+        AppRoutes.userInterestsSetup,
+        (route) => false,
       );
     } catch (e) {
       debugPrint(e.toString());

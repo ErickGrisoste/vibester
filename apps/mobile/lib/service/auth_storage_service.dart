@@ -2,9 +2,41 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:mobile/models/user/user_model.dart';
 
+/// Passo do cadastro que o usuário ainda não concluiu.
+///
+/// A conta nasce no `EmailConfirmScreen`, mas o cadastro só termina depois de
+/// perfil, interesses e apresentação. Entre esses dois momentos existe um
+/// estado — "tem conta, cadastro inacabado" — que o app não sabia nomear: ele
+/// conhecia só "sem conta", "onboarding pendente" e "pronto". Fechar o app na
+/// edição de perfil caía na home com o cadastro pela metade, para sempre.
+///
+/// Cada passo grava a etapa seguinte **antes** de navegar. Como o fluxo
+/// descarta a pilha a cada passo, esta marca é a única memória de onde o
+/// usuário parou; gravando depois, um encerramento naquele instante deixaria
+/// o cadastro órfão. Gravando antes, o pior caso é reabrir um passo atrás.
+enum EtapaCadastro {
+  perfil,
+  interesses,
+  apresentacao;
+
+  static EtapaCadastro? porNome(String? nome) {
+    for (final etapa in EtapaCadastro.values) {
+      if (etapa.name == nome) return etapa;
+    }
+    return null;
+  }
+}
+
 class AuthStorageService {
   static const _storage = FlutterSecureStorage();
   static const _sessionKey = 'user_session';
+  static const _etapaKey = 'etapa_cadastro';
+
+  /// Chave da versão anterior, que só marcava a apresentação.
+  ///
+  /// Mantida apenas para leitura: quem atualizar o app no meio do onboarding
+  /// tem esta gravada e nenhuma etapa. Sem a conversão, essas contas cairiam
+  /// direto na home e nunca mais veriam a apresentação.
   static const _onboardingKey = 'onboarding_pendente';
 
   static Future<void> saveSession(UserModel user) async {
@@ -54,24 +86,34 @@ class AuthStorageService {
     }
   }
 
-  /// Marcado ao entrar no onboarding e apagado no "Comecar". Se o usuario
-  /// fechar o app no meio, a marca sobrevive e ele volta para o onboarding.
-  /// Contas antigas nunca tiveram a chave gravada, entao continuam indo
+  /// Grava o passo em que o cadastro está. Chamar antes de navegar.
+  static Future<void> marcarEtapa(EtapaCadastro etapa) async {
+    await _storage.write(key: _etapaKey, value: etapa.name);
+  }
+
+  /// Etapa em aberto, ou `null` se não há cadastro pela metade.
+  ///
+  /// Contas antigas nunca gravaram nenhuma das duas chaves e continuam indo
   /// direto para a home.
-  static Future<void> marcarOnboardingPendente() async {
-    await _storage.write(key: _onboardingKey, value: 'true');
+  static Future<EtapaCadastro?> etapaPendente() async {
+    final etapa = EtapaCadastro.porNome(await _storage.read(key: _etapaKey));
+    if (etapa != null) return etapa;
+
+    if (await _storage.read(key: _onboardingKey) == 'true') {
+      return EtapaCadastro.apresentacao;
+    }
+    return null;
   }
 
-  static Future<void> concluirOnboarding() async {
+  /// Cadastro terminado: some com a marca dos dois formatos.
+  static Future<void> concluirCadastro() async {
+    await _storage.delete(key: _etapaKey);
     await _storage.delete(key: _onboardingKey);
-  }
-
-  static Future<bool> onboardingPendente() async {
-    return await _storage.read(key: _onboardingKey) == 'true';
   }
 
   static Future<void> clearSession() async {
     await _storage.delete(key: _sessionKey);
+    await _storage.delete(key: _etapaKey);
     await _storage.delete(key: _onboardingKey);
   }
 }

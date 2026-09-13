@@ -84,10 +84,22 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
 
       await AuthStorageService.saveSession(usuarioLogado);
 
+      // Primeira etapa do cadastro, gravada antes de navegar: a partir daqui
+      // a pilha é descartada a cada passo, então esta marca é a única coisa
+      // que sabe onde o usuário parou se o app for fechado.
+      await AuthStorageService.marcarEtapa(EtapaCadastro.perfil);
+
       if (!mounted) return;
       context.read<UserProvider>().setUser(usuarioLogado);
 
-      Navigator.pushNamed(context, AppRoutes.profileEditing);
+      // A conta existe e a sessão está salva: register e email-confirm não
+      // podem continuar alcançáveis pelo voltar. Antes ficavam na pilha, e o
+      // usuário já logado caminhava de volta para a tela de criar conta.
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.profileEditing,
+        (route) => false,
+      );
     } catch (e) {
       debugPrint(e.toString());
       ApiClient.token = null;

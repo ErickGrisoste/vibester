@@ -77,7 +77,7 @@ void main() async {
   // pra a régua de categorias da Home já nascer na ordem do usuário.
   await InterestsStorage.restore();
   var savedUser = await AuthStorageService.loadSession();
-  final onboardingPendente = await AuthStorageService.onboardingPendente();
+  final etapaPendente = await AuthStorageService.etapaPendente();
   // JWT vencido não é sessão: restaurar abriria a home com o feed recusando
   // tudo com 401. Descarta e começa pela tela inicial.
   final savedToken = savedUser?.token;
@@ -98,7 +98,7 @@ void main() async {
   runApp(
     MyApp(
       savedUser: savedUser,
-      onboardingPendente: onboardingPendente,
+      etapaPendente: etapaPendente,
       initialThemeMode: initialThemeMode,
       sessaoExpirada: sessaoExpirada,
     ),
@@ -107,8 +107,10 @@ void main() async {
 
 class MyApp extends StatefulWidget {
   final UserModel? savedUser;
-  final bool onboardingPendente;
   final ThemeMode initialThemeMode;
+
+  /// Passo do cadastro deixado pela metade, ou `null` se não há.
+  final EtapaCadastro? etapaPendente;
 
   /// A sessão salva foi descartada no boot por token vencido. O app avisa e
   /// leva ao login, em vez de abrir a capa como se nunca tivesse havido conta.
@@ -117,7 +119,7 @@ class MyApp extends StatefulWidget {
   const MyApp({
     super.key,
     this.savedUser,
-    this.onboardingPendente = false,
+    this.etapaPendente,
     required this.initialThemeMode,
     this.sessaoExpirada = false,
   });
@@ -280,13 +282,18 @@ class _MyAppState extends State<MyApp> {
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: themeProvider.themeMode,
-          // Sessao salva com onboarding pendente = o app foi fechado no meio
-          // do onboarding; retoma dali em vez de pular direto para a home.
+          // A conta nasce na confirmação do e-mail, mas o cadastro só termina
+          // na apresentação. Fechar o app entre os dois deixa uma etapa
+          // gravada, e é ela que diz onde retomar — sem isso o app abria na
+          // home com perfil e interesses em branco, sem perguntar mais nada.
           initialRoute: widget.savedUser == null
               ? AppRoutes.initialScreen
-              : (widget.onboardingPendente
-                    ? AppRoutes.onboarding
-                    : AppRoutes.home),
+              : switch (widget.etapaPendente) {
+                  EtapaCadastro.perfil => AppRoutes.profileEditing,
+                  EtapaCadastro.interesses => AppRoutes.userInterestsSetup,
+                  EtapaCadastro.apresentacao => AppRoutes.onboarding,
+                  null => AppRoutes.home,
+                },
           onGenerateRoute: (settings) {
             switch (settings.name) {
               // EVENTS
@@ -381,13 +388,16 @@ class _MyAppState extends State<MyApp> {
                   settings,
                 );
               case AppRoutes.userInterests:
-                // `arguments: true` só vem do cadastro (ver
-                // ProfileEditingScreen). Sem argumento a tela é uma edição
-                // avulsa e apenas volta ao fechar.
+                // Edição avulsa, vinda das configurações: salva e volta.
                 return vibesterSlideRoute(
-                  UserInterestsScreen(
-                    noCadastro: settings.arguments as bool? ?? false,
-                  ),
+                  const UserInterestsScreen(),
+                  settings,
+                );
+              case AppRoutes.userInterestsSetup:
+                // Mesma tela como passo do cadastro: sem seta de voltar, e ao
+                // concluir segue para a apresentação descartando a pilha.
+                return vibesterSlideRoute(
+                  const UserInterestsScreen(noCadastro: true),
                   settings,
                 );
               case AppRoutes.otherProfile:
