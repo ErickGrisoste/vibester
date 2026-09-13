@@ -1,4 +1,5 @@
 import { insertNotification } from "../../services/insertNotification.service";
+import { unwrapEventData } from "../envelope";
 
 interface PostCommentedEvent {
   postId: string;
@@ -10,7 +11,7 @@ interface PostCommentedEvent {
 
 export async function handlePostCommentedEvent(value: string): Promise<void> {
   try {
-    const event: PostCommentedEvent = JSON.parse(value);
+    const event = unwrapEventData<PostCommentedEvent>(JSON.parse(value));
     const commenterId = event.commentedByUserId || event.userId;
 
     if (!event.postId || !event.postOwnerId || !commenterId) return;

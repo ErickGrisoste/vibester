@@ -23,6 +23,19 @@ describe("handlePostLikedEvent", () => {
         expect(mockInsertNotification).toHaveBeenCalledWith("like", "owner-1", "liker-1", "post-1");
     });
 
+    it("unwraps the envelope published by post-service (publishEvent)", async () => {
+        await handlePostLikedEvent(
+            JSON.stringify({
+                eventId: "evt-1",
+                eventType: "post.liked",
+                occurredAt: "2026-09-13T12:00:00.000Z",
+                data: { postId: "post-1", postOwnerId: "owner-1", likedByUserId: "liker-1" },
+            }),
+        );
+
+        expect(mockInsertNotification).toHaveBeenCalledWith("like", "owner-1", "liker-1", "post-1");
+    });
+
     it("uses userId as a fallback for likerId when likedByUserId is absent", async () => {
         await handlePostLikedEvent(JSON.stringify({ postId: "post-1", postOwnerId: "owner-1", userId: "liker-2" }));
 

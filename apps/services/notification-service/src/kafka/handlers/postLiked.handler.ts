@@ -1,4 +1,5 @@
 import { insertNotification } from "../../services/insertNotification.service";
+import { unwrapEventData } from "../envelope";
 
 interface PostLikedEvent {
   postId: string;
@@ -9,7 +10,7 @@ interface PostLikedEvent {
 
 export async function handlePostLikedEvent(value: string): Promise<void> {
   try {
-    const event: PostLikedEvent = JSON.parse(value);
+    const event = unwrapEventData<PostLikedEvent>(JSON.parse(value));
     const likerId = event.likedByUserId || event.userId;
 
     if (!event.postId || !event.postOwnerId || !likerId) return;

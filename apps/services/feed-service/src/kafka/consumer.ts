@@ -11,6 +11,7 @@ import { eventConfirmanceSchema } from "../schema/events/event-confirmance";
 import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
 import { kafka } from "./client";
+import { unwrapEventData } from "./envelope";
 
 const DIRECT_PAYLOAD_TOPICS: Record<string, (data: unknown) => Promise<void>> = {};
 
@@ -112,7 +113,7 @@ export class KafkaConsumer {
 
             const directHandler = this.directTopicHandlers[topic];
             if (directHandler) {
-                await directHandler(rawEvent);
+                await directHandler(unwrapEventData(rawEvent));
                 return;
             }
 
