@@ -15,6 +15,7 @@ import 'package:mobile/widgets/common/vibester_chip.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/indicators/movement_indicator.dart';
+import 'package:mobile/widgets/media/profile_photo_viewer.dart';
 import 'package:mobile/widgets/motion/double_tap_like.dart';
 import 'package:mobile/widgets/motion/like_heart.dart';
 import 'package:mobile/widgets/navigation/navbar_background.dart';
@@ -74,37 +75,36 @@ void main() {
       });
     }
 
-    testWidgets(
-      'variante wide não estoura dentro de coluna com altura livre '
-      '(caso real: seção "Essa semana" da Home, dentro de um sliver)',
-      (tester) async {
-        // Diferente de `pumpComponent` (que centraliza o card com altura
-        // limitada pelo Scaffold), aqui o card fica dentro de um
-        // `SingleChildScrollView` > `Column` — o mesmo tipo de altura
-        // irrestrita que um `SliverToBoxAdapter` passa adiante. É esse
-        // contexto que expunha o `BoxConstraints` infinito em `_DateBlock`.
-        await tester.pumpWidget(
-          MaterialApp(
-            theme: AppTheme.dark,
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    EventPosterCard(
-                      event: evento(),
-                      variant: EventCardVariant.wide,
-                      hero: false,
-                    ),
-                  ],
-                ),
+    testWidgets('variante wide não estoura dentro de coluna com altura livre '
+        '(caso real: seção "Essa semana" da Home, dentro de um sliver)', (
+      tester,
+    ) async {
+      // Diferente de `pumpComponent` (que centraliza o card com altura
+      // limitada pelo Scaffold), aqui o card fica dentro de um
+      // `SingleChildScrollView` > `Column` — o mesmo tipo de altura
+      // irrestrita que um `SliverToBoxAdapter` passa adiante. É esse
+      // contexto que expunha o `BoxConstraints` infinito em `_DateBlock`.
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: Column(
+                children: [
+                  EventPosterCard(
+                    event: evento(),
+                    variant: EventCardVariant.wide,
+                    hero: false,
+                  ),
+                ],
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        expect(tester.takeException(), isNull);
-      },
-    );
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('marca "ROLANDO AGORA" só quando o horário sustenta', (
       tester,
@@ -857,6 +857,47 @@ void main() {
     test('sobre âmbar, a escolha é a tinta escura, não o branco', () {
       expect(AppColors.dark.onAmbar, AppColors.ink);
       expect(AppColors.dark.onBrasa, AppColors.ink);
+    });
+  });
+
+  group('ProfilePortraitPhoto', () {
+    Widget retrato(String source) => SizedBox(
+      width: 92,
+      height: 106,
+      child: ProfilePortraitPhoto(source: source, accountId: 'account-1'),
+    );
+
+    testWidgets('toque amplia a foto e o fechar volta ao perfil', (
+      tester,
+    ) async {
+      await pumpComponent(tester, retrato('assets/img/bares.jpg'));
+
+      await tester.tap(find.bySemanticsLabel('Ampliar foto de perfil'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ProfilePhotoViewer), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel('Fechar foto'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ProfilePhotoViewer), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('arrastar para baixo fecha a foto', (tester) async {
+      await pumpComponent(tester, retrato('assets/img/bares.jpg'));
+
+      await tester.tap(find.bySemanticsLabel('Ampliar foto de perfil'));
+      await tester.pumpAndSettle();
+
+      // Do meio da tela, sobre a foto (o botão de fechar fica no canto).
+      final meio = tester.view.physicalSize.center(Offset.zero);
+      await tester.flingFrom(meio, const Offset(0, 300), 1500);
+      await tester.pumpAndSettle();
+      expect(find.byType(ProfilePhotoViewer), findsNothing);
+    });
+
+    testWidgets('sem foto não há o que ampliar', (tester) async {
+      await pumpComponent(tester, retrato(''));
+      expect(find.bySemanticsLabel('Ampliar foto de perfil'), findsNothing);
     });
   });
 }
