@@ -464,14 +464,14 @@ class _PlaceAddress extends StatelessWidget {
             Icon(
               Icons.location_on_outlined,
               size: 18,
-              color: colors.textDisabled,
+              color: colors.brasa,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 endereco,
                 style: context.typography.bodyMedium.copyWith(
-                  color: colors.textSecondary,
+                  color: colors.textPrimary,
                 ),
               ),
             ),

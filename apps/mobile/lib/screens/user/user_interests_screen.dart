@@ -69,9 +69,10 @@ class _UserInterestsScreenState extends State<UserInterestsScreen> {
       return;
     }
 
-    // Marca o onboarding como pendente antes de abri-lo, para que ele
-    // reapareça se o app for fechado no meio.
-    await AuthStorageService.marcarOnboardingPendente();
+    // Última etapa do cadastro, gravada antes de navegar (ver
+    // AuthStorageService). É ela que devolve o usuário para a apresentação se
+    // o app for fechado no meio.
+    await AuthStorageService.marcarEtapa(EtapaCadastro.apresentacao);
     if (!mounted) return;
 
     // Fim do fluxo de cadastro: remove register, email-confirm, profile-edit e
@@ -98,9 +99,13 @@ class _UserInterestsScreenState extends State<UserInterestsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const ScreenHeader(
+                // Dentro do cadastro a pilha está vazia embaixo desta tela:
+                // a seta ficaria visível sem ter para onde voltar. Vindo das
+                // configurações ela é uma tela comum e a seta funciona.
+                ScreenHeader(
                   title: 'O que você\ncurte?',
                   eyebrow: 'SUA VIBE',
+                  showBack: !noCadastro,
                 ),
                 Expanded(
                   child: SingleChildScrollView(
