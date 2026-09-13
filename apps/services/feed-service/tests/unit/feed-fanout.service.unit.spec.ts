@@ -7,7 +7,7 @@ vi.mock("../../src/config/cassandra", () => ({
   getCassandraClient: () => ({ execute: mockExecute }),
 }));
 
-import { FeedService } from "../../src/services/feed.service";
+import { FeedFanoutService } from "../../src/services/feed-fanout.service";
 import { FeedItemType } from "../../src/types/feed.types";
 
 const AUTHOR_ID = "a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5";
@@ -24,18 +24,18 @@ const LIKE_EVENT = {
   createdAt: ISO_DATE,
 };
 
-describe("FeedService — Unitários", () => {
-  let feedService: FeedService;
+describe("FeedFanoutService — Unitários", () => {
+  let feedFanoutService: FeedFanoutService;
 
   beforeEach(() => {
     vi.resetAllMocks();
     mockExecute.mockResolvedValue({ rows: [] });
-    feedService = new FeedService();
+    feedFanoutService = new FeedFanoutService();
   });
 
   describe("handlePostCreated — ESTABLISHMENT_POST", () => {
     it("salva post do estabelecimento sem seguidores", async () => {
-      await feedService.handlePostCreated({
+      await feedFanoutService.handlePostCreated({
         itemId: POST_ID,
         itemType: FeedItemType.ESTABLISHMENT_POST,
         authorId: ESTAB_ID,
@@ -59,7 +59,7 @@ describe("FeedService — Unitários", () => {
         .mockResolvedValueOnce({ rows: [{ follower_id: FOLLOWER_ID }] }) // findFollowersByEstablishment
         .mockResolvedValue({ rows: [] }); // addItemToUserFeed
 
-      await feedService.handlePostCreated({
+      await feedFanoutService.handlePostCreated({
         itemId: POST_ID,
         itemType: FeedItemType.ESTABLISHMENT_POST,
         authorId: ESTAB_ID,
@@ -93,52 +93,18 @@ describe("FeedService — Unitários", () => {
         createdAt: new Date(ISO_DATE),
       };
 
-      await expect(feedService.distributePostToFollowers(feedItem as any))
+      await expect(feedFanoutService.distributePostToFollowers(feedItem as any))
         .rejects.toThrow("Unsupported feed item type");
     });
   });
 
-  describe("getFeedByUser", () => {
-    it("retorna items e nextCursor quando há conteúdo", async () => {
-      const createdAt = new Date("2024-01-15T10:00:00Z");
-      mockExecute.mockResolvedValueOnce({ rows: [{ created_at: createdAt }] });
-
-      const result = await feedService.getFeedByUser("user-123", 20);
-
-      expect(result.items).toHaveLength(1);
-      expect(result.nextCursor).toEqual(createdAt);
-    });
-
-    it("retorna nextCursor nulo quando feed está vazio", async () => {
-      mockExecute.mockResolvedValueOnce({ rows: [] });
-
-      const result = await feedService.getFeedByUser("user-123", 20);
-
-      expect(result.items).toHaveLength(0);
-      expect(result.nextCursor).toBeNull();
-    });
-
-    it("passa cursor ao repositório quando fornecido", async () => {
-      const cursor = new Date("2024-01-10T00:00:00Z");
-      mockExecute.mockResolvedValueOnce({ rows: [] });
-
-      await feedService.getFeedByUser("user-123", 10, cursor);
-
-      expect(mockExecute).toHaveBeenCalledWith(
-        expect.stringContaining("created_at < ?"),
-        expect.arrayContaining([cursor]),
-        expect.anything()
-      );
-    });
-  });
-
-  describe("handleEventCreated — EVENT_ESTABLISHMENT", () => {
+  describe("handleEventCreated — EVENT", () => {
     it("salva evento de estabelecimento e distribui para seguidores", async () => {
       const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      await feedService.handleEventCreated({
+      await feedFanoutService.handleEventCreated({
         itemId: "evt-id",
-        itemType: FeedItemType.EVENT_ESTABLISHMENT,
+        itemType: FeedItemType.EVENT,
         authorId: ESTAB_ID,
         authorUsername: "Estab Bar",
         authorVerified: false,
@@ -168,7 +134,7 @@ describe("FeedService — Unitários", () => {
       });
       mockExecute.mockResolvedValueOnce({ rows: [] });
 
-      await feedService.handlePostLiked(LIKE_EVENT);
+      await feedFanoutService.handlePostLiked(LIKE_EVENT);
 
       expect(mockExecute).toHaveBeenCalledTimes(2);
       expect(mockExecute).toHaveBeenNthCalledWith(
@@ -182,7 +148,7 @@ describe("FeedService — Unitários", () => {
     it("não executa UPDATE quando a entrada não existe no feed", async () => {
       mockExecute.mockResolvedValueOnce({ rows: [] });
 
-      await feedService.handlePostLiked(LIKE_EVENT);
+      await feedFanoutService.handlePostLiked(LIKE_EVENT);
 
       expect(mockExecute).toHaveBeenCalledTimes(1);
       expect(mockExecute).not.toHaveBeenCalledWith(
@@ -200,7 +166,7 @@ describe("FeedService — Unitários", () => {
       });
       mockExecute.mockResolvedValueOnce({ rows: [] });
 
-      await feedService.handlePostUnliked(LIKE_EVENT);
+      await feedFanoutService.handlePostUnliked(LIKE_EVENT);
 
       expect(mockExecute).toHaveBeenCalledTimes(2);
       expect(mockExecute).toHaveBeenNthCalledWith(
@@ -214,7 +180,7 @@ describe("FeedService — Unitários", () => {
     it("não executa UPDATE quando a entrada não existe no feed", async () => {
       mockExecute.mockResolvedValueOnce({ rows: [] });
 
-      await feedService.handlePostUnliked(LIKE_EVENT);
+      await feedFanoutService.handlePostUnliked(LIKE_EVENT);
 
       expect(mockExecute).toHaveBeenCalledTimes(1);
       expect(mockExecute).not.toHaveBeenCalledWith(
