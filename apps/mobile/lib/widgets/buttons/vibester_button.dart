@@ -53,6 +53,11 @@ class VibesterButton extends StatelessWidget {
   final String? successLabel;
   final String? errorLabel;
 
+  /// Treme a cada troca de [state]. Desligue quando a tela coreografa a
+  /// própria reação (ver a confirmação de presença do evento), para as duas
+  /// animações não disputarem o mesmo toque.
+  final bool shakeOnStateChange;
+
   const VibesterButton({
     super.key,
     required this.label,
@@ -64,6 +69,7 @@ class VibesterButton extends StatelessWidget {
     this.compact = false,
     this.successLabel,
     this.errorLabel,
+    this.shakeOnStateChange = true,
   });
 
   bool get _isBusy => state == VibesterButtonState.loading;
@@ -157,7 +163,7 @@ class VibesterButton extends StatelessWidget {
       enabled: !disabled,
       label: text,
       child: VibesterShake(
-        trigger: state,
+        trigger: shakeOnStateChange ? state : null,
         child: Opacity(
           opacity: onPressed == null ? 0.45 : 1,
           child: VibesterPressable(
