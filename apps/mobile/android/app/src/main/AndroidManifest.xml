@@ -10,12 +10,20 @@
   <uses-feature android:name="android.hardware.camera" android:required="false"/>
   <!-- O camera_android_camerax também declara `camera.any` (obrigatória) e
        escrita em armazenamento. A feature vira opcional pelo mesmo motivo
-       acima; a escrita sai porque foto e vídeo gravam no cache do próprio app. -->
+       acima. -->
   <uses-feature
       android:name="android.hardware.camera.any"
       android:required="false"
       tools:replace="android:required"/>
-  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
+  <!-- Cópia das capturas para o álbum "Vibester" da galeria (pacote gal).
+       Foto e vídeo continuam gravando no cache do app; esta permissão é só
+       para a cópia, e só em Android 10 ou anterior — do 11 em diante o
+       MediaStore dispensa permissão. O camera_android_camerax declara a
+       mesma linha com 28, daí o `tools:replace`. -->
+  <uses-permission
+      android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+      android:maxSdkVersion="29"
+      tools:replace="android:maxSdkVersion"/>
   <!-- A galeria usa o Photo Picker do sistema (obrigatório no Android 13+),
        que não exige permissão: READ_MEDIA_IMAGES saiu. A leitura de
        armazenamento fica só para Android 12 ou anterior. -->
@@ -28,7 +36,8 @@
     <application
         android:label="mobile"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

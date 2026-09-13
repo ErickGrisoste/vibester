@@ -47,8 +47,10 @@
 	<string>O Vibester usa a câmera para você tirar fotos e gravar vídeos para seus posts e para a sua foto de perfil.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>O Vibester usa o microfone para gravar o som dos vídeos que você posta.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>O Vibester guarda no álbum "Vibester" uma cópia das fotos e vídeos que você grava pelo app.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>O Vibester acessa suas fotos e vídeos para você escolher o que postar e a sua foto de perfil.</string>
+	<string>O Vibester acessa suas fotos e vídeos para você escolher o que postar, para a sua foto de perfil e para guardar suas capturas no álbum "Vibester".</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Precisamos da sua localização para mostrar eventos e estabelecimentos próximos a você.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
