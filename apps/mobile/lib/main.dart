@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/models/user/user_model.dart';
+import 'package:mobile/service/media/image_cache.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/service/user/user_service.dart';
@@ -40,7 +41,6 @@ import 'package:mobile/screens/register/recover_password_screen.dart';
 import 'package:mobile/screens/register/register_screen.dart';
 import 'package:mobile/screens/register/reset_password_screen.dart';
 import 'package:mobile/screens/explore/explore_screen.dart';
-import 'package:mobile/screens/settings/account_management_settings_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
 import 'package:mobile/screens/user/other_users_profile_screen.dart';
@@ -65,12 +65,9 @@ class _NoBounceScrollBehavior extends ScrollBehavior {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Aumenta o cache de imagens em memória do Flutter (padrão é só 100MB /
-  // 1000 imagens). Com o padrão, abrir uma tela com fotos grandes (ex:
-  // detalhe de post) evictava as miniaturas de outras telas (ex: grid do
-  // perfil), fazendo elas "recarregarem" visualmente ao voltar.
-  PaintingBinding.instance.imageCache.maximumSize = 300;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 200 << 20; // 200MB
+  // Limites do cache de imagem em memória — o motivo de cada número vive
+  // junto do cache de disco, em lib/service/media/image_cache.dart.
+  VibesterImageCache.configureMemoryCache();
 
   await initializeDateFormatting('pt_BR', null);
   // Interesses escolhidos no onboarding: restaurados antes da primeira tela
@@ -366,11 +363,6 @@ class _MyAppState extends State<MyApp> {
                 return vibesterSlideRoute(const ExploreScreen(), settings);
 
               // SETTINGS
-              case AppRoutes.accountManagementSettings:
-                return vibesterSlideRoute(
-                  const AccountManagementSettingsScreen(),
-                  settings,
-                );
               case AppRoutes.settings:
                 return vibesterSlideRoute(const SettingsScreen(), settings);
               case AppRoutes.personalInformationSettings:

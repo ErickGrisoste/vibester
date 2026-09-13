@@ -20,10 +20,8 @@ import 'package:url_launcher/url_launcher.dart';
 /// quebra assim que o texto de um item quebra em duas linhas — e apresentava
 /// como iguais tanto os itens que funcionavam quanto os oito que tinham
 /// `onTap: () {}`. Aqui os grupos são apenas rótulos em DM Mono sobre linhas
-/// separadas por fio, a altura vem do conteúdo, e **o que ainda não existe é
-/// mostrado como não existente**: item apagado, sem toque, com o selo "EM
-/// BREVE". Prometer um destino que não abre é pior que assumir que ele ainda
-/// não está pronto.
+/// separadas por fio, a altura vem do conteúdo, e **o que ainda não existe não
+/// aparece**: nada de item "em breve" prometendo um destino que não abre.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -148,19 +146,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 AppRoutes.personalInformationSettings,
               ),
             ),
-            const SettingsRow(
-              icon: Icons.shield_outlined,
-              label: 'Segurança',
-              comingSoon: true,
-            ),
-            SettingsRow(
-              icon: Icons.manage_accounts_outlined,
-              label: 'Gerenciamento de conta',
-              onTap: () => Navigator.pushNamed(
-                context,
-                AppRoutes.accountManagementSettings,
-              ),
-            ),
 
             const SettingsGroupLabel('APARÊNCIA'),
             SettingsRow(
@@ -178,11 +163,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
 
             const SettingsGroupLabel('PRIVACIDADE'),
-            const SettingsRow(
-              icon: Icons.my_location_outlined,
-              label: 'Permissões de localização',
-              comingSoon: true,
-            ),
             SettingsRow(
               icon: FontAwesomeIcons.ghost.data,
               label: 'Ghost vibe',
@@ -196,23 +176,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onChanged: (value) => setState(() => _modoFantasma = value),
               ),
             ),
-            const SettingsRow(
-              icon: Icons.visibility_outlined,
-              label: 'Visualizar vibe checks',
-              comingSoon: true,
-            ),
-
-            const SettingsGroupLabel('NOTIFICAÇÕES'),
-            const SettingsRow(
-              icon: Icons.people_outline_rounded,
-              label: 'Amigos na área',
-              comingSoon: true,
-            ),
-            const SettingsRow(
-              icon: Icons.event_note_outlined,
-              label: 'Atualizações de eventos',
-              comingSoon: true,
-            ),
 
             const SettingsGroupLabel('VIBESTER CLUB'),
             SettingsRow(
@@ -222,23 +185,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               accent: true,
               loading: _carregandoCheckout,
               onTap: _abrirCheckoutPromocoes,
-            ),
-
-            const SettingsGroupLabel('AJUDA'),
-            const SettingsRow(
-              icon: Icons.help_outline_rounded,
-              label: 'Central de ajuda',
-              comingSoon: true,
-            ),
-            const SettingsRow(
-              icon: Icons.card_giftcard_outlined,
-              label: 'Convidar um amigo',
-              comingSoon: true,
-            ),
-            const SettingsRow(
-              icon: Icons.description_outlined,
-              label: 'Termos e política',
-              comingSoon: true,
             ),
 
             const SizedBox(height: AppSpacing.xxl),

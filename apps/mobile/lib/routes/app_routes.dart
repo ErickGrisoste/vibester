@@ -29,7 +29,6 @@ class AppRoutes {
   static const search = '/search';
 
   //SETTINGS
-  static const accountManagementSettings = '/account-management-settings';
   static const settings = '/settings';
   static const personalInformationSettings = '/personal-information-settings';
 

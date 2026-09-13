@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mobile/models/media/media_item.dart';
+import 'package:mobile/service/media/image_cache.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
 import 'package:mobile/service/api_error.dart';
@@ -115,6 +117,15 @@ class MediaUploadService {
       for (var w = 0; w < math.min(_maxParallelUploads, files.length); w++)
         worker(),
     ]);
+
+    // O arquivo local é idêntico ao que subiu: fica no cache sob a URL
+    // pública, e a foto recém-publicada aparece sem ser baixada de volta.
+    // Sem await — o cache não pode atrasar nem derrubar a publicação.
+    for (var i = 0; i < files.length; i++) {
+      unawaited(
+        VibesterImageCache.seed(_normalizeUrl(targets[i].publicUrl), files[i]),
+      );
+    }
 
     var cursor = 0;
     return [
