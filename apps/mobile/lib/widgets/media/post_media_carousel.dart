@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/models/media/post_media.dart';
+import 'package:mobile/service/media/image_cache.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
@@ -42,9 +43,24 @@ class _PostMediaCarouselState extends State<PostMediaCarousel> {
   int _page = 0;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.media.length > 1) _warmAround(0);
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Só a vizinha seguinte: pré-carregar o carrossel inteiro gastaria o plano
+  /// de dados de quem rola o feed sem arrastar nenhum post.
+  void _warmAround(int page) {
+    final next = page + 1;
+    if (next < widget.media.length) {
+      VibesterImageCache.warm(widget.media[next].coverUrl);
+    }
   }
 
   Widget _item(PostMedia media) {
@@ -79,7 +95,10 @@ class _PostMediaCarouselState extends State<PostMediaCarousel> {
         PageView.builder(
           controller: _controller,
           itemCount: media.length,
-          onPageChanged: (i) => setState(() => _page = i),
+          onPageChanged: (i) {
+            setState(() => _page = i);
+            _warmAround(i);
+          },
           itemBuilder: (context, i) => _item(media[i]),
         ),
         Positioned(

@@ -142,6 +142,8 @@ class EventPosterCard extends StatelessWidget {
       source: event.imageUrl,
       alignment: Alignment.topCenter,
       placeholderIcon: Icons.local_activity_outlined,
+      // Mesma decodificação do detalhe: o cartaz voa pronto no Hero.
+      fullResolution: hero,
     );
     return hero ? Hero(tag: eventImageHeroTag(event), child: image) : image;
   }

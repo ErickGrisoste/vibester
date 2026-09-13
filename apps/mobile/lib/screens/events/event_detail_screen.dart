@@ -327,6 +327,7 @@ class _EventHero extends StatelessWidget {
                 source: event.imageUrl,
                 alignment: Alignment.topCenter,
                 placeholderIcon: Icons.local_activity_outlined,
+                fullResolution: true,
               ),
             ),
             const Grain(opacity: 0.07, density: 0.45),
