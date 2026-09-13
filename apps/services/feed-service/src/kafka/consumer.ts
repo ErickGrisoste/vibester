@@ -55,11 +55,14 @@ export class KafkaConsumer {
         "post.stats.updated": async (data: unknown) =>
             this.feedFanoutService.handlePostStatsUpdated(postStatsUpdatedSchema.parse(data)),
 
-        "user.followed": async (data: unknown) =>
-            this.followService.handleUserFollowed(followSchema.parse(data)),
-
-        "user.unfollowed": async (data: unknown) =>
-            this.followService.handleUserUnfollowed(followSchema.parse(data)),
+        // "user.followed"/"user.unfollowed" NÃO entram aqui (convenção de
+        // envelope genérico sobre o tópico "users"): o produtor real
+        // (user-service, editProfile.service.ts) publica direto nos tópicos
+        // "user.followed"/"user.unfollowed" com payload cru
+        // ({followerId, followingId}/{followerId, followedId}), sem envelope
+        // {eventId, eventType, data} — ver directTopicHandlers abaixo. Manter
+        // as duas entradas era ambiguidade de contrato sem produtor real do
+        // lado do envelope.
 
         "establishment.followed": async (data: unknown) =>
             this.followService.handleEstablishmentFollowed(followSchema.parse(data)),
