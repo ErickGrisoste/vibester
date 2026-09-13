@@ -94,9 +94,12 @@ describe('feed-service — HTTP Integration', () => {
       const res = await app.inject({ method: 'GET', url: `/feed/${USER_ID}?limit=5`, headers: { authorization: authHeader } });
 
       expect(res.statusCode).toBe(200);
+      // FeedRepository.findByUser busca `limit + 1` (6) internamente — a linha extra
+      // é só para detectar empate de `created_at` no corte da página (ver
+      // extendPageAcrossTiedTimestamps); a resposta ao cliente continua limitada a 5.
       expect(mockExecute).toHaveBeenCalledWith(
         expect.stringContaining('LIMIT'),
-        expect.arrayContaining([USER_ID, 5]),
+        expect.arrayContaining([USER_ID, 6]),
         expect.anything()
       );
     });

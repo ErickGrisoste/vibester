@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 
-// Estes testes chamam os métodos do FeedService diretamente (mesma convenção do
-// tests/integration/feed.consumer.spec.ts mockado), simulando um handler do KafkaConsumer já
-// com o payload validado pelo Zod. Isso significa que nenhuma linha de código deste teste passa
-// por kafkajs — nem o `producer.ts` (código morto, não usado em nenhum lugar do src) nem o
-// `KafkaConsumer.handleMessage` (parsing/roteamento de tópico) são exercitados aqui, exatamente
-// como no mock. Por isso não há nada de Kafka para mockar nesta suíte "real": a única infra real
-// em jogo é o Cassandra.
+// Estes testes chamam os métodos de FeedFanoutService/FollowService/EventAttendanceService
+// diretamente (mesma convenção dos specs mockados em tests/integration/*.consumer.spec.ts),
+// simulando um handler do KafkaConsumer já com o payload validado pelo Zod. Isso significa que
+// nenhuma linha de código deste teste passa por kafkajs — nem o `producer.ts` (código morto, não
+// usado em nenhum lugar do src) nem o `KafkaConsumer.handleMessage` (parsing/roteamento de
+// tópico) são exercitados aqui, exatamente como no mock. Por isso não há nada de Kafka para
+// mockar nesta suíte "real": a única infra real em jogo é o Cassandra.
 //
 // Ressalva importante: como resultado, o parsing/roteamento do `KafkaConsumer.handleMessage`
 // (JSON.parse da mensagem, decisão entre `directTopicHandlers` vs. envelope
@@ -16,7 +16,9 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 // mensagens fake), o que está fora do escopo pedido (mockar Kafka na borda em vez de subir um
 // broker real em CI). Sinalizando explicitamente esse gap em vez de fingir que está coberto.
 import { getCassandraClient } from "../../src/config/cassandra";
-import { FeedService } from "../../src/services/feed.service";
+import { FeedFanoutService } from "../../src/services/feed-fanout.service";
+import { FollowService } from "../../src/services/follow.service";
+import { EventAttendanceService } from "../../src/services/event-attendance.service";
 import { FeedRepository } from "../../src/repositories/feed.repository";
 import { FeedEntriesByPostRepository } from "../../src/repositories/feed_entries.repository";
 import { PostsByUserRepository } from "../../src/repositories/posts_by_user.repository";
@@ -57,7 +59,9 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
   const eventsByIdRepository = new EventsByIdRepository();
   const attendeesRepository = new EventAttendeesRepository();
 
-  let feedService: FeedService;
+  let feedFanoutService: FeedFanoutService;
+  let followService: FollowService;
+  let eventAttendanceService: EventAttendanceService;
 
   beforeAll(async () => {
     await getCassandraClient().connect();
@@ -69,12 +73,14 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
 
   beforeEach(async () => {
     await truncateFeedTables(getCassandraClient());
-    feedService = new FeedService();
+    feedFanoutService = new FeedFanoutService();
+    followService = new FollowService();
+    eventAttendanceService = new EventAttendanceService();
   });
 
   describe("handlePostCreated", () => {
     it("salva o post do autor em posts_by_user mesmo sem seguidores", async () => {
-      await feedService.handlePostCreated(makeUserPostPayload() as any);
+      await feedFanoutService.handlePostCreated(makeUserPostPayload() as any);
 
       const result = await postsByUserRepository.findRecentPostsByUser(
         AUTHOR_ID,
@@ -87,7 +93,7 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
     it("distribui o post para o feed de cada seguidor real", async () => {
       await userFollowerRepository.create(AUTHOR_ID, FOLLOWER_ID);
 
-      await feedService.handlePostCreated(makeUserPostPayload() as any);
+      await feedFanoutService.handlePostCreated(makeUserPostPayload() as any);
 
       const followerFeed = await feedRepository.findByUser(FOLLOWER_ID, 10);
       expect(followerFeed.rows).toHaveLength(1);
@@ -103,9 +109,9 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
     it("remove o post de todos os feeds distribuídos e do índice reverso", async () => {
       await userFollowerRepository.create(AUTHOR_ID, FOLLOWER_ID);
       const createdAt = new Date().toISOString();
-      await feedService.handlePostCreated(makeUserPostPayload({ createdAt }) as any);
+      await feedFanoutService.handlePostCreated(makeUserPostPayload({ createdAt }) as any);
 
-      await feedService.handlePostDeleted({
+      await feedFanoutService.handlePostDeleted({
         authorId: AUTHOR_ID,
         postId: POST_ID,
         createdAt,
@@ -139,7 +145,7 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
         3600
       );
 
-      await feedService.handleUserFollowed({ followerId: FOLLOWER_ID, followedId: AUTHOR_ID });
+      await followService.handleUserFollowed({ followerId: FOLLOWER_ID, followedId: AUTHOR_ID });
 
       const relation = await userFollowerRepository.findFollowersByUser(AUTHOR_ID);
       expect(relation).toContain(FOLLOWER_ID);
@@ -153,12 +159,12 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
   describe("handleUserUnfollowed", () => {
     it("remove a relação de seguidor e limpa os posts do autor do feed do seguidor", async () => {
       await userFollowerRepository.create(AUTHOR_ID, FOLLOWER_ID);
-      await feedService.handlePostCreated(makeUserPostPayload() as any);
+      await feedFanoutService.handlePostCreated(makeUserPostPayload() as any);
 
       const beforeUnfollow = await feedRepository.findByUser(FOLLOWER_ID, 10);
       expect(beforeUnfollow.rows).toHaveLength(1);
 
-      await feedService.handleUserUnfollowed({ followerId: FOLLOWER_ID, followedId: AUTHOR_ID });
+      await followService.handleUserUnfollowed({ followerId: FOLLOWER_ID, followedId: AUTHOR_ID });
 
       const relation = await userFollowerRepository.findFollowersByUser(AUTHOR_ID);
       expect(relation).not.toContain(FOLLOWER_ID);
@@ -195,7 +201,7 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
         3600
       );
 
-      await feedService.handleEventConfirmed({
+      await eventAttendanceService.handleEventConfirmed({
         eventId: EVENT_ID,
         userId: FOLLOWER_ID,
         eventDate: eventDate.toISOString(),
@@ -208,7 +214,7 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
       expect(feed.rows).toHaveLength(1);
       expect(feed.rows[0].item_id.toString()).toBe(EVENT_ID);
 
-      await feedService.handleEventUnconfirmed({ eventId: EVENT_ID, userId: FOLLOWER_ID });
+      await eventAttendanceService.handleEventUnconfirmed({ eventId: EVENT_ID, userId: FOLLOWER_ID });
 
       const attendeesAfter = await attendeesRepository.findAttendeesByEvent(EVENT_ID);
       expect(attendeesAfter).not.toContain(FOLLOWER_ID);

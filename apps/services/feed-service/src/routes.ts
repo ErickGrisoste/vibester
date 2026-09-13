@@ -19,7 +19,7 @@ const feedItemSchema = {
     item_id: { type: "string", format: "uuid" },
     item_type: {
       type: "string",
-      enum: ["USER_POST", "ESTABLISHMENT_POST", "SPONSORED_POST", "EVENT", "EVENT_USER", "EVENT_ESTABLISHMENT"],
+      enum: ["USER_POST", "ESTABLISHMENT_POST", "SPONSORED_POST", "EVENT"],
     },
     author_id: { type: "string", format: "uuid", nullable: true },
     author_username: { type: "string", nullable: true },

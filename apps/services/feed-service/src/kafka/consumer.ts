@@ -1,5 +1,7 @@
 import { Consumer, EachMessagePayload } from "kafkajs";
-import { FeedService } from "../services/feed.service";
+import { FeedFanoutService } from "../services/feed-fanout.service";
+import { FollowService } from "../services/follow.service";
+import { EventAttendanceService } from "../services/event-attendance.service";
 import { kafkaEventSchema } from "../schema/events/kafka-event.schema";
 import { feedItemSchema } from "../schema/events/post-created.schema";
 import { followSchema } from "../schema/events/follow.schema";
@@ -11,8 +13,6 @@ import { eventConfirmanceSchema } from "../schema/events/event-confirmance";
 import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
 import { kafka } from "./client";
-
-const DIRECT_PAYLOAD_TOPICS: Record<string, (data: unknown) => Promise<void>> = {};
 
 export class KafkaConsumer {
     private consumer: Consumer;
@@ -30,54 +30,58 @@ export class KafkaConsumer {
 
     private readonly directTopicHandlers: Record<string, (data: unknown) => Promise<void>> = {
         "post.liked": async (data: unknown) =>
-            this.feedService.handlePostLiked(postLikedSchema.parse(data)),
+            this.feedFanoutService.handlePostLiked(postLikedSchema.parse(data)),
 
         "post.unliked": async (data: unknown) =>
-            this.feedService.handlePostUnliked(postUnlikedSchema.parse(data)),
+            this.feedFanoutService.handlePostUnliked(postUnlikedSchema.parse(data)),
 
         "user.followed": async (data: unknown) =>
-            this.feedService.handleUserFollowed(followSchema.parse(data)),
+            this.followService.handleUserFollowed(followSchema.parse(data)),
 
         "user.unfollowed": async (data: unknown) =>
-            this.feedService.handleUserUnfollowed(followSchema.parse(data)),
+            this.followService.handleUserUnfollowed(followSchema.parse(data)),
     };
 
     private handlers = {
         "post.created": async (data: unknown) =>
-            this.feedService.handlePostCreated(feedItemSchema.parse(data)),
+            this.feedFanoutService.handlePostCreated(feedItemSchema.parse(data)),
 
         "post.deleted": async (data: unknown) =>
-            this.feedService.handlePostDeleted(postDeletedDataSchema.parse(data)),
+            this.feedFanoutService.handlePostDeleted(postDeletedDataSchema.parse(data)),
 
         "post.content.updated": async (data: unknown) =>
-            this.feedService.handleContentPostUpdated(postContentUpdatedSchema.parse(data)),
+            this.feedFanoutService.handleContentPostUpdated(postContentUpdatedSchema.parse(data)),
 
         "post.stats.updated": async (data: unknown) =>
-            this.feedService.handlePostStatsUpdated(postStatsUpdatedSchema.parse(data)),
+            this.feedFanoutService.handlePostStatsUpdated(postStatsUpdatedSchema.parse(data)),
 
         "user.followed": async (data: unknown) =>
-            this.feedService.handleUserFollowed(followSchema.parse(data)),
+            this.followService.handleUserFollowed(followSchema.parse(data)),
 
         "user.unfollowed": async (data: unknown) =>
-            this.feedService.handleUserUnfollowed(followSchema.parse(data)),
+            this.followService.handleUserUnfollowed(followSchema.parse(data)),
 
         "establishment.followed": async (data: unknown) =>
-            this.feedService.handleEstablishmentFollowed(followSchema.parse(data)),
+            this.followService.handleEstablishmentFollowed(followSchema.parse(data)),
 
         "establishment.unfollowed": async (data: unknown) =>
-            this.feedService.handleEstablishmentUnfollowed(followSchema.parse(data)),
+            this.followService.handleEstablishmentUnfollowed(followSchema.parse(data)),
 
         "event.created": async (data: unknown) =>
-            this.feedService.handleEventCreated(feedItemSchema.parse(data)),
+            this.feedFanoutService.handleEventCreated(feedItemSchema.parse(data)),
 
         "event.confirmed": async (data: unknown) =>
-            this.feedService.handleEventConfirmed(eventConfirmanceSchema.parse(data)),
+            this.eventAttendanceService.handleEventConfirmed(eventConfirmanceSchema.parse(data)),
 
         "event.unconfirmed": async (data: unknown) =>
-            this.feedService.handleEventUnconfirmed(eventUnconfirmanceSchema.parse(data)),
+            this.eventAttendanceService.handleEventUnconfirmed(eventUnconfirmanceSchema.parse(data)),
     };
 
-    constructor(private readonly feedService: FeedService) {
+    constructor(
+        private readonly feedFanoutService: FeedFanoutService,
+        private readonly followService: FollowService,
+        private readonly eventAttendanceService: EventAttendanceService,
+    ) {
         this.consumer = kafka.consumer({
             groupId: "feed-service-group",
         });
@@ -128,6 +132,10 @@ export class KafkaConsumer {
         } catch (error) {
             console.error(error);
         }
+    }
+
+    async stop() {
+        await this.consumer.disconnect();
     }
 
     private async connectWithRetry(maxAttempts = 10) {
