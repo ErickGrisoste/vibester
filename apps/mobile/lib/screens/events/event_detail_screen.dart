@@ -3,6 +3,7 @@ import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/event/event_service.dart';
+import 'package:mobile/service/share_links.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/event_time.dart';
@@ -134,14 +135,20 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Future<void> _compartilhar() async {
+    final eventId = _event.id;
     final texto = [
       _event.titulo,
       '${_event.fullDateLabel} · ${_event.timeLabel}',
       if (_event.localizacao.isNotEmpty) _event.localizacao,
-      'Visto no Vibester',
+      if (eventId != null)
+        'Olha esse rolê no Vibester: ${ShareLinks.event(eventId)}'
+      else
+        'Visto no Vibester',
     ].join('\n');
 
-    await SharePlus.instance.share(ShareParams(text: texto));
+    await SharePlus.instance.share(
+      ShareParams(text: texto, subject: _event.titulo),
+    );
   }
 
   Future<void> _abrirIngresso() async {
