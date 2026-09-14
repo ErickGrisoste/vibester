@@ -111,3 +111,56 @@ export function qualityMultiple(smoothedRate: number, priorRate: number): number
 
     return smoothedRate / priorRate;
 }
+
+export interface DwellSmoothingConfig {
+    /** Tempo médio de exibição da plataforma, em ms: o palpite inicial. */
+    priorDwellMs: number;
+    /** Peso da média a priori, em unidades de impressão. */
+    priorWeight: number;
+}
+
+/**
+ * Tempo médio de atenção SUAVIZADO, em ms.
+ *
+ * Mesmo problema da taxa: uma única pessoa que deixou o celular parado 60 segundos
+ * num post não pode coroá-lo — a média crua dela seria maior que a de qualquer post
+ * do app. Suavizando com `priorDwellMs = 3000` e o mesmo `priorWeight = 30` da taxa:
+ *
+ * | impressões | média real | suavizada | vezes a média |
+ * |------------|------------|-----------|---------------|
+ * | 1          | 60s        | 4,8s      | 1,6×          |
+ * | 10         | 9s         | 4,5s      | 1,5×          |
+ * | 100        | 9s         | 7,6s      | 2,5×          |
+ * | 1.000      | 9s         | 8,8s      | 2,9×          |
+ *
+ * Repare nas duas primeiras linhas: uma pessoa olhando 60s vale o mesmo que dez
+ * olhando 9s. Dwell é o sinal que o desenho chama de "honesto e não performativo" —
+ * ninguém fica olhando um post por educação —, mas ele precisa da mesma disciplina de
+ * evidência que a taxa.
+ */
+export function smoothedAverageDwellMs(
+    dwellMsSum: number,
+    impressions: number,
+    config: DwellSmoothingConfig
+): number {
+    const { priorDwellMs, priorWeight } = config;
+
+    if (impressions <= 0) { return priorDwellMs; }
+
+    // Soma negativa só existe por defeito de dado; tratá-la como zero impede que um
+    // contador corrompido produza "atenção negativa" e afunde o item.
+    return (Math.max(0, dwellMsSum) + priorWeight * priorDwellMs) / (impressions + priorWeight);
+}
+
+/**
+ * Atenção em múltiplos da média da plataforma: 1 = item médio, 2 = o dobro.
+ *
+ * Mesma razão da `qualityMultiple`: manter a parcela de dwell na mesma ordem de
+ * grandeza das outras, independentemente de a média ser 3s ou 30s.
+ */
+export function dwellMultiple(smoothedAvgDwellMs: number, priorDwellMs: number): number {
+    // Sem média a priori não há régua; tratar como item médio é neutro para o score.
+    if (priorDwellMs <= 0) { return 1; }
+
+    return smoothedAvgDwellMs / priorDwellMs;
+}

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RankingFeaturesService } from "../../src/services/ranking_features.service";
 import type { RankingCountersRepository } from "../../src/repositories/ranking_counters.repository";
+import { DWELL_MS_SUM_ROW } from "../../src/repositories/ranking_counters.repository";
 import { InteractionsNormalizedEvent } from "../../src/schema/events/interactions-normalized.schema";
 import { DEFAULT_WEIGHTS } from "../../src/ranking/weights";
 import { HeuristicScorer } from "../../src/ranking/heuristic.scorer";
@@ -78,6 +79,40 @@ describe("RankingFeaturesService.handleInteractions", () => {
                 { signalType: "LIKE", delta: 1 },
             ])
         );
+    });
+
+    it("soma o dwell só das impressões, numa linha reservada", async () => {
+        await service.handleInteractions(
+            event([
+                interaction({ type: "IMPRESSION", dwellMs: 4000 }),
+                interaction({ type: "IMPRESSION", dwellMs: 2000, eventId: "evt-2" }),
+                // DWELL é o sinal derivado de atenção longa: o dwellMs dele não é somado de novo.
+                interaction({ type: "DWELL", dwellMs: 9000, eventId: "evt-3" }),
+                interaction({ type: "LIKE", dwellMs: null, eventId: "evt-4" }),
+            ])
+        );
+
+        const increments = (repo.incrementItem as ReturnType<typeof vi.fn>).mock.calls[0]![1];
+
+        expect(increments).toEqual(
+            expect.arrayContaining([
+                { signalType: "IMPRESSION", delta: 2 },
+                { signalType: "DWELL", delta: 1 },
+                { signalType: "LIKE", delta: 1 },
+                { signalType: DWELL_MS_SUM_ROW, delta: 6000 },
+            ])
+        );
+        expect(increments).toHaveLength(4);
+    });
+
+    it("impressão sem dwell não cria a linha de soma", async () => {
+        await service.handleInteractions(
+            event([interaction({ dwellMs: null }), interaction({ dwellMs: 0, eventId: "evt-2" })])
+        );
+
+        const increments = (repo.incrementItem as ReturnType<typeof vi.fn>).mock.calls[0]![1];
+
+        expect(increments).toEqual([{ signalType: "IMPRESSION", delta: 2 }]);
     });
 
     it("separa itens diferentes em chamadas diferentes", async () => {
@@ -235,6 +270,31 @@ describe("RankingFeaturesService.buildItemFeatures", () => {
         );
 
         expect(features[0]!.signals).toEqual({ LIKE: 3 });
+    });
+
+    it("extrai a soma de dwell da linha reservada sem vazá-la para os sinais", async () => {
+        (repo.findCountsByItems as ReturnType<typeof vi.fn>).mockResolvedValue({
+            "post-1": { IMPRESSION: 100, LIKE: 3, [DWELL_MS_SUM_ROW]: 900_000 },
+        });
+
+        const features = await service.buildItemFeatures(
+            LEITOR,
+            [{ itemId: "post-1", authorId: AUTOR, createdAt: AGORA }],
+            AGORA
+        );
+
+        expect(features[0]!.dwellMsSum).toBe(900_000);
+        expect(features[0]!.signals).toEqual({ IMPRESSION: 100, LIKE: 3 });
+    });
+
+    it("item sem dwell registrado sai com soma zero", async () => {
+        const features = await service.buildItemFeatures(
+            LEITOR,
+            [{ itemId: "post-novo", authorId: AUTOR, createdAt: AGORA }],
+            AGORA
+        );
+
+        expect(features[0]!.dwellMsSum).toBe(0);
     });
 
     it("lista vazia não vai ao banco", async () => {

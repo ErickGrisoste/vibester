@@ -12,6 +12,20 @@ export interface CounterIncrement {
 }
 
 /**
+ * Linha reservada em `ranking_counters_by_item` que acumula a SOMA do tempo de
+ * exibição (ms) das impressões do item.
+ *
+ * Mora na mesma tabela, com a mesma chave `signal_type`, para não exigir tabela nova:
+ * é só mais um `counter` incrementado atomicamente. O sublinhado inicial garante que
+ * nunca colida com um tipo de sinal real, e `toSignalCounts` a descarta ao montar os
+ * sinais — ela nunca entra na ação ponderada.
+ *
+ * Guarda soma, não média: média não se atualiza incrementalmente sem saber quantos
+ * itens já tem. Soma e impressões dão a média na leitura.
+ */
+export const DWELL_MS_SUM_ROW = "_dwell_ms_sum";
+
+/**
  * Contadores que alimentam o ranking do feed.
  *
  * São colunas `counter` nativas do Cassandra: o incremento é atômico no servidor,

@@ -60,6 +60,11 @@ export interface ItemFeatures {
     /** Contagem de sinais do item, para virar ação ponderada. */
     signals: SignalCounts;
     /**
+     * Soma do tempo de exibição, em ms, das impressões do item. O scorer divide por
+     * `impressions`, com suavização, para obter o tempo médio de atenção.
+     */
+    dwellMsSum: number;
+    /**
      * Afinidade do leitor com o autor, em [0, 1]. Vem da fase 1.
      * Enquanto não houver dado, 0 é o valor honesto — não 0.5.
      */

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+    dwellMultiple,
     recencyDecay,
+    smoothedAverageDwellMs,
     smoothedEngagementRate,
     weightedActions,
 } from "../../src/ranking/engagement";
@@ -132,5 +134,48 @@ describe("recencyDecay", () => {
     it("meia-vida inválida desliga o decaimento em vez de zerar tudo", () => {
         expect(recencyDecay(100, 0)).toBe(1);
         expect(recencyDecay(100, -1)).toBe(1);
+    });
+});
+
+describe("smoothedAverageDwellMs", () => {
+    const DWELL = { priorDwellMs: 3000, priorWeight: 30 };
+
+    it("não deixa uma pessoa só coroar o item", () => {
+        const casos = [
+            { impressoes: 1, soma: 60_000, esperado: 4838.7 },
+            { impressoes: 10, soma: 90_000, esperado: 4500 },
+            { impressoes: 100, soma: 900_000, esperado: 7615.4 },
+            { impressoes: 1_000, soma: 9_000_000, esperado: 8825.2 },
+        ];
+
+        for (const { impressoes, soma, esperado } of casos) {
+            expect(smoothedAverageDwellMs(soma, impressoes, DWELL)).toBeCloseTo(esperado, 0);
+        }
+    });
+
+    it("uma pessoa olhando 60s vale praticamente o mesmo que dez olhando 9s", () => {
+        const umaPessoa = smoothedAverageDwellMs(60_000, 1, DWELL);
+        const dezPessoas = smoothedAverageDwellMs(90_000, 10, DWELL);
+
+        expect(Math.abs(umaPessoa - dezPessoas) / dezPessoas).toBeLessThan(0.1);
+    });
+
+    it("devolve a média a priori sem impressão", () => {
+        expect(smoothedAverageDwellMs(5000, 0, DWELL)).toBe(3000);
+    });
+
+    it("ignora soma negativa em vez de produzir atenção negativa", () => {
+        expect(smoothedAverageDwellMs(-50_000, 10, DWELL)).toBeCloseTo(2250, 0);
+    });
+});
+
+describe("dwellMultiple", () => {
+    it("normaliza pela média da plataforma", () => {
+        expect(dwellMultiple(3000, 3000)).toBe(1);
+        expect(dwellMultiple(6000, 3000)).toBe(2);
+    });
+
+    it("sem média a priori, trata como item médio", () => {
+        expect(dwellMultiple(5000, 0)).toBe(1);
     });
 });

@@ -73,6 +73,8 @@ export const rankingWeightsSchema = z.object({
 
     /** Quanto a qualidade normalizada do item pesa no score. */
     engagementWeight: z.number().nonnegative(),
+    /** Quanto o tempo médio de atenção normalizado pesa no score. */
+    dwellWeight: z.number().nonnegative(),
     /** Quanto a afinidade leitor-autor pesa no score. */
     affinityWeight: z.number().nonnegative(),
 
@@ -89,6 +91,12 @@ export const rankingWeightsSchema = z.object({
     priorRate: z.number().nonnegative(),
     priorWeight: z.number().nonnegative(),
 
+    /**
+     * Tempo médio de exibição da plataforma, em ms: o palpite a priori da suavização
+     * do dwell. Usa o mesmo `priorWeight` da taxa.
+     */
+    priorDwellMs: z.number().positive(),
+
     /** Quantos pontos ponderados valem meia afinidade. Ver src/ranking/affinity.ts. */
     affinitySaturation: z.number().positive(),
 });
@@ -97,7 +105,7 @@ export type RankingWeights = z.infer<typeof rankingWeightsSchema>;
 export type SignalWeights = Record<SignalType, number>;
 
 export const DEFAULT_WEIGHTS: RankingWeights = {
-    version: "2026-09-12.teto-100",
+    version: "2026-09-14.teto-100+dwell",
 
     signals: {
         // Denominador, não numerador — ver a nota acima.
@@ -124,6 +132,9 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
     // engajamento e afinidade na mesma ordem de grandeza — sem a normalização, trocar a
     // escala dos pesos faria o engajamento crescer 60× e a afinidade virar ruído.
     engagementWeight: 1,
+    // Atenção entra ao lado do engajamento com metade do peso: é o sinal mais honesto
+    // que existe, mas é passivo, e o catálogo não dá número para ele no score. Chute.
+    dwellWeight: 0.5,
     affinityWeight: 0.6,
 
     // 8h: um post de ontem à noite não concorre com o de hoje.
@@ -134,6 +145,9 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
     // Ambos são chute e devem ser recalibrados com um mês de impressão real.
     priorRate: 2.4,
     priorWeight: 30,
+
+    // 3s de atenção média por impressão. Chute até existir impressão real.
+    priorDwellMs: 3000,
 
     // 800 pontos = meia afinidade, o que na escala de teto 100 equivale a umas 10
     // curtidas mais 2 comentários no mesmo autor. Chute, como o resto.

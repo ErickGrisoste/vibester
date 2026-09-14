@@ -1,5 +1,12 @@
 import { ItemFeatures, RankingContext, ScoredItem, Scorer } from "./types";
-import { qualityMultiple, recencyDecay, smoothedEngagementRate, weightedActions } from "./engagement";
+import {
+    dwellMultiple,
+    qualityMultiple,
+    recencyDecay,
+    smoothedAverageDwellMs,
+    smoothedEngagementRate,
+    weightedActions,
+} from "./engagement";
 import { RankingWeights, getWeights } from "./weights";
 
 /**
@@ -7,8 +14,13 @@ import { RankingWeights, getWeights } from "./weights";
  *
  * Forma do score:
  *
- *   base  = engagementWeight × qualidadeNormalizada + affinityWeight × afinidade
+ *   base  = engagementWeight × qualidadeNormalizada
+ *         + dwellWeight      × atençãoNormalizada
+ *         + affinityWeight   × afinidade
  *   score = base × decaimentoPorIdade
+ *
+ * Qualidade e atenção entram normalizadas pela média da plataforma (1 = item médio),
+ * o que as mantém na mesma ordem de grandeza da afinidade, que vive em [0, 1].
  *
  * O decaimento multiplica em vez de somar porque num app de vida noturna a
  * recência é validade, não preferência: um post excelente de anteontem deve
@@ -47,10 +59,18 @@ export class HeuristicScorer implements Scorer {
         // Normalizado pela média da plataforma: 1 = item médio. Ver qualityMultiple.
         const quality = qualityMultiple(rate, this.weights.priorRate);
         const engagement = this.weights.engagementWeight * quality;
+
+        const avgDwell = smoothedAverageDwellMs(item.dwellMsSum, item.impressions, {
+            priorDwellMs: this.weights.priorDwellMs,
+            priorWeight: this.weights.priorWeight,
+        });
+        const attention = dwellMultiple(avgDwell, this.weights.priorDwellMs);
+        const dwell = this.weights.dwellWeight * attention;
+
         const affinity = this.weights.affinityWeight * item.affinity;
         const decay = recencyDecay(item.ageHours, this.weights.halfLifeHours);
 
-        const score = (engagement + affinity) * decay;
+        const score = (engagement + dwell + affinity) * decay;
 
         return {
             itemId: item.itemId,
@@ -62,6 +82,9 @@ export class HeuristicScorer implements Scorer {
                 smoothedRate: rate,
                 qualityMultiple: quality,
                 engagement,
+                smoothedAvgDwellMs: avgDwell,
+                dwellMultiple: attention,
+                dwell,
                 affinity,
                 decay,
             },

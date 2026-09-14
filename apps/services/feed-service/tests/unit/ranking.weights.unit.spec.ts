@@ -56,6 +56,10 @@ describe("loadWeights", () => {
         expect(loadWeights(42).ok).toBe(false);
     });
 
+    it("recusa peso de atenção negativo", () => {
+        expect(loadWeights({ ...DEFAULT_WEIGHTS, dwellWeight: -1 }).ok).toBe(false);
+    });
+
     it("resetWeights volta para o chute inicial", () => {
         loadWeights({ ...DEFAULT_WEIGHTS, version: "temporaria" });
         resetWeights();

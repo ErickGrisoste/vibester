@@ -12,6 +12,7 @@ function item(overrides: Partial<ItemFeatures> = {}): ItemFeatures {
         impressions: 100,
         signals: { LIKE: 10 },
         affinity: 0,
+        dwellMsSum: 0,
         ...overrides,
     };
 }
@@ -42,8 +43,11 @@ describe("HeuristicScorer", () => {
         expect(Object.keys(breakdown).sort()).toEqual([
             "affinity",
             "decay",
+            "dwell",
+            "dwellMultiple",
             "engagement",
             "qualityMultiple",
+            "smoothedAvgDwellMs",
             "smoothedRate",
             "weightedActions",
         ]);
@@ -65,6 +69,32 @@ describe("HeuristicScorer", () => {
         const velho = scorer.score(item({ itemId: "b", ageHours: 30 }), CONTEXT);
 
         expect(novo.score).toBeGreaterThan(velho.score);
+    });
+
+    it("prefere o item que prende mais atenção quando o resto é igual", () => {
+        const scorer = new HeuristicScorer(DEFAULT_WEIGHTS);
+
+        // 100 impressões nos dois: 9s médios contra 1s médio.
+        const prendeu = scorer.score(item({ itemId: "a", dwellMsSum: 900_000 }), CONTEXT);
+        const passou = scorer.score(item({ itemId: "b", dwellMsSum: 100_000 }), CONTEXT);
+
+        expect(prendeu.score).toBeGreaterThan(passou.score);
+        expect(prendeu.breakdown.dwellMultiple).toBeGreaterThan(passou.breakdown.dwellMultiple);
+    });
+
+    it("uma pessoa só olhando 60s não supera cem pessoas olhando 9s", () => {
+        const scorer = new HeuristicScorer(DEFAULT_WEIGHTS);
+
+        const umaPessoa = scorer.score(
+            item({ itemId: "a", impressions: 1, dwellMsSum: 60_000, signals: {} }),
+            CONTEXT
+        );
+        const cemPessoas = scorer.score(
+            item({ itemId: "b", impressions: 100, dwellMsSum: 900_000, signals: {} }),
+            CONTEXT
+        );
+
+        expect(cemPessoas.breakdown.dwellMultiple).toBeGreaterThan(umaPessoa.breakdown.dwellMultiple);
     });
 
     it("afinidade alta levanta um item de engajamento igual", () => {
