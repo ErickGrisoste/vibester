@@ -27,9 +27,13 @@ import { SignalType } from "./types";
  * | `DWELL`            |  20  | Passou de ~5s no item: atenção sem compromisso |
  * | `DIRECTIONS_CLICK` |  20  | Abriu o mapa — quase um check-in adiantado |
  *
+ * ## A exceção ao teto: `NOT_INTERESTED = -200`
+ *
  * Negativos são desproporcionais por assimetria de custo: mostrar algo que a pessoa
  * pediu para não ver custa muito mais do que deixar de mostrar algo que ela talvez
- * gostasse. `NOT_INTERESTED = -100` é o dado mais limpo do sistema — a pessoa
+ * gostasse. Com o teto aplicado, `NOT_INTERESTED` ficaria em -100 e apenas EMPATARIA
+ * com um comentário — a assimetria morreria. Por decisão de produto ele rompe o teto e
+ * vale o dobro do positivo mais forte. É o dado mais limpo do sistema: a pessoa
  * literalmente contou.
  *
  * ## Três valores que o catálogo não define, e que foram escolhidos aqui
@@ -78,8 +82,17 @@ export const rankingWeightsSchema = z.object({
     /** Quanto a afinidade leitor-autor pesa no score. */
     affinityWeight: z.number().nonnegative(),
 
-    /** Meia-vida do decaimento por idade, em horas. */
+    /** Meia-vida do decaimento por idade do item, em horas. */
     halfLifeHours: z.number().positive(),
+
+    /**
+     * τ da afinidade com autor, em dias: a velocidade com que o perfil esquece.
+     *
+     * Entra como `e^(−Δt/τ)`: depois de τ dias uma interação vale 37% do original.
+     * Ver src/ranking/decay.ts. Atenção: τ é aplicado na escrita e na leitura; trocar o
+     * valor mistura as duas réguas até o histórico antigo decair (alguns τ).
+     */
+    affinityTauDays: z.number().positive(),
 
     /**
      * Suavização da taxa.
@@ -105,7 +118,7 @@ export type RankingWeights = z.infer<typeof rankingWeightsSchema>;
 export type SignalWeights = Record<SignalType, number>;
 
 export const DEFAULT_WEIGHTS: RankingWeights = {
-    version: "2026-09-14.teto-100+dwell",
+    version: "2026-09-14.teto-100+dwell+assimetria+decaimento",
 
     signals: {
         // Denominador, não numerador — ver a nota acima.
@@ -124,7 +137,8 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
 
         SKIP: -30,
         UNLIKE: -60,
-        NOT_INTERESTED: -100,
+        // Rompe o teto de propósito: o dobro do positivo mais forte. Ver a nota acima.
+        NOT_INTERESTED: -200,
     },
 
     // O termo de engajamento entra NORMALIZADO pela média da plataforma (ver
@@ -139,6 +153,10 @@ export const DEFAULT_WEIGHTS: RankingWeights = {
 
     // 8h: um post de ontem à noite não concorre com o de hoje.
     halfLifeHours: 8,
+
+    // 30 dias, como no desenho do perfil: amizade não muda em uma semana. Uma curtida
+    // de um mês atrás vale 37% de uma de hoje; de três meses, 5%.
+    affinityTauDays: 30,
 
     // 4% de engajamento médio × peso 60 do like = 2,4 pontos por impressão.
     // 30 impressões de crédito a priori, como o catálogo sugere (C ≈ 30).

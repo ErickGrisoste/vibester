@@ -146,3 +146,62 @@ Propague qualquer variável nova no `k8s/deployment.yaml` (via `envFrom.secretRe
 - O secure connect bundle da Astra é montado como `Secret` (`astra-bundle`) em `/secure-connect` (`volumeMounts`/`volumes` no `deployment.yaml`) — a env var `ASTRA_SECURE_CONNECT_BUNDLE` (do `feed-service-secret`) precisa apontar para um caminho dentro desse mount; se o nome do arquivo dentro do secret mudar, atualize os dois lados juntos.
 - `readinessProbe`/`livenessProbe` apontam para `/health`, que hoje só retorna `{ status: "ok" }` estático (`routes.ts`) — **não verifica conectividade real com Cassandra ou Kafka**. Diferente do `/ready` do `user-service`/`establishment-service`, um pod pode passar no readiness mesmo com a conexão Astra ou o consumer Kafka quebrados. Se for melhorar observabilidade, esse é o primeiro lugar a mexer.
 - Sem métricas Prometheus e sem tracing (OpenTelemetry) neste serviço — nenhum dos dois está presente nas dependências.
+
+---
+
+## Ranking do feed (fases 1 e 2 do roteiro de recomendação)
+
+> **Nada disto é chamado pela rota ainda.** `GET /feed/:userId` continua cronológico. Ligar o `Scorer` na leitura depende de resolver a dívida de `feed_by_user` guardar o post inteiro em vez de referência e ordem.
+
+O ranking mora neste serviço por decisão: a ordem nasce na leitura (read-time), e um serviço de ranking separado significaria chamada síncrona no caminho mais quente do produto. Não mova para outro serviço antes da fase 4 (value model) sem motivo novo.
+
+### Onde está
+
+```
+src/ranking/
+  types.ts             → SIGNAL_TYPES, ItemFeatures, Scorer, rankItems
+  engagement.ts        → taxa suavizada, qualityMultiple, dwell suavizado, recencyDecay
+  affinity.ts          → afinidade a partir de contagem, com saturação
+  decay.ts             → decaimento e^(−Δt/τ) incremental e exato
+  weights.ts           → pesos recarregáveis (loadWeights valida; a fonte ainda não está ligada)
+  heuristic.scorer.ts  → HeuristicScorer e ChronologicalScorer (a régua do holdout)
+  experiment.ts        → bucketing determinístico e holdout cronológico de 5%
+src/services/ranking_features.service.ts        → agrega sinais e monta ItemFeatures
+src/repositories/ranking_counters.repository.ts → os dois modelos de armazenamento (abaixo)
+src/schema/events/interactions-normalized.schema.ts
+migrations/V013 (ranking_counters_by_item), V014 (ranking_affinity_by_user_author)
+```
+
+### Leia `interactions.normalized`, nunca `interactions.raw`
+
+`interactions.raw` só tem sinais do app: a API do interaction-service rejeita `LIKE`, `COMMENT` e `FOLLOW` lá, porque esses chegam pelos tópicos dos serviços de origem. O worker do interaction-service republica **tudo** que persiste em `interactions.normalized`. Ler `raw` deixa o ranking sem nenhuma curtida — esse bug já existiu. Ler os dois conta o app em dobro.
+
+### Dois modelos de armazenamento, de propósito
+
+| tabela | modelo | escrita concorrente? | TTL |
+|---|---|---|---|
+| `ranking_counters_by_item` | `counter` nativo, incremento atômico | sim | não aceita |
+| `ranking_affinity_by_user_author` | `double` decaído + `updated_at`, ler-calcular-gravar | não | 6τ |
+
+- Contador por item recebe escrita de muitas pessoas em paralelo, por isso é `counter`. Não é idempotente (reprocessar incrementa de novo, ±1 que não muda ordem) e não aceita TTL — não tente.
+- Afinidade precisa esquecer, e esquecer é multiplicar, algo que `counter` não faz. Guarda a **contagem** por sinal já decaída, nunca score: os pesos são aplicados na leitura, então recalibrar peso não exige reprocessar histórico.
+- A soma do tempo de exibição mora numa linha reservada `_dwell_ms_sum` da tabela de contadores, e só recebe o `dwellMs` das **impressões** (mesma população do denominador).
+- Afinidade ignora `IMPRESSION`: é o evento mais volumoso e tem peso zero.
+
+### Invariante que não pode quebrar
+
+A ler-calcular-gravar da afinidade só é segura sem concorrência sobre o mesmo par leitor-autor. Três coisas garantem isso, cada uma com teste-cadeado:
+
+1. o produtor do interaction-service publica `interactions.normalized` com **key = userId** (`interaction-service/src/kafka/__tests__/producer.test.ts`);
+2. o `KafkaConsumer` deste serviço usa `eachMessage`, sem `eachBatch` nem `partitionsConsumedConcurrently` (`tests/unit/kafka.consumer.serialization.unit.spec.ts`);
+3. `handleInteractions` processa os pares em laço sequencial, nunca `Promise.all` (`tests/unit/ranking_features.service.unit.spec.ts`).
+
+Se algum desses testes falhar depois de uma mudança, a mudança está errada — não ajuste o teste.
+
+### Pesos
+
+Escala de teto 100 do catálogo de ações do desenho do produto, com exceções documentadas em `src/ranking/weights.ts`: `IMPRESSION = 0` (é denominador), `SKIP = -30`, `UNLIKE = -60`, e `NOT_INTERESTED = -200` rompendo o teto de propósito para preservar a assimetria de custo. Qualidade e atenção entram no score **normalizadas pela média da plataforma** (1 = item médio); sem isso uma troca de escala transforma a afinidade em ruído. Todos os números são chute até existir um mês de impressão real.
+
+### Bug de bootstrap do runner de migration
+
+`scripts/migrate.ts` consulta `feed_keyspace.schema_migrations` antes de rodar qualquer migration e usa o nome `feed_keyspace` fixo. Num keyspace novo a primeira consulta falha. Em ambiente novo, crie antes: `CREATE TABLE IF NOT EXISTS feed_keyspace.schema_migrations (version text PRIMARY KEY, executed_at timestamp);`

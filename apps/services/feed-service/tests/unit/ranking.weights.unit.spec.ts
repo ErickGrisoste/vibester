@@ -73,10 +73,26 @@ describe("DEFAULT_WEIGHTS", () => {
         expect(DEFAULT_WEIGHTS.signals.LIKE).toBe(60);
     });
 
-    it("respeita o teto: nenhum peso passa de 100 em módulo", () => {
-        for (const peso of Object.values(DEFAULT_WEIGHTS.signals)) {
+    it("respeita o teto 100 em todos os pesos, exceto NOT_INTERESTED", () => {
+        for (const [sinal, peso] of Object.entries(DEFAULT_WEIGHTS.signals)) {
+            if (sinal === "NOT_INTERESTED") { continue; }
             expect(Math.abs(peso)).toBeLessThanOrEqual(100);
         }
+    });
+
+    it("rompe o teto em NOT_INTERESTED para preservar a assimetria de custo", () => {
+        const maiorPositivo = Math.max(...Object.values(DEFAULT_WEIGHTS.signals));
+
+        expect(DEFAULT_WEIGHTS.signals.NOT_INTERESTED).toBe(-200);
+        expect(Math.abs(DEFAULT_WEIGHTS.signals.NOT_INTERESTED)).toBe(2 * maiorPositivo);
+    });
+
+    it("usa τ de 30 dias para a afinidade com autor, como no desenho", () => {
+        expect(DEFAULT_WEIGHTS.affinityTauDays).toBe(30);
+    });
+
+    it("recusa τ não positivo", () => {
+        expect(loadWeights({ ...DEFAULT_WEIGHTS, affinityTauDays: 0 }).ok).toBe(false);
     });
 
     it("mantém a ordem relativa do catálogo entre as ações de intenção", () => {

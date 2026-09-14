@@ -94,14 +94,14 @@ describe("weightedActions", () => {
         expect(checkin).toBeLessThan(weightedActions({ LIKE: 2 }, pesos));
     });
 
-    it("um NOT_INTERESTED anula quase duas curtidas", () => {
-        // ATENÇÃO: na escala de teto 100 o negativo mais forte (-100) apenas EMPATA
-        // com o positivo mais forte (COMMENT/EVENT_CHECKIN = 100). A assimetria de
-        // custo que existia na escala ancorada em 1 não sobrevive ao teto — se ela
-        // for desejada, NOT_INTERESTED precisa romper o teto de propósito.
-        expect(weightedActions({ LIKE: 1, NOT_INTERESTED: 1 }, pesos)).toBe(-40);
-        expect(weightedActions({ LIKE: 2, NOT_INTERESTED: 1 }, pesos)).toBe(20);
-        expect(weightedActions({ COMMENT: 1, NOT_INTERESTED: 1 }, pesos)).toBe(0);
+    it("um NOT_INTERESTED vale o dobro do positivo mais forte, rompendo o teto de propósito", () => {
+        // A escala é de teto 100, mas NOT_INTERESTED fica em -200 por decisão: com -100
+        // ele só empataria com um comentário, e a assimetria de custo — mostrar o que a
+        // pessoa pediu para não ver custa mais que deixar de mostrar o que ela talvez
+        // gostasse — não sobreviveria.
+        expect(weightedActions({ COMMENT: 1, NOT_INTERESTED: 1 }, pesos)).toBe(-100);
+        expect(weightedActions({ COMMENT: 2, NOT_INTERESTED: 1 }, pesos)).toBe(0);
+        expect(weightedActions({ LIKE: 3, NOT_INTERESTED: 1 }, pesos)).toBe(-20);
     });
 
     it("ignora sinal desconhecido em vez de quebrar", () => {

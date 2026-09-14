@@ -3,9 +3,6 @@ import { BaseRepository } from "./base.repository";
 /** Contagem por tipo de sinal, como sai do banco. */
 export type CountsBySignal = Record<string, number>;
 
-/** Contagem por autor, para um leitor. */
-export type CountsByAuthor = Record<string, CountsBySignal>;
-
 export interface CounterIncrement {
     signalType: string;
     delta: number;
@@ -25,25 +22,41 @@ export interface CounterIncrement {
  */
 export const DWELL_MS_SUM_ROW = "_dwell_ms_sum";
 
+/** Valor de afinidade já decaído até `updatedAt`. */
+export interface AffinityValue {
+    value: number;
+    updatedAt: Date;
+}
+
+export type AffinityBySignal = Record<string, AffinityValue>;
+export type AffinityByAuthor = Record<string, AffinityBySignal>;
+
 /**
- * Contadores que alimentam o ranking do feed.
+ * Armazenamento das features do ranking do feed.
  *
- * São colunas `counter` nativas do Cassandra: o incremento é atômico no servidor,
- * sem ler-somar-gravar na aplicação. Isso elimina a condição de corrida clássica de
- * incremento perdido — que é justamente o problema conhecido dos contadores do
- * `post-service`, e o motivo de não copiar aquele padrão para cá.
+ * Dois modelos convivem aqui, e a diferença entre eles é deliberada:
  *
- * Duas consequências de usar `counter` que precisam ser respeitadas:
+ * | tabela                            | modelo                        | escrita concorrente? | TTL        |
+ * |-----------------------------------|-------------------------------|----------------------|------------|
+ * | `ranking_counters_by_item`        | `counter`, incremento atômico | sim                  | não aceita |
+ * | `ranking_affinity_by_user_author` | `double` decaído, ler-calcular-gravar | não          | ~6 τ       |
  *
- * 1. **Não aceita TTL.** Nenhuma linha daqui expira sozinha, diferente do resto
- *    deste serviço, que depende de `USING TTL`. A partição por item é minúscula
- *    (no máximo uma linha por tipo de sinal), então o custo é de quantidade de
- *    partições, não de partição gorda. Limpeza, se algum dia fizer falta, é job
- *    separado — não tente adicionar TTL, o Cassandra recusa.
- * 2. **Não é idempotente.** Reprocessar a mesma mensagem Kafka incrementa de novo.
- *    Quem chama precisa garantir entrega única, ou aceitar contador levemente
- *    inflado — para ranking, um erro de ±1 não muda ordem, mas isso é uma escolha
- *    consciente, não um descuido.
+ * **Contadores por item** recebem escrita de muitas pessoas ao mesmo tempo: interações
+ * sobre um mesmo post chegam por partições Kafka diferentes, consumidas em paralelo.
+ * Por isso precisam de incremento atômico no servidor, sem ler-somar-gravar na
+ * aplicação — é o que evita a condição de corrida de incremento perdido que os
+ * contadores do post-service têm. Consequências: (1) `counter` não aceita TTL, não
+ * tente; (2) não é idempotente — reprocessar incrementa de novo, erro de ±1 que não
+ * muda ordem.
+ *
+ * **Afinidade** precisa esquecer, e esquecer é multiplicar — algo que `counter` não faz.
+ * Então é um `double` com o valor já decaído e o instante da última atualização,
+ * gravado por ler-calcular-gravar. Isso SÓ é seguro porque cada linha pertence a um
+ * único leitor, e tudo de um leitor chega na mesma partição de `interactions.normalized`
+ * (key = userId), consumida em ordem por um único consumidor. Paralelizar o
+ * processamento de mensagens, ou trocar a chave de partição no produtor, reintroduz
+ * perda de atualização em silêncio — há testes-cadeado para as duas coisas. Por não ser
+ * `counter`, aceita TTL: par leitor-autor que ficou inativo expira sozinho.
  */
 export class RankingCountersRepository extends BaseRepository {
     /** Incrementa os contadores de um item. */
@@ -58,26 +71,6 @@ export class RankingCountersRepository extends BaseRepository {
                     WHERE item_id = ? AND signal_type = ?;
                 `,
                 [delta, itemId, signalType]
-            );
-        }
-    }
-
-    /** Incrementa os contadores do par leitor → autor. */
-    async incrementUserAuthor(
-        userId: string,
-        authorId: string,
-        increments: readonly CounterIncrement[]
-    ): Promise<void> {
-        for (const { signalType, delta } of increments) {
-            if (delta === 0) { continue; }
-
-            await this.execute(
-                `
-                    UPDATE ranking_counters_by_user_author
-                    SET count = count + ?
-                    WHERE user_id = ? AND author_id = ? AND signal_type = ?;
-                `,
-                [delta, userId, authorId, signalType]
             );
         }
     }
@@ -114,25 +107,79 @@ export class RankingCountersRepository extends BaseRepository {
         return byItem;
     }
 
-    /** Toda a afinidade de um leitor numa única query de partição. */
-    async findCountsByUser(userId: string): Promise<CountsByAuthor> {
+    /** Afinidade atual de um par leitor-autor, por sinal. Usado na escrita. */
+    async findAffinityPair(userId: string, authorId: string): Promise<AffinityBySignal> {
         const result = await this.execute(
             `
-                SELECT author_id, signal_type, count
-                FROM ranking_counters_by_user_author
+                SELECT signal_type, decayed_count, updated_at
+                FROM ranking_affinity_by_user_author
+                WHERE user_id = ? AND author_id = ?;
+            `,
+            [userId, authorId]
+        );
+
+        const bySignal: AffinityBySignal = {};
+
+        for (const row of result.rows) {
+            bySignal[String(row.signal_type)] = toAffinityValue(row);
+        }
+
+        return bySignal;
+    }
+
+    /**
+     * Grava o valor decaído de um sinal do par leitor-autor.
+     *
+     * O TTL é regravado a cada escrita, então só expira par que ficou sem interação
+     * durante todo o período.
+     */
+    async upsertAffinity(
+        userId: string,
+        authorId: string,
+        signalType: string,
+        value: number,
+        updatedAt: Date,
+        ttlSeconds: number
+    ): Promise<void> {
+        await this.execute(
+            `
+                INSERT INTO ranking_affinity_by_user_author (
+                    user_id, author_id, signal_type, decayed_count, updated_at
+                ) VALUES (?, ?, ?, ?, ?)
+                USING TTL ?;
+            `,
+            [userId, authorId, signalType, value, updatedAt, ttlSeconds]
+        );
+    }
+
+    /** Toda a afinidade de um leitor numa única query de partição. Usado na leitura. */
+    async findAffinityByUser(userId: string): Promise<AffinityByAuthor> {
+        const result = await this.execute(
+            `
+                SELECT author_id, signal_type, decayed_count, updated_at
+                FROM ranking_affinity_by_user_author
                 WHERE user_id = ?;
             `,
             [userId]
         );
 
-        const byAuthor: CountsByAuthor = {};
+        const byAuthor: AffinityByAuthor = {};
 
         for (const row of result.rows) {
             const authorId = String(row.author_id);
             byAuthor[authorId] ??= {};
-            byAuthor[authorId]![String(row.signal_type)] = Number(row.count);
+            byAuthor[authorId]![String(row.signal_type)] = toAffinityValue(row);
         }
 
         return byAuthor;
     }
+}
+
+function toAffinityValue(row: Record<string, unknown>): AffinityValue {
+    const updatedAt = row.updated_at;
+
+    return {
+        value: Number(row.decayed_count),
+        updatedAt: updatedAt instanceof Date ? updatedAt : new Date(String(updatedAt)),
+    };
 }
