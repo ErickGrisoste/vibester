@@ -76,6 +76,29 @@ describe("SerpApiService", () => {
     expect(result).toBeNull();
   });
 
+  it("should return null and log a warning when the response shape doesn't match the expected schema", async () => {
+    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    fetchMock.mockResolvedValue(
+      makeFetchResponse({
+        place_results: {
+          popular_times: {
+            current_day: "friday",
+            graph_results: { friday: "not-an-array" },
+          },
+        },
+      })
+    );
+
+    const result = await service.getPlacePopularity("place-malformed");
+
+    expect(result).toBeNull();
+    const loggedLines = writeSpy.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(loggedLines).toContain("place-malformed");
+
+    writeSpy.mockRestore();
+  });
+
   it("should parse currentDay and currentDayInt correctly", async () => {
     fetchMock.mockResolvedValue(
       makeFetchResponse({

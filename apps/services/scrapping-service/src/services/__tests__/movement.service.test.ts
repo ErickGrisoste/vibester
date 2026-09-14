@@ -12,7 +12,7 @@ const { mockPrisma, mockKafkaProducer } = vi.hoisted(() => ({
     popularTimesDaily: {
       deleteMany: vi.fn(),
       createMany: vi.fn(),
-      aggregate: vi.fn(),
+      findMany: vi.fn(),
     },
     $transaction: vi.fn(),
   },
@@ -72,12 +72,18 @@ describe("MovementService", () => {
     mockPrisma.popularTimesDaily.deleteMany.mockResolvedValue({ count: 0 });
     mockPrisma.currentPopularity.upsert.mockResolvedValue({});
     mockPrisma.$transaction.mockResolvedValue([]);
-    mockPrisma.popularTimesDaily.aggregate.mockResolvedValue({ _avg: { busynessScore: null } });
+    mockPrisma.popularTimesDaily.findMany.mockResolvedValue([]);
+    mockPrisma.currentPopularity.findUnique.mockResolvedValue(null);
   });
 
   describe("getMovementByEstablishmentId", () => {
     it("should call prisma.currentPopularity.findUnique with the correct where clause", async () => {
-      const popularity = { establishmentId: "estab-1", level: "HIGH", score: 75 };
+      const popularity = {
+        establishmentId: "estab-1",
+        level: "HIGH",
+        score: 75,
+        updatedAt: new Date(),
+      };
       mockPrisma.currentPopularity.findUnique.mockResolvedValue(popularity);
 
       const result = await service.getMovementByEstablishmentId("estab-1");
@@ -85,7 +91,7 @@ describe("MovementService", () => {
       expect(mockPrisma.currentPopularity.findUnique).toHaveBeenCalledWith({
         where: { establishmentId: "estab-1" },
       });
-      expect(result).toEqual(popularity);
+      expect(result).toEqual({ ...popularity, freshness: "FRESH" });
     });
 
     it("should return null when no record exists", async () => {
@@ -94,6 +100,34 @@ describe("MovementService", () => {
       const result = await service.getMovementByEstablishmentId("nonexistent");
 
       expect(result).toBeNull();
+    });
+
+    it("should mark the record as STALE when updated between 75min and 6h ago", async () => {
+      const updatedAt = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2h ago
+      mockPrisma.currentPopularity.findUnique.mockResolvedValue({
+        establishmentId: "estab-1",
+        level: "HIGH",
+        score: 75,
+        updatedAt,
+      });
+
+      const result = await service.getMovementByEstablishmentId("estab-1");
+
+      expect((result as { freshness: string }).freshness).toBe("STALE");
+    });
+
+    it("should mark the record as EXPIRED when updated more than 6h ago", async () => {
+      const updatedAt = new Date(Date.now() - 7 * 60 * 60 * 1000); // 7h ago
+      mockPrisma.currentPopularity.findUnique.mockResolvedValue({
+        establishmentId: "estab-1",
+        level: "HIGH",
+        score: 75,
+        updatedAt,
+      });
+
+      const result = await service.getMovementByEstablishmentId("estab-1");
+
+      expect((result as { freshness: string }).freshness).toBe("EXPIRED");
     });
   });
 
@@ -133,6 +167,48 @@ describe("MovementService", () => {
             level: "HIGH",
             score: 75,
           }),
+        })
+      );
+    });
+
+    it("should smooth the live score against the previously stored score and confidence 1", async () => {
+      mockEstablishmentClient.listOpenEstablishments.mockResolvedValue([
+        makeEstablishment({ id: "estab-1", googlePlaceId: "gplace-1" }),
+      ]);
+      mockSerpApiService.getPlacePopularity.mockResolvedValue(
+        makePopularityResult({ liveBusynessScore: 80, currentDayInt: 5, hoursData: [] })
+      );
+      mockPrisma.currentPopularity.findUnique.mockResolvedValue({ score: 40, level: "LOW" });
+
+      await service.updateMovementLevelsFromSavedEstablishments();
+
+      // EMA: round(0.6*80 + 0.4*40) = 64; jump LOW -> HIGH spans more than one
+      // band, so hysteresis doesn't hold it back.
+      expect(mockPrisma.currentPopularity.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            score: 64,
+            level: "HIGH",
+            confidence: 1,
+          }),
+        })
+      );
+    });
+
+    it("should hold the previous level via hysteresis when the smoothed score is a small dip past the boundary", async () => {
+      mockEstablishmentClient.listOpenEstablishments.mockResolvedValue([
+        makeEstablishment({ id: "estab-1", googlePlaceId: "gplace-1" }),
+      ]);
+      mockSerpApiService.getPlacePopularity.mockResolvedValue(
+        makePopularityResult({ liveBusynessScore: 59, currentDayInt: 5, hoursData: [] })
+      );
+      mockPrisma.currentPopularity.findUnique.mockResolvedValue({ score: 59, level: "HIGH" });
+
+      await service.updateMovementLevelsFromSavedEstablishments();
+
+      expect(mockPrisma.currentPopularity.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({ score: 59, level: "HIGH" }),
         })
       );
     });
@@ -189,9 +265,11 @@ describe("MovementService", () => {
       mockSerpApiService.getPlacePopularity.mockResolvedValue(
         makePopularityResult({ liveBusynessScore: null, currentDayInt: 5, hoursData })
       );
-      mockPrisma.popularTimesDaily.aggregate.mockResolvedValue({
-        _avg: { busynessScore: 55 },
-      });
+      mockPrisma.popularTimesDaily.findMany.mockResolvedValue([
+        { busynessScore: 55 },
+        { busynessScore: 55 },
+        { busynessScore: 55 },
+      ]);
 
       await service.updateMovementLevelsFromSavedEstablishments();
 
@@ -214,9 +292,7 @@ describe("MovementService", () => {
       mockSerpApiService.getPlacePopularity.mockResolvedValue(
         makePopularityResult({ liveBusynessScore: null, currentDayInt: null, hoursData: [] })
       );
-      mockPrisma.popularTimesDaily.aggregate.mockResolvedValue({
-        _avg: { busynessScore: null },
-      });
+      mockPrisma.popularTimesDaily.findMany.mockResolvedValue([]);
 
       await service.updateMovementLevelsFromSavedEstablishments();
 
@@ -291,7 +367,11 @@ describe("MovementService", () => {
       mockSerpApiService.getPlacePopularity.mockResolvedValue(
         makePopularityResult({ liveBusynessScore: null, currentDayInt: 5, hoursData, category: "restaurant" })
       );
-      mockPrisma.popularTimesDaily.aggregate.mockResolvedValue({ _avg: { busynessScore: 40 } });
+      mockPrisma.popularTimesDaily.findMany.mockResolvedValue([
+        { busynessScore: 40 },
+        { busynessScore: 40 },
+        { busynessScore: 40 },
+      ]);
 
       await service.updateMovementLevelsFromSavedEstablishments();
 
@@ -306,7 +386,7 @@ describe("MovementService", () => {
       mockSerpApiService.getPlacePopularity.mockResolvedValue(
         makePopularityResult({ liveBusynessScore: null, currentDayInt: null, hoursData: [], category: "night_club" })
       );
-      mockPrisma.popularTimesDaily.aggregate.mockResolvedValue({ _avg: { busynessScore: null } });
+      mockPrisma.popularTimesDaily.findMany.mockResolvedValue([]);
 
       await service.updateMovementLevelsFromSavedEstablishments();
 
@@ -332,6 +412,34 @@ describe("MovementService", () => {
         source: "SERPAPI",
         category: "cafe",
       });
+    });
+  });
+
+  describe("listEstablishmentsWithFallback", () => {
+    it("should reuse the last successful establishments list when the fetch fails", async () => {
+      const establishments = [makeEstablishment({ id: "estab-1", googlePlaceId: "gplace-1" })];
+      mockEstablishmentClient.listOpenEstablishments
+        .mockResolvedValueOnce(establishments)
+        .mockRejectedValueOnce(new Error("establishment-service unavailable"));
+      mockSerpApiService.getPlacePopularity.mockResolvedValue(
+        makePopularityResult({ liveBusynessScore: 50 })
+      );
+
+      await service.updateMovementLevelsFromSavedEstablishments();
+      await service.updateMovementLevelsFromSavedEstablishments();
+
+      expect(mockPrisma.currentPopularity.upsert).toHaveBeenCalledTimes(2);
+    });
+
+    it("should propagate the error when the fetch fails and there is no previous list", async () => {
+      mockEstablishmentClient.listOpenEstablishments.mockRejectedValue(
+        new Error("establishment-service unavailable")
+      );
+
+      await expect(service.updateMovementLevelsFromSavedEstablishments()).rejects.toThrow(
+        "establishment-service unavailable"
+      );
+      expect(mockPrisma.currentPopularity.upsert).not.toHaveBeenCalled();
     });
   });
 

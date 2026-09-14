@@ -1,6 +1,8 @@
+import { z } from "zod";
 import { env } from "../config/env";
 import { fetchWithTimeout } from "../utils/retry";
 import { TTLCache } from "../utils/cache";
+import { consoleLogger } from "../utils/logger";
 
 const WEEK_DAYS: Record<string, number> = {
   sunday: 0,
@@ -55,6 +57,34 @@ const SERPAPI_TYPE_TO_CATEGORY: Record<string, string> = {
   lanchonete: "cafe",
 };
 
+const serpApiGraphItemSchema = z.object({
+  time: z.string().optional(),
+  busyness_score: z.number().optional(),
+  live_busyness_score: z.number().nullable().optional(),
+  current: z.boolean().optional(),
+  info: z.string().optional(),
+});
+
+const serpApiResponseSchema = z.object({
+  place_results: z
+    .object({
+      type: z.union([z.string(), z.array(z.string())]).optional(),
+      popular_times: z
+        .object({
+          current_day: z.string().optional(),
+          live_hash: z
+            .object({
+              info: z.string().optional(),
+              time_spent: z.string().optional(),
+            })
+            .optional(),
+          graph_results: z.record(z.string(), z.array(serpApiGraphItemSchema)).optional(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
 function mapSerpApiTypeToCategory(type: string | string[] | undefined): string | null {
   if (!type) return null;
   const types = Array.isArray(type) ? type : [type];
@@ -92,7 +122,17 @@ export class SerpApiService {
       throw new Error(`Erro ao consultar SerpAPI: ${response.status}`);
     }
 
-    const result = await response.json();
+    const rawJson = await response.json();
+    const parsed = serpApiResponseSchema.safeParse(rawJson);
+
+    if (!parsed.success) {
+      consoleLogger.warn(
+        `[SerpAPI] Resposta em formato inesperado para placeId=${placeId} — tratando como indisponível: ${parsed.error.issues.map((i) => i.path.join(".")).join(", ")}`
+      );
+      return null;
+    }
+
+    const result = parsed.data;
 
     const place = result.place_results ?? {};
     const popular = place.popular_times ?? {};

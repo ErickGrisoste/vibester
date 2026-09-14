@@ -310,7 +310,7 @@ export async function establishmentRoutes(
         tags: ["Establishments"],
         summary: "Atualizar nível de movimento",
         description:
-          "Atualiza o nível de movimento de um estabelecimento. Chamado pelo scrapping-service a cada hora.",
+          "Atualiza o nível de movimento de um estabelecimento. Endpoint mantido para uso manual/administrativo — o scrapping-service hoje publica essa atualização via Kafka (evento establishment.movement.updated), não chama esta rota.",
         params: {
           type: "object",
           required: ["id"],

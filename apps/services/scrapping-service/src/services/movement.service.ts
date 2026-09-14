@@ -1,23 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { EstablishmentClient } from "../clients/establishment.client";
+import { EstablishmentClient, EstablishmentResponse } from "../clients/establishment.client";
 import { prisma } from "../prisma/index";
 import { SerpApiService, PopularityHourData } from "./serpapi.service";
 import { TTLCache } from "../utils/cache";
 import { type AppLogger, consoleLogger } from "../utils/logger";
 import { kafkaProducer } from "../kafka/producer";
-
-type MovementLevelValue =
-  | "VERY_LOW"
-  | "LOW"
-  | "MEDIUM"
-  | "HIGH"
-  | "VERY_HIGH"
-  | "UNAVAILABLE";
+import { type MovementLevelValue, computeMovement, computeFreshness } from "./movement-engine";
 
 const MOVEMENT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export class MovementService {
   private movementCache = new TTLCache<string, object | null>();
+  private lastKnownEstablishments: EstablishmentResponse[] = [];
 
   constructor(
     private establishmentClient = new EstablishmentClient(),
@@ -28,7 +22,7 @@ export class MovementService {
   async updateMovementLevelsFromSavedEstablishments() {
     await this.cleanOldPopularTimesDaily();
 
-    const establishments = await this.establishmentClient.listOpenEstablishments();
+    const establishments = await this.listEstablishmentsWithFallback();
 
     this.logger.info(`Estabelecimentos encontrados: ${establishments.length}`);
 
@@ -45,73 +39,7 @@ export class MovementService {
           establishment.googlePlaceId
         );
 
-        if (!data || data.liveBusynessScore === null) {
-          this.logger.info(`[SEM MOVIMENTO AO VIVO] ${establishment.name}`);
-
-          if (data && data.currentDayInt !== null && data.hoursData.length > 0) {
-            await this.savePopularTimesDaily({
-              establishmentId: establishment.id,
-              googlePlaceId: establishment.googlePlaceId,
-              currentDayInt: data.currentDayInt,
-              hoursData: data.hoursData,
-            });
-          }
-
-          const fallbackScore = await this.getFallbackScore(
-            establishment.id,
-            data?.currentDayInt ?? new Date().getDay()
-          );
-
-          if (fallbackScore !== null) {
-            const level = this.mapScoreToMovementLevel(fallbackScore);
-
-            await this.saveCurrentPopularity({
-              establishmentId: establishment.id,
-              googlePlaceId: establishment.googlePlaceId,
-              level,
-              score: fallbackScore,
-              statusText: "Estimativa baseada em histórico",
-              timeSpent: null,
-              isEstimated: true,
-              category: data?.category ?? null,
-            });
-
-            this.logger.info(
-              `[FALLBACK] ${establishment.name}: ${fallbackScore}% → ${level}`
-            );
-
-            continue;
-          }
-
-          await this.saveCurrentPopularity({
-            establishmentId: establishment.id,
-            googlePlaceId: establishment.googlePlaceId,
-            level: "UNAVAILABLE",
-            score: null,
-            statusText: data?.liveStatus ?? null,
-            timeSpent: data?.timeSpent ?? null,
-            isEstimated: false,
-            category: data?.category ?? null,
-          });
-
-          continue;
-        }
-
-        const score = data.liveBusynessScore;
-        const level = this.mapScoreToMovementLevel(score);
-
-        await this.saveCurrentPopularity({
-          establishmentId: establishment.id,
-          googlePlaceId: establishment.googlePlaceId,
-          level,
-          score,
-          statusText: data.liveStatus,
-          timeSpent: data.timeSpent,
-          isEstimated: false,
-          category: data.category,
-        });
-
-        if (data.currentDayInt !== null && data.hoursData.length > 0) {
+        if (data && data.currentDayInt !== null && data.hoursData.length > 0) {
           await this.savePopularTimesDaily({
             establishmentId: establishment.id,
             googlePlaceId: establishment.googlePlaceId,
@@ -120,9 +48,53 @@ export class MovementService {
           });
         }
 
-        this.movementCache.delete(establishment.id);
+        const liveScore = data?.liveBusynessScore ?? null;
 
-        this.logger.info(`[OK] ${establishment.name}: ${score}% → ${level}`);
+        if (liveScore === null) {
+          this.logger.info(`[SEM MOVIMENTO AO VIVO] ${establishment.name}`);
+        }
+
+        const previous = await prisma.currentPopularity.findUnique({
+          where: { establishmentId: establishment.id },
+          select: { score: true, level: true },
+        });
+
+        const historicalSamples =
+          liveScore === null
+            ? await this.getFallbackSamples(
+                establishment.id,
+                data?.currentDayInt ?? new Date().getDay()
+              )
+            : [];
+
+        const movement = computeMovement({
+          liveScore,
+          historicalSamples,
+          previousScore: previous?.score ?? null,
+          previousLevel: (previous?.level as MovementLevelValue | undefined) ?? null,
+        });
+
+        const isEstimatedWithScore = movement.isEstimated && movement.score !== null;
+
+        await this.saveCurrentPopularity({
+          establishmentId: establishment.id,
+          googlePlaceId: establishment.googlePlaceId,
+          level: movement.level,
+          score: movement.score,
+          confidence: movement.confidence,
+          statusText: isEstimatedWithScore
+            ? "Estimativa baseada em histórico"
+            : data?.liveStatus ?? null,
+          timeSpent: isEstimatedWithScore ? null : data?.timeSpent ?? null,
+          isEstimated: movement.isEstimated,
+          category: data?.category ?? null,
+        });
+
+        const tag =
+          movement.score === null ? "INDISPONIVEL" : movement.isEstimated ? "FALLBACK" : "OK";
+        this.logger.info(
+          `[${tag}] ${establishment.name}: ${movement.score ?? "—"}% → ${movement.level} (confidence=${movement.confidence})`
+        );
       } catch (error) {
         this.logger.error(`[ERRO] Falha ao atualizar ${establishment.name}`, error);
       }
@@ -139,8 +111,16 @@ export class MovementService {
       where: { establishmentId },
     });
 
-    this.movementCache.set(establishmentId, result, MOVEMENT_CACHE_TTL_MS);
-    return result;
+    if (result === null) {
+      this.movementCache.set(establishmentId, null, MOVEMENT_CACHE_TTL_MS);
+      return null;
+    }
+
+    const minutesSinceUpdate = (Date.now() - result.updatedAt.getTime()) / 60_000;
+    const withFreshness = { ...result, freshness: computeFreshness(minutesSinceUpdate) };
+
+    this.movementCache.set(establishmentId, withFreshness, MOVEMENT_CACHE_TTL_MS);
+    return withFreshness;
   }
 
   private async saveCurrentPopularity(data: {
@@ -148,12 +128,15 @@ export class MovementService {
     googlePlaceId: string;
     level: MovementLevelValue;
     score: number | null;
+    confidence: number;
     statusText: string | null;
     timeSpent: string | null;
     isEstimated: boolean;
     category: string | null;
   }) {
     const source = data.isEstimated ? "ESTIMATED" : "SERPAPI";
+
+    this.movementCache.delete(data.establishmentId);
 
     await prisma.currentPopularity.upsert({
       where: { establishmentId: data.establishmentId },
@@ -162,6 +145,7 @@ export class MovementService {
         level: data.level,
         source,
         score: data.score,
+        confidence: data.confidence,
         statusText: data.statusText,
         timeSpent: data.timeSpent,
         isEstimated: data.isEstimated,
@@ -172,6 +156,7 @@ export class MovementService {
         level: data.level,
         source,
         score: data.score,
+        confidence: data.confidence,
         statusText: data.statusText,
         timeSpent: data.timeSpent,
         isEstimated: data.isEstimated,
@@ -191,6 +176,7 @@ export class MovementService {
               establishmentId: data.establishmentId,
               level: data.level,
               source,
+              confidence: data.confidence,
               ...(data.category ? { category: data.category } : {}),
             },
           }),
@@ -227,36 +213,49 @@ export class MovementService {
     ]);
   }
 
-  private async getFallbackScore(
+  private async getFallbackSamples(
     establishmentId: string,
     dayOfWeek: number
-  ): Promise<number | null> {
+  ): Promise<number[]> {
     const currentHour = new Date().getHours();
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 7);
     cutoffDate.setHours(0, 0, 0, 0);
 
-    const result = await prisma.popularTimesDaily.aggregate({
+    const rows = await prisma.popularTimesDaily.findMany({
       where: {
         establishmentId,
         dayOfWeek,
         hour: currentHour,
         capturedDate: { gte: cutoffDate },
       },
-      _avg: { busynessScore: true },
+      select: { busynessScore: true },
     });
 
-    const averageScore = result._avg.busynessScore;
-    return averageScore !== null ? Math.round(averageScore) : null;
+    return rows.map((row) => row.busynessScore);
   }
 
-  private mapScoreToMovementLevel(score: number): MovementLevelValue {
-    if (score <= 20) return "VERY_LOW";
-    if (score <= 40) return "LOW";
-    if (score <= 60) return "MEDIUM";
-    if (score <= 80) return "HIGH";
-    return "VERY_HIGH";
+  private async listEstablishmentsWithFallback(): Promise<EstablishmentResponse[]> {
+    try {
+      const establishments = await this.establishmentClient.listOpenEstablishments();
+      this.lastKnownEstablishments = establishments;
+      return establishments;
+    } catch (error) {
+      if (this.lastKnownEstablishments.length > 0) {
+        this.logger.error(
+          "[FALLBACK] Falha ao buscar estabelecimentos abertos — usando última lista conhecida",
+          error
+        );
+        return this.lastKnownEstablishments;
+      }
+
+      this.logger.error(
+        "[ERRO] Falha ao buscar estabelecimentos abertos e nenhuma lista anterior disponível",
+        error
+      );
+      throw error;
+    }
   }
 
   private async cleanOldPopularTimesDaily(daysToKeep = 7) {

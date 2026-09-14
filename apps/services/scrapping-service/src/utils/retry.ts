@@ -18,7 +18,9 @@ export async function fetchWithTimeout(
     } catch (err) {
       lastError = err;
       if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, BASE_DELAY_MS * Math.pow(2, attempt)));
+        const backoff = BASE_DELAY_MS * Math.pow(2, attempt);
+        const jitter = Math.random() * backoff * 0.5;
+        await new Promise((r) => setTimeout(r, backoff + jitter));
       }
     }
   }
