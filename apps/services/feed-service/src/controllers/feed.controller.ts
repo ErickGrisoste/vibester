@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { FeedService } from "../services/feed.service";
+import { InvalidFeedCursorError, RankedFeedService } from "../services/ranked_feed.service";
 
-const feedService = new FeedService();
+const rankedFeedService = new RankedFeedService();
 
 interface GetFeedParams { userId: string; }
 
@@ -23,8 +23,6 @@ export class FeedController {
 
       const limit = request.query.limit ? Number(request.query.limit) : 20;
 
-      const cursor = request.query.cursor ? new Date(request.query.cursor) : undefined;
-
       if (!userId) {
         return reply.status(400).send({
           message: "User id is required",
@@ -37,16 +35,17 @@ export class FeedController {
         });
       }
 
-      if (request.query.cursor && cursor && Number.isNaN(cursor.getTime())) {
+      // O cursor segue cru: é o serviço que sabe distinguir data legada de token de sessão.
+      const feed = await rankedFeedService.getFeed(userId, limit, request.query.cursor);
+
+      return reply.status(200).send(feed);
+    } catch (error) {
+      if (error instanceof InvalidFeedCursorError) {
         return reply.status(400).send({
           message: "Invalid cursor",
         });
       }
 
-      const feed = await feedService.getFeedByUser(userId, limit, cursor);
-
-      return reply.status(200).send(feed);
-    } catch (error) {
       console.error(error);
 
       return reply.status(500).send({
