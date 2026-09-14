@@ -2,9 +2,11 @@ import Fastify from "fastify";
 import { env } from "./config/env";
 import { getCassandraClient, disconnectCassandra } from "./config/cassandra";
 import { InteractionConsumer } from "./kafka/consumer";
+import { connectProducer, disconnectProducer, isProducerConnected } from "./kafka/producer";
 
 /**
- * Modo `worker`: consome o Kafka e persiste no Cassandra.
+ * Modo `worker`: consome o Kafka, persiste no Cassandra e republica o stream
+ * canônico em `interactions.normalized`.
  *
  * Sobe um HTTP mínimo só para os probes do k8s — sem esse endpoint o Deployment
  * não tem como saber se o consumidor está de pé.
@@ -17,6 +19,9 @@ export async function startWorker(): Promise<void> {
 
     app.get("/ready", async (_request, reply) => {
         const consumerReady = consumer.isRunning();
+        // Sem produtor o worker não consegue republicar: cada mensagem falharia depois
+        // de persistir, e o lag do consumer group cresceria em silêncio.
+        const producerReady = isProducerConnected();
         let cassandraReady = false;
 
         try {
@@ -26,16 +31,19 @@ export async function startWorker(): Promise<void> {
             app.log.warn({ err }, "Cassandra indisponível no readiness");
         }
 
-        const ready = consumerReady && cassandraReady;
+        const ready = consumerReady && producerReady && cassandraReady;
 
         return reply.status(ready ? 200 : 503).send({
             status: ready ? "ready" : "not-ready",
             consumer: consumerReady,
+            producer: producerReady,
             cassandra: cassandraReady,
         });
     });
 
     await getCassandraClient().connect();
+    // Produtor antes do consumidor: a primeira mensagem consumida já precisa republicar.
+    await connectProducer();
     await consumer.start();
 
     await app.listen({ port: env.port, host: "0.0.0.0" });
@@ -47,9 +55,10 @@ export async function startWorker(): Promise<void> {
 
         try {
             await app.close();
-            // Ordem importa: parar de consumir antes de fechar o Cassandra, senão
-            // uma mensagem em voo tenta escrever num cliente já desligado.
+            // Ordem importa: parar de consumir primeiro, para que a mensagem em voo
+            // termine de persistir e republicar antes de produtor e Cassandra fecharem.
             await consumer.stop();
+            await disconnectProducer();
             await disconnectCassandra();
             app.log.info("Shutdown concluído");
             process.exit(0);

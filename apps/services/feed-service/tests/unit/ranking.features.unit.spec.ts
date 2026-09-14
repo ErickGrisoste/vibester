@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RankingFeaturesService } from "../../src/services/ranking_features.service";
 import type { RankingCountersRepository } from "../../src/repositories/ranking_counters.repository";
-import { InteractionsRawEvent } from "../../src/schema/events/interactions-raw.schema";
+import { InteractionsNormalizedEvent } from "../../src/schema/events/interactions-normalized.schema";
 import { DEFAULT_WEIGHTS } from "../../src/ranking/weights";
 import { HeuristicScorer } from "../../src/ranking/heuristic.scorer";
 import { rankItems } from "../../src/ranking/types";
@@ -35,8 +35,8 @@ function interaction(overrides: Record<string, unknown> = {}) {
     };
 }
 
-function event(interactions: Record<string, unknown>[]): InteractionsRawEvent {
-    return { v: 1, interactions } as InteractionsRawEvent;
+function event(interactions: Record<string, unknown>[]): InteractionsNormalizedEvent {
+    return { v: 1, interactions } as InteractionsNormalizedEvent;
 }
 
 describe("RankingFeaturesService.handleInteractions", () => {

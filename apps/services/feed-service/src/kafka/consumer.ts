@@ -11,7 +11,7 @@ import { eventConfirmanceSchema } from "../schema/events/event-confirmance";
 import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
 import { kafka } from "./client";
-import { interactionsRawSchema } from "../schema/events/interactions-raw.schema";
+import { interactionsNormalizedSchema } from "../schema/events/interactions-normalized.schema";
 import { RankingFeaturesService } from "../services/ranking_features.service";
 
 const DIRECT_PAYLOAD_TOPICS: Record<string, (data: unknown) => Promise<void>> = {};
@@ -30,7 +30,7 @@ export class KafkaConsumer {
         "user.unfollowed",
         // Publicado pelo interaction-service. Alimenta os contadores do ranking; não
         // altera o conteúdo do feed, só as features usadas para ordená-lo.
-        "interactions.raw",
+        "interactions.normalized",
     ];
 
     private readonly directTopicHandlers: Record<string, (data: unknown) => Promise<void>> = {
@@ -46,8 +46,8 @@ export class KafkaConsumer {
         "user.unfollowed": async (data: unknown) =>
             this.feedService.handleUserUnfollowed(followSchema.parse(data)),
 
-        "interactions.raw": async (data: unknown) =>
-            this.rankingFeaturesService.handleInteractions(interactionsRawSchema.parse(data)),
+        "interactions.normalized": async (data: unknown) =>
+            this.rankingFeaturesService.handleInteractions(interactionsNormalizedSchema.parse(data)),
     };
 
     private handlers = {

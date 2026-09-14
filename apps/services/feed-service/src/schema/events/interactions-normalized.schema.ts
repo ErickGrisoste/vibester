@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 /**
- * Envelope de `interactions.raw`, publicado pelo `interaction-service`.
+ * Envelope de `interactions.normalized`, publicado pelo worker do `interaction-service`.
+ *
+ * É o stream canônico: toda interação que o worker persistiu, venha do app (impressão,
+ * dwell, skip) ou dos serviços de domínio (curtida, comentário, follow). Este serviço
+ * NÃO deve ler `interactions.raw` — lá só chegam sinais do cliente, porque a API
+ * rejeita os tipos derivados. Ler `raw` deixaria o ranking sem curtida nenhuma.
  *
  * Segue a convenção de tópico próprio com payload cru (`directTopicHandlers` em
  * `src/kafka/consumer.ts`), não a do envelope genérico `{eventId, eventType,
@@ -26,10 +31,10 @@ const interactionSchema = z.object({
     source: z.string().nullable().default(null),
 });
 
-export const interactionsRawSchema = z.object({
+export const interactionsNormalizedSchema = z.object({
     v: z.literal(1),
     interactions: z.array(interactionSchema).min(1),
 });
 
-export type InteractionsRawEvent = z.infer<typeof interactionsRawSchema>;
-export type RawInteraction = z.infer<typeof interactionSchema>;
+export type InteractionsNormalizedEvent = z.infer<typeof interactionsNormalizedSchema>;
+export type NormalizedInteractionPayload = z.infer<typeof interactionSchema>;

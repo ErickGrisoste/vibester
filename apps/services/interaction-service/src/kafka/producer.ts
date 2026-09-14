@@ -1,5 +1,5 @@
 import { Producer } from "kafkajs";
-import { kafka, INTERACTIONS_RAW_TOPIC } from "./client";
+import { kafka, INTERACTIONS_NORMALIZED_TOPIC, INTERACTIONS_RAW_TOPIC } from "./client";
 import { NormalizedInteraction } from "../types/interaction.types";
 
 /**
@@ -68,5 +68,41 @@ export async function publishInteractions(
                 value: JSON.stringify(message),
             },
         ],
+    });
+}
+
+/**
+ * Republica interações já persistidas no stream canônico `interactions.normalized`.
+ *
+ * Chamado pelo worker, não pela API. Agrupa por `userId` e manda uma mensagem por
+ * pessoa, sempre com `key = userId`: é o que garante que tudo de uma mesma pessoa caia
+ * na mesma partição e seja consumido em ordem downstream. Um lote vindo de
+ * `interactions.raw` já é de uma pessoa só; o agrupamento existe para não depender
+ * dessa suposição.
+ */
+export async function publishNormalizedInteractions(
+    interactions: NormalizedInteraction[]
+): Promise<void> {
+    if (interactions.length === 0) { return; }
+
+    if (!producer) {
+        throw new Error("Produtor Kafka não conectado");
+    }
+
+    const byUser = new Map<string, NormalizedInteraction[]>();
+
+    for (const interaction of interactions) {
+        const list = byUser.get(interaction.userId) ?? [];
+        list.push(interaction);
+        byUser.set(interaction.userId, list);
+    }
+
+    await producer.send({
+        topic: INTERACTIONS_NORMALIZED_TOPIC,
+        messages: [...byUser].map(([userId, list]) => {
+            const message: InteractionsRawMessage = { v: 1, interactions: list };
+
+            return { key: userId, value: JSON.stringify(message) };
+        }),
     });
 }

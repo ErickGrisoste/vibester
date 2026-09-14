@@ -4,14 +4,20 @@ import { InteractionRepository } from "../repository/interaction.repository";
 import { NormalizedInteraction } from "../types/interaction.types";
 import { mapRawMessage } from "./handlers/raw.handler";
 import { DOMAIN_TOPICS, isDomainTopic, mapDomainEvent } from "./handlers/domain.handler";
+import { publishNormalizedInteractions } from "./producer";
 
 const TOPICS = [INTERACTIONS_RAW_TOPIC, ...DOMAIN_TOPICS];
+
+type PublishNormalized = (interactions: NormalizedInteraction[]) => Promise<void>;
 
 export class InteractionConsumer {
     private consumer: Consumer | null = null;
     private running = false;
 
-    constructor(private readonly repository = new InteractionRepository()) { }
+    constructor(
+        private readonly repository = new InteractionRepository(),
+        private readonly publish: PublishNormalized = publishNormalizedInteractions
+    ) { }
 
     isRunning(): boolean {
         return this.running;
@@ -32,25 +38,46 @@ export class InteractionConsumer {
 
         await this.consumer.run({
             eachMessage: async ({ topic, message }) => {
-                const interactions = this.mapMessage(
+                await this.processMessage(
                     topic,
                     message.value?.toString() ?? "",
                     message.timestamp
                 );
-
-                if (interactions.length === 0) {
-                    // Mensagem inválida ou irrelevante: segue em frente (ack), em vez de
-                    // travar a partição em retry infinito.
-                    return;
-                }
-
-                // Uma falha aqui propaga: sem ack, o Kafka reentrega. A idempotência
-                // da chave primária é o que torna a reentrega segura.
-                await this.repository.insertMany(interactions);
             },
         });
 
         this.running = true;
+    }
+
+    /**
+     * Processa uma mensagem: normaliza, persiste no log e republica no stream canônico.
+     *
+     * A republicação em `interactions.normalized` não é opcional. Sem ela, curtida,
+     * comentário e follow — que chegam pelos tópicos dos serviços de origem, nunca por
+     * `interactions.raw` — ficariam presos neste serviço, e o ranking do feed-service
+     * rodaria para sempre sem o sinal mais comum que existe.
+     *
+     * Ordem: persistir ANTES de publicar. Se a publicação falhar, a exceção propaga, o
+     * Kafka não recebe ack e reentrega a mensagem de origem. A regravação no log é
+     * idempotente (chave primária). A republicação, não: o consumidor downstream pode
+     * receber a mesma interação duas vezes. Para contadores de ranking isso é um erro
+     * de ±1 que não muda ordem — escolha consciente, documentada lá também.
+     *
+     * Devolve quantas interações foram processadas; exposto para teste.
+     */
+    async processMessage(topic: string, rawValue: string, kafkaTimestamp: string): Promise<number> {
+        const interactions = this.mapMessage(topic, rawValue, kafkaTimestamp);
+
+        if (interactions.length === 0) {
+            // Mensagem inválida ou irrelevante: segue em frente (ack), em vez de travar
+            // a partição em retry infinito.
+            return 0;
+        }
+
+        await this.repository.insertMany(interactions);
+        await this.publish(interactions);
+
+        return interactions.length;
     }
 
     /** Exposto para teste: roteia o tópico para o handler certo. */

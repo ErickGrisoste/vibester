@@ -2,7 +2,7 @@ import {
     CounterIncrement,
     RankingCountersRepository,
 } from "../repositories/ranking_counters.repository";
-import { InteractionsRawEvent } from "../schema/events/interactions-raw.schema";
+import { InteractionsNormalizedEvent } from "../schema/events/interactions-normalized.schema";
 import { affinityFromCounts } from "../ranking/affinity";
 import { ItemFeatures, SignalCounts, SignalType, isSignalType } from "../ranking/types";
 import { RankingWeights, getWeights } from "../ranking/weights";
@@ -23,7 +23,8 @@ const KEY_SEPARATOR = "\u0000";
 /**
  * Agregação de sinais para o ranking, mantida por este serviço.
  *
- * Este serviço consome `interactions.raw` e mantém os próprios contadores, em vez de
+ * Este serviço consome `interactions.normalized` — o stream canônico, com sinais do app
+ * e dos serviços de domínio — e mantém os próprios contadores, em vez de
  * consultar o `interaction-service`. O motivo é o caminho de leitura: a ordem do feed
  * nasce no request (decisão D2), e uma chamada síncrona a outro serviço ali colocaria
  * latência de rede no ponto mais quente do produto. Duplicar incremento de contador é
@@ -47,7 +48,7 @@ export class RankingFeaturesService {
      * vira UM incremento de +50, não 50 incrementos de +1. No volume projetado essa
      * diferença é a maior economia de escrita do fluxo.
      */
-    async handleInteractions(event: InteractionsRawEvent): Promise<void> {
+    async handleInteractions(event: InteractionsNormalizedEvent): Promise<void> {
         const byItem = new Map<string, Map<string, number>>();
         const byUserAuthor = new Map<string, Map<string, number>>();
 

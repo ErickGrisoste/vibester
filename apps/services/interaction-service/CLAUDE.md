@@ -21,7 +21,14 @@ Este serviço é a fase 0 do roteiro de recomendação: coletar os sinais implí
 
 - receber, validar e publicar no Kafka os sinais que **só o cliente conhece**: `IMPRESSION`, `DWELL`, `SKIP`, `TAP_DETAIL`, `PROFILE_OPEN`, `NOT_INTERESTED`, `DIRECTIONS_CLICK`, `TICKET_CLICK`;
 - consumir os tópicos que outros serviços **já publicam** (`post.liked`, `post.unliked`, `post.commented`, `user.followed`) e normalizá-los no mesmo log;
-- persistir o log bruto em `interactions_by_user` (Cassandra), com TTL.
+- persistir o log bruto em `interactions_by_user` (Cassandra), com TTL;
+- **republicar toda interação persistida em `interactions.normalized`**, o stream canônico que consumidores downstream (o ranking do `feed-service`) devem ler.
+
+### `interactions.normalized` não é opcional
+
+`interactions.raw` só carrega sinais do cliente — a API rejeita `LIKE`, `COMMENT` e `FOLLOW` lá, por causa da regra de origem abaixo. Esses sinais chegam pelos tópicos dos serviços de domínio e, sem a republicação, ficariam presos neste serviço: o ranking do feed rodaria sem curtida nenhuma. Isso aconteceu de fato numa versão anterior, e um teste de worker que injetava `LIKE` direto em `interactions.raw` mascarou o problema — o teste passava por um caminho que a API real bloqueia. O teste de regressão está em `src/kafka/__tests__/consumer.test.ts`.
+
+Ordem no worker: **persistir antes de publicar**. Falha de publicação propaga, o Kafka reentrega a mensagem de origem, a regravação no log é idempotente — mas a republicação não é, então o consumidor downstream pode receber duplicata. Downstream precisa tolerar isso.
 
 ### Regra de origem — não viole
 
@@ -35,7 +42,7 @@ Ao adicionar um sinal novo, a primeira pergunta é: *algum serviço já sabe dis
 
 - Fastify 5 + `@fastify/cors` (`origin: true`), `@fastify/helmet`, `@fastify/rate-limit` (global, em memória), `@fastify/jwt` (**obrigatório**, ver Segurança).
 - **Cassandra** (`cassandra-driver`) via DataStax Astra em produção, ou `CASSANDRA_CONTACT_POINTS` em local/CI (`src/config/cassandra.ts`). Migrations `.cql` em `migrations/`, aplicadas pelo runner próprio `scripts/migrate.ts` (mesmo padrão do `post-service`, **não** Prisma).
-- Kafka (`kafkajs`) — **produtor no modo api, consumidor no modo worker**. Produz em `interactions.raw`; consome `interactions.raw` + os quatro tópicos de domínio.
+- Kafka (`kafkajs`) — no modo api, **produtor** em `interactions.raw`; no modo worker, **consumidor** de `interactions.raw` + os quatro tópicos de domínio **e produtor** em `interactions.normalized`.
 - `zod` para validação de env (`src/config/env.ts`) e de payload (`src/schema/interaction.schema.ts`).
 - **Sem Redis.** A fase 0 não tem leitura cacheável. Não adicione antes de existir uma rota de leitura que justifique.
 - Vitest: unit em `src/**/__tests__`, rota mockada em `tests/integration`, Cassandra real em `tests/integration-real`.
@@ -49,7 +56,7 @@ Uma imagem, dois Deployments:
 | Modo | O que faz | Depende de | Porta |
 |---|---|---|---|
 | `api` | Valida e publica no Kafka. **Nunca abre conexão com o Cassandra.** | Kafka | 3007 |
-| `worker` | Consome Kafka e persiste no Cassandra. Aplica as migrations no start. | Kafka + Cassandra | 3007 |
+| `worker` | Consome Kafka, persiste no Cassandra e republica em `interactions.normalized`. Aplica as migrations no start. | Kafka (consumo e produção) + Cassandra | 3007 |
 
 O entrypoint é `src/server.ts`, que despacha para `src/api.ts` ou `src/worker.ts`.
 
