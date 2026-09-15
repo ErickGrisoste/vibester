@@ -24,6 +24,7 @@ import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:provider/provider.dart';
 
 /// EXPLORAR — busca e descoberta ativa.
@@ -441,7 +442,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
         onAction: () => _findUsers(_query),
       );
     }
-    if (_users.isEmpty) return const _EmptyTab(what: 'pessoa');
+    final blocks = context.watch<BlockProvider>();
+    final users = _users.where((u) => !blocks.isBlocked(u.accountId)).toList();
+    if (users.isEmpty) return const _EmptyTab(what: 'pessoa');
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(
@@ -450,10 +453,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
         AppSpacing.screen,
         AppSpacing.dockGap,
       ),
-      itemCount: _users.length,
+      itemCount: users.length,
       itemBuilder: (context, i) => StaggeredEntrance(
         index: i,
-        child: _UserRow(user: _users[i]),
+        child: _UserRow(user: users[i]),
       ),
     );
   }

@@ -129,6 +129,22 @@ tela ──▶ MediaFlow (widgets/media/media_flow.dart)
 
 ---
 
+## Segurança de conteúdo e conta (App Store) — não remover
+
+A App Store recusa app social sem estes mecanismos (Guidelines 1.2 e 5.1.1(v)). Contexto completo em `APP_STORE_AUDIT.md`.
+
+- **Denunciar**: `showReportSheet` (`widgets/safety/report_sheet.dart`) no menu ⋯ do `PublicationCard` e do `PostDetailScreen` (post de terceiro) e no ⋯ do `OtherUsersProfileScreen`. Chama `SafetyService.report` → `POST /user/users/reports`.
+- **Bloquear**: `confirmAndBlockUser`/`unblockUser` (`widgets/safety/safety_actions.dart`) + `BlockProvider` (otimista, carregado pela `HomeScreen`, limpo no logout, na sessão expirada e na exclusão). Feed e busca de pessoas filtram `isBlocked`; o perfil bloqueado esconde publicações e troca Seguir por Desbloquear; Ajustes → Contas bloqueadas (`BlockedAccountsScreen`). Toda lista nova de gente ou de publicação deve filtrar pelo `BlockProvider`.
+- **Excluir conta**: Ajustes → Excluir conta (`DeleteAccountScreen`, senha + confirmação) → `DELETE /auth/account`. 401 ali é senha errada (rota `/auth/`), não sessão vencida.
+- **Senha**: `RecoverPasswordScreen` → `POST /auth/password/forgot` → `ResetPasswordScreen(email)` (código de 6 dígitos + nova senha) → `POST /auth/password/reset`.
+- **Cadastro**: `TermsConsentField` (aceite de Termos/Privacidade, 18+) e `hasMinimumAge` (`utils/age.dart`) — mesma regra do auth-service.
+- **Links legais e contato**: `ExternalLinks` (`utils/external_links.dart`): `https://vibester.com.br/termos`, `/privacidade`, `/suporte` (páginas da `apps/landing-page`) e `contato@vibester.com.br`. Tela inicial usa `LegalLink.span`.
+- **Fora desta versão**: "Vibester Club" (checkout externo AbacatePay — assinatura dentro do app precisa de IAP) e "Ghost vibe" (sem backend). Não reative sem resolver isso.
+- **iOS**: só iPhone (`TARGETED_DEVICE_FAMILY = 1`, retrato), `ios/Runner/PrivacyInfo.xcprivacy` registrado no target — atualize-o ao coletar um tipo de dado novo ou usar outra Required Reason API.
+- **Android**: `applicationId`/`namespace` = `com.victormarchi.vibester` (o mesmo do iOS; `com.example` é recusado pelo Play) e `MainActivity` em `kotlin/com/victormarchi/vibester/`. Release assina com `android/key.properties` + keystore de upload (fora do git); sem o arquivo, cai na chave de debug com aviso no build — o Play Console recusa esse AAB. `android:allowBackup="false"` porque a sessão do `flutter_secure_storage` não sobrevive a restauração em outro aparelho. O `<queries>` do manifest declara `https`, `mailto` e `CustomTabsService` — sem eles `ExternalLinks` não abre e-mail nem Termos/Privacidade em Custom Tabs. `targetSdk` 36: o Android força tela de borda a borda, então toda tela nova precisa de `SafeArea`. O Google Play exige URL pública de exclusão de conta: `https://vibester.com.br/excluir-conta`.
+
+---
+
 ## Configuração / Ambiente
 
 - **Não há separação de ambiente hoje**: `ApiEndpoints.baseUrl` é uma constante fixa (`https://api.vibester.com.br`) — não existe `--dart-define`, `flutter_dotenv` ou equivalente para apontar o app para um backend de desenvolvimento/staging. Ao testar localmente contra um backend local, isso precisa ser trocado manualmente nesse arquivo (e revertido antes de commitar) até que uma solução de ambiente seja introduzida.

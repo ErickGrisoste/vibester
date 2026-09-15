@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
+import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
@@ -99,7 +100,18 @@ class _HomeScreenState extends State<HomeScreen>
     // boot com sessão salva o buscava, e a troca de destino (que sai cedo
     // quando o índice não muda). Resultado: sino sem selo até o usuário
     // trocar de aba na mão, o que lia como "não chega notificação".
-    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshUnreadCount());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshUnreadCount();
+      _loadBlocks();
+    });
+  }
+
+  /// Lista de perfis bloqueados, para feed e busca esconderem na hora.
+  void _loadBlocks() {
+    if (!mounted) return;
+    final userId = context.read<UserProvider>().user?.accountId;
+    if (userId == null) return;
+    context.read<BlockProvider>().load(userId);
   }
 
   @override

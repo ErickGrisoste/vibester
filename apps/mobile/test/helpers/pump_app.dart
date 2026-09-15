@@ -6,6 +6,7 @@ import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
 import 'package:mobile/providers/place/nearby_provider.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
+import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/models/user/user_model.dart';
@@ -93,6 +94,7 @@ Future<void> pumpScreen(
         ChangeNotifierProvider(create: (_) => PublicationListProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider(themeMode)),
+        ChangeNotifierProvider(create: (_) => BlockProvider()),
         ChangeNotifierProvider.value(value: userProvider),
       ],
       child: MaterialApp(

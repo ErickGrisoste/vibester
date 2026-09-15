@@ -30,4 +30,10 @@ export const env = {
     // da conta. Contador fica no Redis para valer entre as replicas.
     authFailWindowSeconds: Number(process.env.AUTH_FAIL_WINDOW_SECONDS) || 900,
     authFailNotifyThreshold: Number(process.env.AUTH_FAIL_NOTIFY_THRESHOLD) || 5,
+    rateLimitPasswordResetMax: Number(process.env.RATE_LIMIT_PASSWORD_RESET_MAX) || 5,
+    rateLimitAccountDeleteMax: Number(process.env.RATE_LIMIT_ACCOUNT_DELETE_MAX) || 5,
+    // Validade do código de redefinição de senha.
+    passwordResetTtlSeconds: Number(process.env.PASSWORD_RESET_TTL_SECONDS) || 600,
+    // Chave das rotas /admin (moderação). Vazia = rotas desligadas (404).
+    adminApiKey: process.env.ADMIN_API_KEY || "",
 };

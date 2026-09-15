@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
+import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/theme/app_spacing.dart';
@@ -69,7 +70,11 @@ class _FeedScreenState extends State<FeedScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final provider = context.watch<PublicationListProvider>();
-    final publications = provider.publications;
+    // Bloqueio some na hora; o feed-service tira os posts do feed em seguida.
+    final blocks = context.watch<BlockProvider>();
+    final publications = provider.publications
+        .where((p) => !blocks.isBlocked(p.authorId))
+        .toList();
 
     return Scaffold(
       backgroundColor: colors.noturno,

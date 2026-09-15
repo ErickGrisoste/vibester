@@ -12,6 +12,8 @@ export const env = {
     kafkaBrokers: process.env.KAFKA_BROKERS as string,
     rateLimitFollowMax: Number(process.env.RATE_LIMIT_FOLLOW_MAX) || 60,
     rateLimitShareMax: Number(process.env.RATE_LIMIT_SHARE_MAX) || 30,
+    rateLimitBlockMax: Number(process.env.RATE_LIMIT_BLOCK_MAX) || 30,
+    rateLimitReportMax: Number(process.env.RATE_LIMIT_REPORT_MAX) || 20,
     webBaseUrl: process.env.WEB_BASE_URL || "https://vibester.com.br",
     shareLinkTtlSeconds: Number(process.env.SHARE_LINK_TTL_SECONDS) || 86400,
 };

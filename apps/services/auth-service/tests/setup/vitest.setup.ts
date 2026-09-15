@@ -21,5 +21,9 @@ vi.mock('../../src/config/env', () => ({
     verificationCodeSecret: 'test-code-secret',
     authFailWindowSeconds: 900,
     authFailNotifyThreshold: 5,
+    rateLimitPasswordResetMax: 5,
+    rateLimitAccountDeleteMax: 5,
+    passwordResetTtlSeconds: 600,
+    adminApiKey: 'test-admin-key',
   },
 }));
