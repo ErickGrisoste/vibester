@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
+import 'package:mobile/models/safety/report_reason.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/posts/post_service.dart';
 import 'package:mobile/theme/app_spacing.dart';
@@ -10,6 +11,8 @@ import 'package:mobile/widgets/media/post_media_carousel.dart';
 import 'package:mobile/widgets/motion/double_tap_like.dart';
 import 'package:mobile/widgets/motion/like_heart.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/safety/report_sheet.dart';
+import 'package:mobile/widgets/safety/safety_actions.dart';
 import 'package:provider/provider.dart';
 
 /// Publicação em tela cheia.
@@ -98,6 +101,34 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
+  Future<void> _abrirOpcoes() async {
+    final action = await showSafetyActionsSheet(
+      context,
+      actions: const [SafetyAction.reportPost, SafetyAction.block],
+    );
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case SafetyAction.reportPost:
+        await showReportSheet(
+          context,
+          targetType: ReportTargetType.post,
+          targetId: _highlight.postId,
+          targetOwnerId: _highlight.userId,
+        );
+      case SafetyAction.block:
+        final bloqueado = await confirmAndBlockUser(
+          context,
+          accountId: _highlight.userId,
+          displayName: '',
+        );
+        if (bloqueado && mounted) Navigator.pop(context);
+      case SafetyAction.reportProfile:
+      case SafetyAction.unblock:
+        break;
+    }
+  }
+
   String _formatarData(String isoDate) {
     if (isoDate.isEmpty) return '';
     try {
@@ -157,15 +188,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               : 'Curtir',
                           onTap: _alternarCurtida,
                         ),
-                        const SizedBox(width: AppSpacing.lg),
-                        _Action(
-                          icon: Icon(
-                            Icons.mode_comment_outlined,
-                            size: 22,
-                            color: colors.textSecondary,
-                          ),
-                          value: highlight.totalComentarios,
-                        ),
+                        // O contador de comentários saiu: o app ainda não
+                        // mostra nem publica comentários, e um número sem
+                        // ação parece funcionalidade quebrada.
                       ],
                     ),
 
@@ -205,7 +230,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ),
 
-          // Excluir só aparece para o dono do post.
+          // Dono exclui; quem vê o post de outra pessoa denuncia ou bloqueia.
           if (isOwn)
             Positioned(
               top: MediaQuery.of(context).padding.top + AppSpacing.sm,
@@ -214,6 +239,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 icon: Icons.delete_outline_rounded,
                 label: 'Excluir publicação',
                 onTap: _isDeleting ? null : _excluir,
+              ),
+            )
+          else if (viewerId != null && highlight.userId.isNotEmpty)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+              right: AppSpacing.lg,
+              child: _FloatingButton(
+                icon: Icons.more_horiz_rounded,
+                label: 'Opções da publicação',
+                onTap: _abrirOpcoes,
               ),
             ),
         ],

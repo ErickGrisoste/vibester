@@ -23,6 +23,8 @@ import 'package:mobile/screens/register/recover_password_screen.dart';
 import 'package:mobile/screens/register/register_screen.dart';
 import 'package:mobile/screens/register/reset_password_screen.dart';
 import 'package:mobile/screens/saved/saved_screen.dart';
+import 'package:mobile/screens/settings/blocked_accounts_screen.dart';
+import 'package:mobile/screens/settings/delete_account_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
 import 'package:mobile/screens/user/other_users_profile_screen.dart';
@@ -79,7 +81,10 @@ void main() {
     'LoginScreen': () => const LoginScreen(),
     'RegisterScreen': () => const RegisterScreen(),
     'RecoverPasswordScreen': () => const RecoverPasswordScreen(),
-    'ResetPasswordScreen': () => const ResetPasswordScreen(),
+    'ResetPasswordScreen': () =>
+        const ResetPasswordScreen(email: 'ana@example.com'),
+    'BlockedAccountsScreen': () => const BlockedAccountsScreen(),
+    'DeleteAccountScreen': () => const DeleteAccountScreen(),
     'OnboardingScreen': () => const OnboardingScreen(),
     'HomeScreen (casca + dock)': () => const HomeScreen(),
     'TodayScreen': () => const TodayScreen(),

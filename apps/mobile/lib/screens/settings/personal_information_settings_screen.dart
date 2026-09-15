@@ -291,8 +291,8 @@ class _PersonalInformationSettingsScreenState
                 0,
               ),
               child: Text(
-                'Esses dados ainda não podem ser alterados pelo app. Fale com '
-                'o suporte se algum estiver errado.',
+                'Esses dados ainda não podem ser alterados pelo app. Se algum '
+                'estiver errado, escreve pra contato@vibester.com.br.',
                 style: context.typography.bodySmall.copyWith(
                   color: colors.textDisabled,
                 ),

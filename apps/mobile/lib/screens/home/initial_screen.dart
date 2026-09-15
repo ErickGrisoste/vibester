@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/utils/external_links.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
+import 'package:mobile/widgets/common/legal_link.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/graffiti/scribble_mark.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
@@ -150,14 +152,18 @@ class InitialScreen extends StatelessWidget {
                                 const TextSpan(
                                   text: 'AO CONTINUAR VOCÊ ACEITA OS ',
                                 ),
-                                TextSpan(
-                                  text: 'TERMOS DE USO',
-                                  style: TextStyle(color: colors.textMuted),
+                                LegalLink.span(
+                                  context,
+                                  label: 'TERMOS DE USO',
+                                  uri: ExternalLinks.terms,
+                                  style: type.monoMicro,
                                 ),
                                 const TextSpan(text: ' E A '),
-                                TextSpan(
-                                  text: 'POLÍTICA DE PRIVACIDADE',
-                                  style: TextStyle(color: colors.textMuted),
+                                LegalLink.span(
+                                  context,
+                                  label: 'POLÍTICA DE PRIVACIDADE',
+                                  uri: ExternalLinks.privacy,
+                                  style: type.monoMicro,
                                 ),
                               ],
                             ),
