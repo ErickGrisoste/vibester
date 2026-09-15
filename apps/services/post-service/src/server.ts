@@ -7,6 +7,8 @@ import { redis } from "./config/redis";
 import { routes } from "./routes";
 import { registerSwagger } from "./config/swagger";
 import { producer } from "./kafka/producer";
+import { startConsumer, stopConsumer } from "./kafka/consumer";
+import { buildAccountContentDeletionService } from "./services/account-content-deletion.service";
 import { env } from "./config/env";
 import { registerErrorHandler } from "./errors/error.handler";
 import { registerCorsAndRateLimit, registerHttpMetrics } from "./plugins";
@@ -56,6 +58,10 @@ async function start() {
         await producer.connect();
         await getCassandraClient().connect();
 
+        // Único consumidor do serviço: apaga o conteúdo de contas excluídas
+        // (user.deleted, publicado pelo auth-service).
+        await startConsumer(buildAccountContentDeletionService());
+
         await registerSwagger(app);
         await app.register(routes);
 
@@ -68,6 +74,7 @@ async function start() {
             app.log.info({ signal }, "Iniciando shutdown gracioso");
             try {
                 await app.close();
+                await stopConsumer();
                 await producer.disconnect();
                 await getCassandraClient().shutdown();
                 await redis.quit();
