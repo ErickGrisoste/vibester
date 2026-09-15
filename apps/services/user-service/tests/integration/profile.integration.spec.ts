@@ -50,10 +50,16 @@ const { mockUserProfile, mockUserFollow, mockTransaction, mockQueryRaw } = vi.ho
   return { mockUserProfile, mockUserFollow, mockTransaction, mockQueryRaw };
 });
 
+// Seguir consulta bloqueios antes; sem bloqueio nos cenários deste arquivo.
+const { mockUserBlock } = vi.hoisted(() => ({
+  mockUserBlock: { count: vi.fn().mockResolvedValue(0) },
+}));
+
 vi.mock('../../src/prisma/index', () => ({
   default: {
     userProfile: mockUserProfile,
     userFollow: mockUserFollow,
+    userBlock: mockUserBlock,
     $transaction: mockTransaction,
     $queryRaw: mockQueryRaw,
   },
