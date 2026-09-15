@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nova denúncia</title>
+</head>
+<body style="font-family: Arial, sans-serif; background-color: #f5f5f5; color: #1a1a1a; padding: 32px;">
+  <div style="max-width: 640px; margin: auto; background: #ffffff; padding: 32px; border-radius: 12px; border: 1px solid #e5e5e5;">
+    <h1 style="font-size: 22px; margin: 0 0 8px;">Nova denúncia — {{targetLabel}}</h1>
+    <p style="font-size: 14px; color: #555; margin: 0 0 24px;">Analisar em até <strong>24 horas</strong>.</p>
+
+    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+      <tr><td style="padding: 6px 0; color: #777; width: 160px;">Motivo</td><td style="padding: 6px 0;"><strong>{{reason}}</strong></td></tr>
+      <tr><td style="padding: 6px 0; color: #777;">Tipo</td><td style="padding: 6px 0;">{{targetType}}</td></tr>
+      <tr><td style="padding: 6px 0; color: #777;">ID denunciado</td><td style="padding: 6px 0; font-family: monospace;">{{targetId}}</td></tr>
+      {{#if targetOwnerId}}
+      <tr><td style="padding: 6px 0; color: #777;">Conta responsável</td><td style="padding: 6px 0; font-family: monospace;">{{targetOwnerId}}</td></tr>
+      {{/if}}
+      <tr><td style="padding: 6px 0; color: #777;">Denunciante</td><td style="padding: 6px 0; font-family: monospace;">{{reporterId}}</td></tr>
+      <tr><td style="padding: 6px 0; color: #777;">Recebida em</td><td style="padding: 6px 0;">{{createdAt}}</td></tr>
+      <tr><td style="padding: 6px 0; color: #777;">Denúncia</td><td style="padding: 6px 0; font-family: monospace;">{{reportId}}</td></tr>
+    </table>
+
+    {{#if details}}
+    <p style="font-size: 14px; color: #777; margin: 24px 0 4px;">Detalhes escritos pelo denunciante</p>
+    <blockquote style="margin: 0; padding: 12px 16px; background: #fafafa; border-left: 3px solid #ff7a00; white-space: pre-wrap;">{{details}}</blockquote>
+    {{/if}}
+
+    <h2 style="font-size: 16px; margin: 28px 0 8px;">Como agir</h2>
+    <ol style="font-size: 14px; color: #333; padding-left: 18px; line-height: 1.6;">
+      {{#if isPost}}
+      <li>Abrir a publicação: <code>GET https://api.vibester.com.br/post/posts/{{targetId}}</code></li>
+      <li>Se violar os Termos, remover: <code>DELETE https://api.vibester.com.br/post/posts/{{targetId}}</code> com corpo <code>{"userId": "{{targetOwnerId}}"}</code></li>
+      {{else}}
+      <li>Abrir o perfil: <code>GET https://api.vibester.com.br/user/users/profile/{{targetId}}</code></li>
+      {{/if}}
+      <li>Se a conta violar os Termos, suspender: <code>POST https://api.vibester.com.br/auth/admin/accounts/{{#if targetOwnerId}}{{targetOwnerId}}{{else}}{{targetId}}{{/if}}/suspend</code> com o header <code>x-admin-key</code></li>
+    </ol>
+  </div>
+</body>
+</html>

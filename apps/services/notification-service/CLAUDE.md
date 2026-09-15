@@ -30,7 +30,7 @@ Nunca adicione regras de negócio de autenticação, feed, pagamento ou relacion
 - Prisma 7 com `@prisma/adapter-pg` (driver adapter sobre `pg.Pool`, mesmo padrão do `auth-service` e `user-service`)
 - PostgreSQL — dois modelos: `Notification` (notificações in-app) e `TwoFactorCode` (códigos 2FA com expiração)
 - Redis (`ioredis`) — presente na infra (configurado em `src/config/redis.ts`) e exposto no `/health`, mas **ainda não utilizado para cache** — não assuma que dados estão sendo cacheados neste serviço
-- Kafka (`kafkajs`) — **somente consumidor** neste serviço; sem produtor. Consome: `auth.email.verification`, `user.registered`, `user.followed`, `post.liked`, `post.commented`, `user.deleted`
+- Kafka (`kafkajs`) — **somente consumidor** neste serviço; sem produtor. Consome: `auth.email.verification`, `user.registered`, `user.followed`, `post.liked`, `post.commented`, `user.deleted`, `auth.attempts.exceeded`, `auth.password.reset` (email com o código de redefinição, template `password_reset_code.html`; o código nunca vai para o log) e `content.reported` (cada denúncia vira um email para `MODERATION_EMAIL`, padrão `contato@vibester.com.br`, template `content_report.html` com os passos de moderação — é o gatilho do prazo de 24h da App Store)
 - `nodemailer` — envio de e-mails via SMTP; funciona em modo dev sem credenciais (apenas loga, não envia)
 - `handlebars` — renderização dos templates HTML de e-mail (arquivos em `templates/`)
 - Sem testes automatizados atualmente (sem Vitest, sem k6)
