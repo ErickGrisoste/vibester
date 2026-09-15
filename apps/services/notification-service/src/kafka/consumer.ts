@@ -7,6 +7,8 @@ import { handlePostLikedEvent } from "./handlers/postLiked.handler";
 import { handlePostCommentedEvent } from "./handlers/postCommented.handler";
 import { handleUserDeletedEvent } from "./handlers/userDeleted.handler";
 import { handleExcessiveAttemptsEvent } from "./handlers/excessiveAttempts.handler";
+import { handlePasswordResetEvent } from "./handlers/passwordReset.handler";
+import { handleContentReportedEvent } from "./handlers/contentReported.handler";
 
 export const kafka = new Kafka({
   clientId: "notification-service",
@@ -28,6 +30,8 @@ const TOPICS = [
   "post.commented",
   "user.deleted",
   "auth.attempts.exceeded",
+  "auth.password.reset",
+  "content.reported",
 ];
 
 export async function startKafkaConsumers(): Promise<void> {
@@ -65,6 +69,12 @@ export async function startKafkaConsumers(): Promise<void> {
             break;
           case "post.commented":
             await handlePostCommentedEvent(value);
+            break;
+          case "auth.password.reset":
+            await handlePasswordResetEvent(value);
+            break;
+          case "content.reported":
+            await handleContentReportedEvent(value);
             break;
           case "user.deleted":
             await handleUserDeletedEvent(value);

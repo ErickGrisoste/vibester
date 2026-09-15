@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/models/feed/publication_model.dart';
 import 'package:mobile/models/media/post_media.dart';
+import 'package:mobile/models/safety/report_reason.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
@@ -15,6 +16,8 @@ import 'package:mobile/widgets/indicators/like_indicator.dart';
 import 'package:mobile/widgets/media/post_media_carousel.dart';
 import 'package:mobile/widgets/motion/double_tap_like.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/safety/report_sheet.dart';
+import 'package:mobile/widgets/safety/safety_actions.dart';
 import 'package:provider/provider.dart';
 
 /// Publicação no feed.
@@ -155,10 +158,10 @@ class PublicationCard extends StatelessWidget {
   }
 }
 
-enum _PostOption { delete }
+enum _PostOption { delete, report, block }
 
-/// Linha de autoria: avatar, @, e — só no post do próprio usuário — o menu de
-/// opções com a exclusão.
+/// Linha de autoria: avatar, @ e o menu de opções — excluir no post do próprio
+/// usuário; denunciar e bloquear no post de outra pessoa.
 class _AuthorLine extends StatelessWidget {
   final PublicationModel publication;
 
@@ -176,6 +179,11 @@ class _AuthorLine extends StatelessWidget {
         viewerId != null &&
         publication.id != null &&
         publication.authorId == viewerId;
+    // Denunciar/bloquear precisa de sessão e de saber de quem é o post.
+    final canModerate =
+        viewerId != null &&
+        publication.id != null &&
+        publication.authorId != null;
 
     return Row(
       children: [
@@ -217,7 +225,7 @@ class _AuthorLine extends StatelessWidget {
             ),
           ),
         ),
-        if (isOwn) ...[
+        if (canModerate) ...[
           const Spacer(),
           PopupMenuButton<_PostOption>(
             tooltip: 'Opções da publicação',
@@ -228,29 +236,63 @@ class _AuthorLine extends StatelessWidget {
                 context,
                 postId: publication.id!,
               ),
+              _PostOption.report => showReportSheet(
+                context,
+                targetType: ReportTargetType.post,
+                targetId: publication.id!,
+                targetOwnerId: publication.authorId,
+              ),
+              _PostOption.block => confirmAndBlockUser(
+                context,
+                accountId: publication.authorId!,
+                displayName: formatHandle(publication.autor),
+              ),
             },
             itemBuilder: (_) => [
-              PopupMenuItem(
-                value: _PostOption.delete,
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.delete_outline_rounded,
-                      size: 20,
-                      color: colors.error,
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Text(
-                      'Excluir publicação',
-                      style: type.titleSmall.copyWith(color: colors.error),
-                    ),
-                  ],
+              if (isOwn)
+                _menuItem(
+                  context,
+                  _PostOption.delete,
+                  Icons.delete_outline_rounded,
+                  'Excluir publicação',
+                )
+              else ...[
+                _menuItem(
+                  context,
+                  _PostOption.report,
+                  Icons.flag_outlined,
+                  'Denunciar publicação',
                 ),
-              ),
+                _menuItem(
+                  context,
+                  _PostOption.block,
+                  Icons.block_rounded,
+                  'Bloquear perfil',
+                ),
+              ],
             ],
           ),
         ],
       ],
+    );
+  }
+
+  PopupMenuItem<_PostOption> _menuItem(
+    BuildContext context,
+    _PostOption value,
+    IconData icon,
+    String label,
+  ) {
+    final color = context.colors.error;
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: AppSpacing.md),
+          Text(label, style: context.typography.titleSmall.copyWith(color: color)),
+        ],
+      ),
     );
   }
 }

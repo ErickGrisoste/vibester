@@ -221,4 +221,45 @@ class UserService {
       throw Exception(apiErrorMessage(e, 'Código inválido ou expirado'));
     }
   }
+
+  /// Pede o código de redefinição. O backend responde igual exista ou não a
+  /// conta, então sucesso aqui não confirma que o email é cadastrado.
+  Future<void> requestPasswordReset({required String email}) async {
+    try {
+      await ApiClient.dio.post(
+        ApiEndpoints.forgotPassword(),
+        data: {'email': email},
+      );
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, 'Não foi possível enviar o código'));
+    }
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+  }) async {
+    try {
+      await ApiClient.dio.post(
+        ApiEndpoints.resetPassword(),
+        data: {'email': email, 'code': code, 'password': password},
+      );
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, 'Não foi possível redefinir a senha'));
+    }
+  }
+
+  /// Exclui a conta do token atual. 401 aqui é senha errada (rota /auth/),
+  /// não sessão vencida — o `ApiClient` não desloga por isso.
+  Future<void> deleteAccount({required String password}) async {
+    try {
+      await ApiClient.dio.delete(
+        ApiEndpoints.deleteAccount(),
+        data: {'password': password},
+      );
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, 'Não foi possível excluir a conta'));
+    }
+  }
 }

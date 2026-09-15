@@ -35,6 +35,9 @@ spec:
               value: "http://post-service:3000"
             - name: HTTP_CLIENT_TIMEOUT_MS
               value: "5000"
+            # Caixa que recebe as denúncias de conteúdo (content.reported).
+            - name: MODERATION_EMAIL
+              value: "contato@vibester.com.br"
           envFrom:
             - secretRef:
                 name: notification-db-secret

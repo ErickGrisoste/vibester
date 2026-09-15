@@ -46,6 +46,16 @@ export class LoginService {
             throw new AppError("Usuário ou senha inválidos", 401, "invalid_password");
         }
 
+        // Só depois da senha: antes disso, responder "suspensa" revelaria que a
+        // conta existe para quem nem sabe a senha.
+        if (user.suspendedAt) {
+            throw new AppError(
+                "Sua conta foi suspensa por violar os Termos de Uso. Fale com contato@vibester.com.br.",
+                403,
+                "account_suspended",
+            );
+        }
+
         await this.attempts.clearLoginFailures(user.email);
 
         const token = jwt.sign(

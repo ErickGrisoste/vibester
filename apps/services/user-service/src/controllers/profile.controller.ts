@@ -9,6 +9,7 @@ import { SearchProfilesService } from "../services/searchProfiles.service.js";
 import { CheckFollowService } from "../services/checkFollow.service.js";
 import { GenerateShareLinkService } from "../services/generateShareLink.service.js";
 import { ResolveShareLinkService } from "../services/resolveShareLink.service.js";
+import { BlockService } from "../services/block.service.js";
 import { env } from "../config/env.js";
 import type { ProfileView } from "../prisma/profile.select.js";
 
@@ -20,6 +21,7 @@ const checkFollowService = new CheckFollowService();
 const searchProfilesService = new SearchProfilesService();
 const generateShareLinkService = new GenerateShareLinkService();
 const resolveShareLinkService = new ResolveShareLinkService();
+const blockService = new BlockService(editProfileService);
 
 const errorSchema = z.object({ message: z.string() });
 
@@ -295,13 +297,16 @@ export async function profileRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Profile"],
       summary: "Seguir usuário",
-      description: "Registra que followerId passou a seguir followingId. Atualiza contadores em ambos os perfis e dispara evento Kafka user.followed.",
+      description: "Registra que followerId passou a seguir followingId. Atualiza contadores em ambos os perfis e dispara evento Kafka user.followed. Recusa (403) quando há bloqueio entre os dois.",
       body: followerActionSchema,
-      response: { 200: userProfileSchema, 500: errorSchema },
+      response: { 200: userProfileSchema, 403: errorSchema, 500: errorSchema },
     },
   }, async (request, reply) => {
     try {
       const { followerId, followingId } = request.body;
+      if (await blockService.isBlockedEitherWay(followerId, followingId)) {
+        return reply.status(403).send({ message: "Não é possível seguir este perfil" });
+      }
       const profile = await editProfileService.increaseFollower(followerId, followingId);
       return reply.status(200).send(toProfileResponse(profile));
     } catch (error) {

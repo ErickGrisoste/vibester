@@ -5,7 +5,9 @@ import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/utils/age.dart';
 import 'package:mobile/utils/date_picker_field.dart';
+import 'package:mobile/widgets/common/terms_consent_field.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
 import 'package:mobile/widgets/common/screen_header.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
@@ -89,10 +91,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
       setState(() => _isLoading = false);
+      // A mensagem já vem tratada pelo UserService (apiErrorMessage): email em
+      // uso, idade mínima e sem conexão pedem ações diferentes.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Não foi possível criar a conta. Tenta de novo.'),
-        ),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
   }
@@ -188,9 +190,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           initialDate: _dataNascimento,
                           onDateSelected: (data) =>
                               setState(() => _dataNascimento = data),
-                          validator: (value) => value == null
-                              ? 'Informe sua data de nascimento'
-                              : null,
+                          validator: (value) {
+                            if (value == null) {
+                              return 'Informe sua data de nascimento';
+                            }
+                            if (!hasMinimumAge(value)) {
+                              return 'O Vibester é só para maiores de '
+                                  '$minimumAgeYears anos';
+                            }
+                            return null;
+                          },
                         ),
 
                         const SizedBox(height: AppSpacing.lg),
@@ -214,6 +223,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return null;
                           },
                         ),
+
+                        const SizedBox(height: AppSpacing.lg),
+                        TermsConsentField(),
 
                         const SizedBox(height: AppSpacing.xl),
                         VibesterButton(

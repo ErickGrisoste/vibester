@@ -33,10 +33,15 @@
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
    
+    <!-- Backup automático desligado: a sessão fica no flutter_secure_storage,
+         cifrada com chave do Keystore do aparelho; restaurada em outro
+         aparelho, a chave não existe e a leitura quebra. -->
     <application
-        android:label="mobile"
+        android:label="Vibester"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
         android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"
@@ -93,6 +98,18 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
+        </intent>
+
+        <!-- Ajustes → Ajuda e contato (mailto:contato@vibester.com.br). -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+
+        <!-- Termos/Privacidade abrem em Custom Tabs (LaunchMode.inAppBrowserView);
+             sem esta consulta o url_launcher não enxerga o navegador compatível. -->
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
     </queries>
 </manifest>

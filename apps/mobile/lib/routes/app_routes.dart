@@ -31,6 +31,8 @@ class AppRoutes {
   //SETTINGS
   static const settings = '/settings';
   static const personalInformationSettings = '/personal-information-settings';
+  static const blockedAccounts = '/blocked-accounts';
+  static const deleteAccount = '/delete-account';
 
   //USER
   static const profile = '/profile';

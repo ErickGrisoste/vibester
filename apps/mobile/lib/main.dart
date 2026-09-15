@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/models/user/user_model.dart';
@@ -15,6 +16,7 @@ import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
 import 'package:mobile/providers/place/nearby_provider.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
+import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
@@ -42,6 +44,8 @@ import 'package:mobile/screens/register/recover_password_screen.dart';
 import 'package:mobile/screens/register/register_screen.dart';
 import 'package:mobile/screens/register/reset_password_screen.dart';
 import 'package:mobile/screens/explore/explore_screen.dart';
+import 'package:mobile/screens/settings/blocked_accounts_screen.dart';
+import 'package:mobile/screens/settings/delete_account_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
 import 'package:mobile/screens/user/other_users_profile_screen.dart';
@@ -65,6 +69,11 @@ class _NoBounceScrollBehavior extends ScrollBehavior {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // debugPrint não é removido no build de release: iria para o log do
+  // aparelho (Console.app/logcat) com payloads de notificação e mensagens de
+  // erro. Em release, silencia.
+  if (kReleaseMode) debugPrint = (String? message, {int? wrapWidth}) {};
 
   // Limites do cache de imagem em memória — o motivo de cada número vive
   // junto do cache de disco, em lib/service/media/image_cache.dart.
@@ -145,6 +154,7 @@ class _MyAppState extends State<MyApp> {
   late final UserProvider _userProvider;
   late final NotificationProvider _notificationProvider;
   late final ThemeProvider _themeProvider;
+  late final BlockProvider _blockProvider;
 
   @override
   void initState() {
@@ -154,6 +164,7 @@ class _MyAppState extends State<MyApp> {
     _userProvider = UserProvider();
     _notificationProvider = NotificationProvider();
     _themeProvider = ThemeProvider(widget.initialThemeMode);
+    _blockProvider = BlockProvider();
 
     // A busca do contador de não lidas saiu daqui: a HomeScreen agora a faz
     // ao montar e ao voltar do segundo plano, o que cobre também quem entra
@@ -205,6 +216,7 @@ class _MyAppState extends State<MyApp> {
     // próxima conta a entrar herdava o selo e a lista da anterior até a
     // primeira busca terminar.
     _notificationProvider.clear();
+    _blockProvider.clear();
 
     navigator.pushNamedAndRemoveUntil(AppRoutes.initialScreen, (_) => false);
     navigator.pushNamed(AppRoutes.login);
@@ -321,6 +333,7 @@ class _MyAppState extends State<MyApp> {
     _userProvider.dispose();
     _notificationProvider.dispose();
     _themeProvider.dispose();
+    _blockProvider.dispose();
     super.dispose();
   }
 
@@ -335,6 +348,7 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider.value(value: _userProvider),
         ChangeNotifierProvider.value(value: _notificationProvider),
         ChangeNotifierProvider.value(value: _themeProvider),
+        ChangeNotifierProvider.value(value: _blockProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) => MaterialApp(
@@ -422,7 +436,11 @@ class _MyAppState extends State<MyApp> {
               case AppRoutes.register:
                 return vibesterFadeRoute(const RegisterScreen(), settings);
               case AppRoutes.resetPassword:
-                return vibesterFadeRoute(const ResetPasswordScreen(), settings);
+                final email = settings.arguments as String? ?? '';
+                return vibesterFadeRoute(
+                  ResetPasswordScreen(email: email),
+                  settings,
+                );
 
               // SEARCH
               case AppRoutes.search:
@@ -434,6 +452,16 @@ class _MyAppState extends State<MyApp> {
               case AppRoutes.personalInformationSettings:
                 return vibesterSlideRoute(
                   const PersonalInformationSettingsScreen(),
+                  settings,
+                );
+              case AppRoutes.blockedAccounts:
+                return vibesterSlideRoute(
+                  const BlockedAccountsScreen(),
+                  settings,
+                );
+              case AppRoutes.deleteAccount:
+                return vibesterSlideRoute(
+                  const DeleteAccountScreen(),
                   settings,
                 );
 
