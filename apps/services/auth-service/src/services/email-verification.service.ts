@@ -1,4 +1,4 @@
-import { createHmac, randomInt, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { hash } from "bcryptjs";
 import { redis } from "../config/redis";
 import { producer } from "../kafka/producer";
@@ -7,32 +7,9 @@ import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { RegisterInputInterface, RegisterOutputInterface } from "../types/register.types";
 import { PendingRegistration } from "../types/email-verification.types";
+import { codeMatches, hashCode } from "./verification-code";
 
 const PENDING_KEY = (email: string) => `pending:reg:${email}`;
-
-/**
- * HMAC do código de verificação.
- *
- * Um SHA simples não serviria: só existem 900 mil códigos possíveis, então
- * quem lesse o Redis reverteria o digest por enumeração em segundos. Com HMAC
- * a chave do servidor é necessária para gerar qualquer digest.
- *
- * bcrypt também resolveria, mas custa ~100ms por tentativa em cima do hot path
- * de verificação — HMAC é da ordem de microssegundos.
- */
-function hashCode(code: string): string {
-    return createHmac("sha256", env.verificationCodeSecret).update(code).digest("hex");
-}
-
-/** Comparação em tempo constante entre dois digests hexadecimais. */
-function codeMatches(code: string, expectedHash: string): boolean {
-    const actual = Buffer.from(hashCode(code), "hex");
-    const expected = Buffer.from(expectedHash, "hex");
-
-    if (actual.length !== expected.length) return false;
-
-    return timingSafeEqual(actual, expected);
-}
 
 export class EmailVerificationService {
     async initiate(input: RegisterInputInterface): Promise<void> {

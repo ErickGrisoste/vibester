@@ -16,7 +16,7 @@ const app = Fastify({
 const start = async () => {
     await app.register(cors, {
         origin: env.corsOrigin,
-        methods: ['GET', 'POST'],
+        methods: ['GET', 'POST', 'DELETE'],
         credentials: true,
     });
     // Store no Redis, nao em memoria: o HPA deste servico vai de 2 a 6 replicas,
