@@ -118,6 +118,23 @@ void main() {
   }
 
   group('telas com argumento', () {
+    testWidgets('RegisterScreen separa nome de nome de usuário', (
+      tester,
+    ) async {
+      await pumpScreen(tester, const RegisterScreen());
+
+      final campos = find.byType(EditableText);
+      await tester.enterText(campos.at(0), 'João Côrtes');
+      await tester.enterText(campos.at(1), 'João Côrtes');
+      await tester.pump();
+
+      // Nome guarda acento e maiúscula; o usuário sai minúsculo e sem acento.
+      expect(find.text('João Côrtes'), findsOneWidget);
+      expect(find.text('joao cortes'), findsOneWidget);
+      expect(find.text('SEU USUÁRIO VAI SER  @joaocortes'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('EventDetailScreen renderiza o evento', (tester) async {
       await pumpScreen(
         tester,

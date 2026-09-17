@@ -196,7 +196,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                       children: [
                         PrimaryTextField(
                           controller: _nomeController,
-                          label: 'Como te chamam',
+                          label: 'Nome completo',
                           icon: Icons.person_outline_rounded,
                           inputFormatters: [
                             LengthLimitingTextInputFormatter(30),
