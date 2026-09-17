@@ -191,18 +191,22 @@ class _PageCounter extends StatelessWidget {
   }
 }
 
-/// Vídeo de um post: capa parada até o toque, depois player em loop.
+/// Vídeo de um post: toca sozinho, sem som e em loop, quando aparece na tela.
 ///
-/// Não toca sozinho — reprodução automática no feed gasta o plano de dados de
-/// quem só está rolando, e o público do app está no 4G da rua. Regras de
-/// recurso, porque o feed pode ter dezenas de vídeos:
+/// Quem vence é o vídeo mais visível (pelo menos [_minVisibleFraction] dele
+/// dentro de todas as áreas roláveis acima — a lista do feed e o carrossel);
+/// enquanto continua acima do limite, segue tocando mesmo que outro apareça.
+/// O toque pausa e retoma, e a pausa manual é respeitada até o vídeo sair de
+/// vista. O som começa desligado e a escolha vale para os próximos vídeos.
 ///
-/// * **um player por vez no app inteiro**: dar play num vídeo descarta o
+/// Regras de recurso, porque o feed pode ter dezenas de vídeos:
+///
+/// * **um player por vez no app inteiro**: o vídeo que assume descarta o
 ///   anterior (controller e decodificador), não só pausa;
-/// * o player só é criado no primeiro play, e é descartado quando o item sai
-///   da árvore (rolagem, página do carrossel);
-/// * pausa quando a aba some (`TickerMode`), quando outra tela cobre esta
-///   (`ModalRoute.isCurrent`) e quando o app vai para segundo plano.
+/// * o player só é criado quando o vídeo vence, e é descartado quando o item
+///   sai da árvore (rolagem, página do carrossel);
+/// * nenhum vídeo toca quando a aba some (`TickerMode`), quando outra tela
+///   cobre esta (`ModalRoute.isCurrent`) ou com o app em segundo plano.
 class FeedVideo extends StatefulWidget {
   final PostMedia media;
   final bool grain;
@@ -214,47 +218,181 @@ class FeedVideo extends StatefulWidget {
 }
 
 class _FeedVideoState extends State<FeedVideo> with WidgetsBindingObserver {
+  /// Quanto do vídeo precisa estar à vista para começar a tocar.
+  static const _minVisibleFraction = 0.6;
+
+  /// Todo vídeo montado — os candidatos a tocar.
+  static final Set<_FeedVideoState> _mounted = {};
+
   /// O único vídeo com player aberto.
   static _FeedVideoState? _active;
+
+  static bool _electionScheduled = false;
+  static bool _appResumed = true;
+
+  /// Som desligado por padrão; ligar vale para os vídeos seguintes.
+  static bool _muted = true;
 
   VideoPlayerController? _controller;
   bool _loading = false;
   bool _failed = false;
-  bool _muted = false;
+
+  /// Aba visível e tela no topo da pilha.
+  bool _onScreen = false;
+
+  /// A pessoa pausou: a eleição não retoma até o vídeo sair de vista.
+  bool _pausedByUser = false;
+
+  final List<ScrollPosition> _scrollPositions = [];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _mounted.add(this);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final visible =
+    _onScreen =
         TickerMode.of(context) && (ModalRoute.isCurrentOf(context) ?? true);
-    if (!visible) _controller?.pause();
+    _listenToScrollables();
+    _scheduleElection();
+  }
+
+  /// Escuta a rolagem de todas as áreas roláveis acima (feed e carrossel):
+  /// qualquer uma delas muda o quanto do vídeo aparece.
+  void _listenToScrollables() {
+    final positions = <ScrollPosition>[];
+    ScrollableState? scrollable = Scrollable.maybeOf(context);
+    while (scrollable != null) {
+      positions.add(scrollable.position);
+      scrollable = scrollable.context
+          .findAncestorStateOfType<ScrollableState>();
+    }
+    for (final position in _scrollPositions) {
+      position.removeListener(_scheduleElection);
+    }
+    _scrollPositions
+      ..clear()
+      ..addAll(positions);
+    for (final position in _scrollPositions) {
+      position.addListener(_scheduleElection);
+    }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _controller?.pause();
+    _appResumed = state == AppLifecycleState.resumed;
+    _scheduleElection();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    for (final position in _scrollPositions) {
+      position.removeListener(_scheduleElection);
+    }
+    _mounted.remove(this);
     _release(rebuild: false);
+    _scheduleElection();
     super.dispose();
   }
 
-  Future<void> _toggle() async {
-    final controller = _controller;
-    if (controller != null && controller.value.isInitialized) {
-      controller.value.isPlaying ? await controller.pause() : await _play();
+  /// Decide quem toca no fim do frame, uma vez por frame, depois do layout.
+  static void _scheduleElection() {
+    if (_electionScheduled) return;
+    _electionScheduled = true;
+    final binding = WidgetsBinding.instance;
+    binding.addPostFrameCallback((_) {
+      _electionScheduled = false;
+      _elect();
+    });
+    binding.ensureVisualUpdate();
+  }
+
+  static void _elect() {
+    final current = _active;
+    _FeedVideoState? winner;
+
+    if (_appResumed) {
+      if (current != null &&
+          current._eligible &&
+          current._visibleFraction() >= _minVisibleFraction) {
+        winner = current;
+      } else {
+        var best = _minVisibleFraction;
+        for (final video in _mounted) {
+          if (video == current || !video._eligible) continue;
+          final fraction = video._visibleFraction();
+          if (fraction >= best) {
+            best = fraction;
+            winner = video;
+          }
+        }
+      }
+    }
+
+    for (final video in _mounted) {
+      if (video != winner && video._pausedByUser) video._pausedByUser = false;
+    }
+
+    if (winner == null) {
+      // Sem ninguém à vista: pausa, e cancela se ainda estava abrindo.
+      final controller = current?._controller;
+      if (controller != null && !controller.value.isInitialized) {
+        current!._release();
+      } else {
+        controller?.pause();
+      }
       return;
     }
-    if (!_loading) await _play();
+    if (!winner._pausedByUser) winner._play();
+  }
+
+  bool get _eligible => mounted && _onScreen && !_failed;
+
+  /// Fração do vídeo dentro da tela e de cada área rolável acima dele.
+  double _visibleFraction() {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return 0;
+    final size = box.size;
+    if (size.isEmpty) return 0;
+
+    var visible = box.localToGlobal(Offset.zero) & size;
+    visible = visible.intersect(Offset.zero & MediaQuery.sizeOf(context));
+    for (final position in _scrollPositions) {
+      final viewport = position.context.notificationContext?.findRenderObject();
+      if (viewport is! RenderBox || !viewport.attached || !viewport.hasSize) {
+        continue;
+      }
+      visible = visible.intersect(
+        viewport.localToGlobal(Offset.zero) & viewport.size,
+      );
+    }
+    if (visible.width <= 0 || visible.height <= 0) return 0;
+    return (visible.width * visible.height) / (size.width * size.height);
+  }
+
+  Future<void> _onTap() async {
+    if (_failed) {
+      setState(() => _failed = false);
+      await _play();
+      return;
+    }
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      if (!_loading) await _play();
+      return;
+    }
+    if (controller.value.isPlaying) {
+      _pausedByUser = true;
+      await controller.pause();
+    } else {
+      _pausedByUser = false;
+      await _play();
+    }
   }
 
   Future<void> _play() async {
@@ -262,6 +400,7 @@ class _FeedVideoState extends State<FeedVideo> with WidgetsBindingObserver {
       _active?._release();
       _active = this;
     }
+    if (_loading) return;
 
     var controller = _controller;
     if (controller == null) {
@@ -283,10 +422,16 @@ class _FeedVideoState extends State<FeedVideo> with WidgetsBindingObserver {
         debugPrint('Vídeo não abriu: $e');
         _release();
         if (mounted) setState(() => _failed = true);
+        _scheduleElection();
         return;
       }
       if (!mounted || _controller != controller) return;
       setState(() => _loading = false);
+      // Enquanto abria, a pessoa pode ter rolado ou pausado.
+      if (_pausedByUser || !_eligible) return;
+    }
+    if (_muted != (controller.value.volume == 0)) {
+      await controller.setVolume(_muted ? 0 : 1);
     }
     await controller.play();
   }
@@ -302,6 +447,7 @@ class _FeedVideoState extends State<FeedVideo> with WidgetsBindingObserver {
     controller?.dispose();
     if (_active == this) _active = null;
     if (rebuild && mounted) setState(() => _loading = false);
+    if (!rebuild) _loading = false;
   }
 
   @override
@@ -314,10 +460,10 @@ class _FeedVideoState extends State<FeedVideo> with WidgetsBindingObserver {
       button: true,
       label: _failed
           ? 'Vídeo não carregou. Toca pra tentar de novo'
-          : 'Vídeo. Toca pra tocar ou pausar',
+          : 'Vídeo. Toca pra pausar ou continuar',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: _toggle,
+        onTap: _onTap,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -363,7 +509,7 @@ class _FeedVideoState extends State<FeedVideo> with WidgetsBindingObserver {
                         child: const _PlayMark(),
                       ),
                     )
-                  : const _PlayMark(),
+                  : const SizedBox.shrink(),
             ),
             if (ready)
               Positioned(
