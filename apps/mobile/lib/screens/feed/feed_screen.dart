@@ -5,6 +5,7 @@ import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
 import 'package:mobile/widgets/cards/feed/publication_card.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
@@ -134,6 +135,15 @@ class _FeedScreenState extends State<FeedScreen> {
                     child: VibesterSkeleton(height: 220),
                   ),
                 )
+              else if (provider.erroAoCarregarMais != null &&
+                  publications.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _FeedMoreError(
+                    message: provider.erroAoCarregarMais!,
+                    onRetry: () =>
+                        context.read<PublicationListProvider>().loadMore(),
+                  ),
+                )
               else if (publications.isNotEmpty && !provider.hasMore)
                 const SliverToBoxAdapter(child: _FeedEnd()),
 
@@ -193,6 +203,46 @@ class _PostSkeleton extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         const VibesterSkeletonLines(lines: 2),
       ],
+    );
+  }
+}
+
+/// Falha ao paginar. Não é a mesma coisa que o feed não carregar: aqui já tem
+/// conteúdo na tela, então o erro fica no rodapé do scroll com o caminho de
+/// volta, sem derrubar a lista que o usuário já estava lendo.
+class _FeedMoreError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _FeedMoreError({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screen,
+        vertical: AppSpacing.xl,
+      ),
+      child: Column(
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: context.typography.bodyMedium.copyWith(
+              color: context.colors.textMuted,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          VibesterButton(
+            label: 'Tentar de novo',
+            onPressed: onRetry,
+            variant: VibesterButtonVariant.ghost,
+            expand: false,
+            compact: true,
+            icon: Icons.refresh_rounded,
+          ),
+        ],
+      ),
     );
   }
 }
