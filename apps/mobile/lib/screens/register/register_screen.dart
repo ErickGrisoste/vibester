@@ -6,7 +6,6 @@ import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/age.dart';
-import 'package:mobile/utils/date_picker_field.dart';
 import 'package:mobile/utils/username_input_formatter.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
 import 'package:mobile/widgets/common/screen_header.dart';
@@ -14,6 +13,7 @@ import 'package:mobile/widgets/common/terms_consent_field.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/text-field/date_picker_field.dart';
 import 'package:mobile/widgets/text-field/primary_text_field.dart';
 
 /// Criar conta.
