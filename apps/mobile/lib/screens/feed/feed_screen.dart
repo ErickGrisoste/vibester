@@ -3,6 +3,7 @@ import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
@@ -31,10 +32,10 @@ class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key, this.navbarVisibleNotifier});
 
   @override
-  State<FeedScreen> createState() => _FeedScreenState();
+  State<FeedScreen> createState() => FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
+class FeedScreenState extends State<FeedScreen> {
   final _scrollController = ScrollController();
 
   @override
@@ -50,6 +51,16 @@ class _FeedScreenState extends State<FeedScreen> {
     context.read<PublicationListProvider>().fetchPublications(
       userId,
       force: force,
+    );
+  }
+
+  /// Volta ao topo, onde fica o post recém-publicado.
+  void scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      0,
+      duration: AppMotion.slow,
+      curve: AppMotion.standard,
     );
   }
 

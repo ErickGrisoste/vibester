@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/models/feed/feed_item_model.dart';
+import 'package:mobile/models/feed/publication_model.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/service/feed/feed_service.dart';
 
@@ -32,12 +33,12 @@ class _FakeFeedService extends FeedService {
   }
 }
 
-FeedItemModel _post(String id) => FeedItemModel(
+FeedItemModel _post(String id, {DateTime? em}) => FeedItemModel(
   itemId: id,
   itemType: FeedItemType.userPost,
   userId: 'conta-1',
-  createdAt: DateTime(2026, 9, 1),
-  updatedAt: DateTime(2026, 9, 1),
+  createdAt: em ?? DateTime(2026, 9, 1),
+  updatedAt: em ?? DateTime(2026, 9, 1),
   authorId: 'autor-1',
   authorUsername: 'ana',
   content: 'post $id',
@@ -190,5 +191,89 @@ void main() {
     expect(provider.publications.map((p) => p.id), ['p1', 'p2']);
     expect(provider.erroAoCarregarMais, isNull);
     expect(provider.hasMore, isFalse);
+  });
+
+  group('post da própria conta', () {
+    PublicationModel meu(String id, DateTime em) => PublicationModel(
+      id: id,
+      autor: 'eu',
+      autorProfileImage: '',
+      publicationImage: '',
+      description: '',
+      publicatedAt: em,
+    );
+
+    test('entra no topo na hora', () async {
+      final service = _FakeFeedService([
+        FeedPage(items: [_post('p1')], nextCursor: null),
+      ]);
+      final provider = PublicationListProvider(feedService: service);
+      await provider.fetchPublications('conta-1');
+
+      provider.addOwnPublication(meu('meu', DateTime(2026, 9, 2)));
+
+      expect(provider.publications.map((p) => p.id), ['meu', 'p1']);
+    });
+
+    test('sobrevive ao refresh, na posição da data', () async {
+      // O feed-service grava o post no feed do autor via Kafka: um refresh
+      // logo depois de publicar ainda vem sem ele.
+      final service = _FakeFeedService([
+        FeedPage(items: [_post('p1')], nextCursor: null),
+        FeedPage(
+          items: [
+            _post('novo', em: DateTime(2026, 9, 3)),
+            _post('p1', em: DateTime(2026, 9, 1)),
+          ],
+          nextCursor: null,
+        ),
+      ]);
+      final provider = PublicationListProvider(feedService: service);
+      await provider.fetchPublications('conta-1');
+      provider.addOwnPublication(meu('meu', DateTime(2026, 9, 2)));
+
+      await provider.fetchPublications('conta-1', force: true);
+
+      expect(provider.publications.map((p) => p.id), ['novo', 'meu', 'p1']);
+    });
+
+    test('não duplica quando o servidor já traz o post', () async {
+      final service = _FakeFeedService([
+        FeedPage(items: [_post('p1')], nextCursor: null),
+        FeedPage(
+          items: [
+            _post('meu', em: DateTime(2026, 9, 2)),
+            _post('p1'),
+          ],
+          nextCursor: null,
+        ),
+      ]);
+      final provider = PublicationListProvider(feedService: service);
+      await provider.fetchPublications('conta-1');
+      provider.addOwnPublication(meu('meu', DateTime(2026, 9, 2)));
+
+      await provider.fetchPublications('conta-1', force: true);
+
+      expect(provider.publications.map((p) => p.id), ['meu', 'p1']);
+      expect(
+        provider.publications.first.autor,
+        'ana',
+        reason: 'vale a cópia do servidor',
+      );
+    });
+
+    test('some ao trocar de conta', () async {
+      final service = _FakeFeedService([
+        FeedPage(items: [_post('p1')], nextCursor: null),
+        FeedPage(items: [_post('p2')], nextCursor: null),
+      ]);
+      final provider = PublicationListProvider(feedService: service);
+      await provider.fetchPublications('conta-1');
+      provider.addOwnPublication(meu('meu', DateTime(2026, 9, 2)));
+
+      await provider.fetchPublications('conta-2');
+
+      expect(provider.publications.map((p) => p.id), ['p2']);
+    });
   });
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
@@ -41,8 +40,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const _feedIndex = 0;
   static const _todayIndex = 2;
   static const _profileIndex = 3;
@@ -53,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen>
   int _currentIndex = _homeIndex;
   bool _dockVisible = true;
 
+  final _feedKey = GlobalKey<FeedScreenState>();
   final _profileKey = GlobalKey<UserProfileScreenState>();
 
   /// Momento do último toque no voltar do Android, para o padrão "aperte
@@ -62,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// Instanciadas uma vez só: trocar de destino não deve descartar o estado
   /// (posição de scroll, imagens já carregadas) do destino anterior.
   late final List<Widget> _destinations = [
-    const FeedScreen(),
+    FeedScreen(key: _feedKey),
     const ExploreScreen(),
     const TodayScreen(),
     UserProfileScreen(key: _profileKey),
@@ -193,23 +192,22 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _openComposer() async {
-    await Navigator.pushNamed(context, AppRoutes.newPublication);
-    if (!mounted) return;
+    final published = await Navigator.pushNamed(
+      context,
+      AppRoutes.newPublication,
+    );
+    // Fechou sem publicar: fica onde estava.
+    if (!mounted || published != true) return;
 
-    // Publicou: leva pro FEED, que é onde o post aparece — a ação termina
-    // mostrando o resultado dela, não devolvendo o usuário pra tela anterior
-    // sem explicação.
-    final userId = context.read<UserProvider>().user?.accountId;
+    // Publicou: leva pro FEED, no topo, onde o composer já colocou o post — a
+    // ação termina mostrando o resultado dela. Sem refresh: o feed-service grava
+    // o post no feed do autor de forma assíncrona, então a busca feita agora
+    // provavelmente ainda viria sem ele.
     setState(() {
       _currentIndex = _feedIndex;
       _dockVisible = true;
     });
-    if (userId != null) {
-      context.read<PublicationListProvider>().fetchPublications(
-        userId,
-        force: true,
-      );
-    }
+    _feedKey.currentState?.scrollToTop();
   }
 
   /// Esconde o dock ao descer e devolve ao subir. O gesto é o mesmo em todos

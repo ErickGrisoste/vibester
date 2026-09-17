@@ -12,7 +12,7 @@
 O `feed-service` é responsável exclusivamente por:
 
 - montar e servir a **timeline personalizada** de um usuário (`GET /feed/:userId`), paginada por cursor de `created_at`;
-- **fan-out on write**: ao consumir eventos de outros domínios (post criado, evento criado, follow/unfollow), duplicar (desnormalizar) o item na partição de feed de cada seguidor, já com todos os dados de exibição embutidos (autor, estabelecimento, evento) para que a leitura seja uma única query por partição, sem joins;
+- **fan-out on write**: ao consumir eventos de outros domínios (post criado, evento criado, follow/unfollow), duplicar (desnormalizar) o item na partição de feed de cada seguidor — e, no caso de post, também na do próprio autor (`addPostToAuthorFeed`, gravada antes do fan-out, para quem publica ver o post no feed) —, já com todos os dados de exibição embutidos (autor, estabelecimento, evento) para que a leitura seja uma única query por partição, sem joins;
 - manter cópias auxiliares desnormalizadas por domínio (`posts_by_user`, `events_by_id`, `events_by_user`) e índices reversos (`feed_entries_by_post`) que permitem propagar updates/likes/deleções de um item para todas as cópias já distribuídas nos feeds dos seguidores;
 - manter as relações de follow **localmente** (`followers_by_user`, `followers_by_establishment`), como cache de leitura rápida para o fan-out — a fonte de verdade do relacionamento social continua sendo `user-service`/`establishment-service`; este serviço só espelha o necessário para decidir "para quem distribuir".
 

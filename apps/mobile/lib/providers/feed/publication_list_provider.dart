@@ -33,6 +33,15 @@ class PublicationListProvider extends ChangeNotifier {
   String? _erro;
   String? _erroAoCarregarMais;
 
+  /// Posts que a conta publicou nesta sessão.
+  ///
+  /// O feed-service grava o post no feed do autor de forma assíncrona (Kafka):
+  /// um refresh logo depois de publicar ainda vem sem ele, e trocaria a lista
+  /// pela do servidor apagando a confirmação de que a publicação deu certo.
+  /// Assim que o servidor passa a trazer o post, a cópia dele prevalece
+  /// (ver [_mergeOwn]).
+  final List<PublicationModel> _ownPublications = [];
+
   /// Páginas seguidas que o provider percorre atrás de post de usuário antes
   /// de devolver o controle.
   ///
@@ -70,6 +79,9 @@ class PublicationListProvider extends ChangeNotifier {
     // trocava o feed inteiro pelo esqueleto a cada refresh, e devolvia o
     // usuário para o topo mesmo quando nada tinha mudado.
     if (!sameUser) {
+      // Post da sessão anterior é de outra conta; antes da primeira busca
+      // (`_userId` nulo) ainda não há conta anterior para descartar.
+      if (_userId != null) _ownPublications.clear();
       _publications.clear();
       _nextCursor = null;
       _hasMore = true;
@@ -85,7 +97,7 @@ class PublicationListProvider extends ChangeNotifier {
       final carga = await _carregar(userId);
       _publications
         ..clear()
-        ..addAll(carga.posts);
+        ..addAll(_mergeOwn(carga.posts));
       _nextCursor = carga.nextCursor;
       _hasMore = carga.nextCursor != null;
       _lastFetchedAt = DateTime.now();
@@ -107,7 +119,8 @@ class PublicationListProvider extends ChangeNotifier {
 
     try {
       final carga = await _carregar(_userId!, cursor: _nextCursor);
-      _publications.addAll(carga.posts);
+      final ownIds = {for (final p in _ownPublications) p.id};
+      _publications.addAll(carga.posts.where((p) => !ownIds.contains(p.id)));
       _nextCursor = carga.nextCursor;
       _hasMore = carga.nextCursor != null;
     } catch (e) {
@@ -152,9 +165,45 @@ class PublicationListProvider extends ChangeNotifier {
   String _mensagem(Object e, String fallback) =>
       e is Exception ? e.toString().replaceFirst('Exception: ', '') : fallback;
 
+  /// Encaixa os posts da própria conta na primeira página, cada um antes do
+  /// primeiro post mais antigo que ele — a ordem do servidor não muda. Se o
+  /// servidor já trouxer o post (o autor passou a receber o próprio post, por
+  /// exemplo), vale a cópia dele, que tem curtidas atualizadas.
+  List<PublicationModel> _mergeOwn(List<PublicationModel> server) {
+    final merged = [...server];
+    final serverIds = {for (final p in server) p.id};
+    for (final own in _ownPublications.reversed) {
+      if (serverIds.contains(own.id)) continue;
+      final index = merged.indexWhere(
+        (p) => p.publicatedAt.isBefore(own.publicatedAt),
+      );
+      merged.insert(index == -1 ? merged.length : index, own);
+    }
+    return merged;
+  }
+
   void addPublication(PublicationModel publication) {
     _publications.insert(0, publication);
     notifyListeners();
+  }
+
+  /// Post que a conta acabou de publicar: entra no topo do feed na hora e
+  /// continua lá nos refreshes seguintes (ver [_ownPublications]).
+  void addOwnPublication(PublicationModel publication) {
+    _ownPublications
+      ..removeWhere((p) => p.id == publication.id)
+      ..insert(0, publication);
+    _publications
+      ..removeWhere((p) => p.id == publication.id)
+      ..insert(0, publication);
+    notifyListeners();
+  }
+
+  /// Mantém a cópia de [_ownPublications] igual à da lista, para uma curtida
+  /// não voltar atrás no próximo refresh.
+  void _syncOwn(PublicationModel publication) {
+    final index = _ownPublications.indexWhere((p) => p.id == publication.id);
+    if (index != -1) _ownPublications[index] = publication;
   }
 
   /// Exclusão otimista: tira a publicação da lista antes da resposta e a
@@ -168,6 +217,7 @@ class PublicationListProvider extends ChangeNotifier {
 
     try {
       await _postService.deletePost(postId: id, userId: userId);
+      _ownPublications.removeWhere((p) => p.id == id);
     } catch (e) {
       if (removed != null) {
         _publications.insert(min(index, _publications.length), removed);
@@ -190,6 +240,7 @@ class PublicationListProvider extends ChangeNotifier {
       isLiked: !wasLiked,
       likes: wasLiked ? max(0, pub.likes - 1) : pub.likes + 1,
     );
+    _syncOwn(_publications[index]);
     notifyListeners();
 
     try {
@@ -208,6 +259,7 @@ class PublicationListProvider extends ChangeNotifier {
         // anterior e parecia que o toque nem tinha chamado a API.
         debugPrint('toggleLike falhou para o post $id: $e');
         _publications[index] = pub;
+        _syncOwn(pub);
         notifyListeners();
       }
     }
