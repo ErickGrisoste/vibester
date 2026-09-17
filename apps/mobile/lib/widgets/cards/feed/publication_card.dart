@@ -186,6 +186,14 @@ class _AuthorLine extends StatelessWidget {
         publication.authorId != null;
 
     return Row(
+      // O ⋯ fica preso na borda direita, não importa o tamanho do @. Com
+      // `Spacer` ele saía do lugar: `Spacer` é `Expanded` (flex apertado) e
+      // disputava o espaço livre com o `Flexible` (flex solto) do autor —
+      // cada um ficava com metade, então o chip encolhia até o @ caber, o
+      // vazio continuava valendo metade da linha, e o botão parava a meio
+      // caminho. Sem ele, o autor é o único filho flexível: recebe todo o
+      // espaço que sobra do botão e o alinhamento empurra o ⋯ para o fim.
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Flexible(
           child: VibesterPressable(
@@ -225,8 +233,7 @@ class _AuthorLine extends StatelessWidget {
             ),
           ),
         ),
-        if (canModerate) ...[
-          const Spacer(),
+        if (canModerate)
           PopupMenuButton<_PostOption>(
             tooltip: 'Opções da publicação',
             color: colors.surfaceRaised,
@@ -272,7 +279,6 @@ class _AuthorLine extends StatelessWidget {
               ],
             ],
           ),
-        ],
       ],
     );
   }
@@ -290,7 +296,10 @@ class _AuthorLine extends StatelessWidget {
         children: [
           Icon(icon, size: 20, color: color),
           const SizedBox(width: AppSpacing.md),
-          Text(label, style: context.typography.titleSmall.copyWith(color: color)),
+          Text(
+            label,
+            style: context.typography.titleSmall.copyWith(color: color),
+          ),
         ],
       ),
     );

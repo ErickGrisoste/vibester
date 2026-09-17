@@ -6,6 +6,7 @@ class PublicationModel {
   final String? authorId;
   final String autor;
   final String autorProfileImage;
+
   /// Capa do post (primeira foto, ou capa do primeiro vídeo).
   final String publicationImage;
 
@@ -72,6 +73,29 @@ class PublicationModel {
       publicatedAt: item.createdAt,
       likes: item.totalLikes,
       isLiked: item.isLiked,
+    );
+  }
+
+  /// Post como o post-service devolve (`POST /post/posts` → 201): camelCase,
+  /// ao contrário do item de feed, que é snake_case.
+  factory PublicationModel.fromPost(Map<String, dynamic> json) {
+    final media = PostMedia.listFromJson(
+      json['media'],
+      legacyImageUrls: json['imageUrls'],
+    );
+    return PublicationModel(
+      id: json['postId'] as String?,
+      authorId: json['userId'] as String?,
+      autor: json['userUsername'] as String? ?? '',
+      autorProfileImage: json['userProfilePicture'] as String? ?? '',
+      publicationImage: media.isNotEmpty ? media.first.coverUrl : '',
+      media: media,
+      description: json['caption'] as String? ?? '',
+      location: json['establishmentName'] as String?,
+      publicatedAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '')?.toLocal() ??
+          DateTime.now(),
+      likes: (json['totalLikes'] as num?)?.toInt() ?? 0,
     );
   }
 }

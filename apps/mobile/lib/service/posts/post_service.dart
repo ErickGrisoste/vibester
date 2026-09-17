@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:mobile/models/feed/publication_model.dart';
 import 'package:mobile/models/media/media_item.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
@@ -8,7 +10,9 @@ import 'package:mobile/service/media_upload_service.dart';
 class PostService {
   final MediaUploadService _mediaUpload = MediaUploadService();
 
-  Future<void> createPost({
+  /// Devolve o post criado, para o feed exibi-lo na hora — ou `null` se a
+  /// resposta não trouxer o corpo esperado (o post foi criado mesmo assim).
+  Future<PublicationModel?> createPost({
     required String userId,
     required String userUsername,
     required String userProfilePicture,
@@ -23,7 +27,7 @@ class PostService {
     final uploaded = await _mediaUpload.upload(userId: userId, items: media);
 
     try {
-      await ApiClient.dio.post(
+      final response = await ApiClient.dio.post(
         ApiEndpoints.posts(),
         data: {
           'userId': userId,
@@ -42,6 +46,7 @@ class PostService {
           'establishmentCategory': ?_nonEmpty(establishmentCategory),
         },
       );
+      return _parseCreated(response.data);
     } on DioException catch (e) {
       throw Exception(apiErrorMessage(e, 'Erro ao publicar post'));
     }
@@ -91,6 +96,18 @@ class PostService {
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) return;
       throw Exception(apiErrorMessage(e, 'Erro ao excluir post'));
+    }
+  }
+
+  /// O post já existe quando isto roda: corpo inesperado não pode virar erro
+  /// na tela, senão a pessoa tenta de novo e publica duas vezes.
+  PublicationModel? _parseCreated(Object? body) {
+    if (body is! Map<String, dynamic> || body['postId'] is! String) return null;
+    try {
+      return PublicationModel.fromPost(body);
+    } catch (e) {
+      debugPrint('Post criado, mas a resposta não pôde ser lida: $e');
+      return null;
     }
   }
 
