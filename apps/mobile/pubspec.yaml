@@ -81,6 +81,28 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Gera os ícones de app das duas plataformas a partir de assets/icon/.
+  # Só roda sob demanda (`dart run flutter_launcher_icons`), não entra no bundle.
+  flutter_launcher_icons: ^0.14.4
+
+# Ícone do app. Fonte da arte: design/assets/icone_app.png (mascote sobre o navy
+# #041440). `app_icon.png` é a arte cheia, sem alpha, que o iOS usa; o foreground
+# adaptativo do Android é só o mascote recortado, preenchendo o canvas — quem o
+# reduz para a safe zone da máscara é o inset de 16% do ic_launcher.xml gerado,
+# e o navy volta como adaptive_icon_background. Não encolha a arte do foreground
+# de novo por cima disso, senão o mascote fica minúsculo na tela.
+# Regerar: `dart run flutter_launcher_icons` na pasta apps/mobile. O pacote troca
+# ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS por engano no
+# project.pbxproj do iOS (match de substring numa chave booleana) — reverta isso.
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: "ic_launcher"
+  adaptive_icon_background: "#041440"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  adaptive_icon_monochrome: "assets/icon/app_icon_foreground.png"
+  ios: true
+  remove_alpha_ios: true
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
