@@ -1,7 +1,20 @@
-import { Post, PaginatedPosts } from "../types/post.types";
+import { Post, PaginatedPosts, PostCounters } from "../types/post.types";
 import { BaseRepository } from "./base.repository";
 import { PostCursor, encodeCursor } from "../utils/cursor";
 import { toLegacyImageUrls, toMediaItems, toMediaRows } from "../utils/media";
+import { runFanout } from "../utils/fanout";
+
+// Colunas `counter` do Cassandra vêm como Long (biblioteca `long`), não como
+// number nativo — só relevante para total_likes/total_comments de
+// post_counters, as colunas `int` das tabelas denormalizadas já são number.
+function toCount(value: unknown): number {
+    if (value === null || value === undefined) { return 0; }
+    if (typeof value === "number") { return value; }
+    if (typeof (value as { toNumber?: unknown }).toNumber === "function") {
+        return (value as { toNumber: () => number }).toNumber();
+    }
+    return Number(value);
+}
 
 export class PostRepository extends BaseRepository {
 
@@ -168,6 +181,110 @@ export class PostRepository extends BaseRepository {
                 post.isDeleted
             ]
         );
+    }
+
+    /**
+     * Grava o post em todas as tabelas denormalizadas relevantes. Sem BATCH/LWT
+     * entre elas (Cassandra não oferece transação cross-partition barata) — uma
+     * falha parcial pode deixar as views divergentes; ver CLAUDE.md do serviço.
+     */
+    async createInAllViews(post: Post) {
+        await runFanout("createInAllViews", [
+            () => this.createPostById(post),
+            () => this.createPostByUser(post),
+            ...(post.establishmentId ? [() => this.createPostByEstablishment(post)] : []),
+        ]);
+    }
+
+    async updateCaptionInAllViews(post: Post, caption: string, updatedAt: Date) {
+        await runFanout("updateCaptionInAllViews", [
+            () => this.updateCaptionById(post.postId, caption, updatedAt),
+            () => this.updateCaptionByUser(post.userId, post.createdAt, post.postId, caption, updatedAt),
+            ...(post.establishmentId
+                ? [() => this.updateCaptionByEstablishment(post.establishmentId!, post.createdAt, post.postId, caption, updatedAt)]
+                : []),
+        ]);
+    }
+
+    async softDeleteInAllViews(post: Post) {
+        await runFanout("softDeleteInAllViews", [
+            () => this.softDeleteById(post.postId),
+            () => this.softDeleteByUser(post.userId, post.createdAt, post.postId),
+            ...(post.establishmentId
+                ? [() => this.softDeleteByEstablishment(post.establishmentId!, post.createdAt, post.postId)]
+                : []),
+        ]);
+    }
+
+    async updateTotalLikesInAllViews(post: Post, totalLikes: number) {
+        await runFanout("updateTotalLikesInAllViews", [
+            () => this.updateTotalLikesById(totalLikes, post.postId),
+            () => this.updateTotalLikesByUser(post.userId, post.createdAt, totalLikes, post.postId),
+            ...(post.establishmentId
+                ? [() => this.updateTotalLikesByEstablishment(post.establishmentId!, post.createdAt, totalLikes, post.postId)]
+                : []),
+        ]);
+    }
+
+    async updateTotalCommentsInAllViews(post: Post, totalComments: number) {
+        await runFanout("updateTotalCommentsInAllViews", [
+            () => this.updateTotalCommentsById(totalComments, post.postId),
+            () => this.updateTotalCommentsByUser(post.userId, post.createdAt, totalComments, post.postId),
+            ...(post.establishmentId
+                ? [() => this.updateTotalCommentsByEstablishment(post.establishmentId!, post.createdAt, totalComments, post.postId)]
+                : []),
+        ]);
+    }
+
+    /**
+     * Incremento/decremento atômico em `post_counters` — substitui o padrão
+     * antigo de ler `totalLikes`/`totalComments` e recalcular em memória, que
+     * perdia incrementos sob curtidas/comentários concorrentes no mesmo post
+     * (ver CLAUDE.md do serviço, seção Performance). O valor absoluto atual
+     * ainda precisa ser lido via `getCounters` depois — Cassandra não tem
+     * `UPDATE ... RETURNING` para counter.
+     */
+    async incrementLikes(postId: string): Promise<void> {
+        await this.execute(
+            `UPDATE post_counters SET total_likes = total_likes + 1 WHERE post_id = ?;`,
+            [postId]
+        );
+    }
+
+    async decrementLikes(postId: string): Promise<void> {
+        await this.execute(
+            `UPDATE post_counters SET total_likes = total_likes - 1 WHERE post_id = ?;`,
+            [postId]
+        );
+    }
+
+    async incrementComments(postId: string): Promise<void> {
+        await this.execute(
+            `UPDATE post_counters SET total_comments = total_comments + 1 WHERE post_id = ?;`,
+            [postId]
+        );
+    }
+
+    async decrementComments(postId: string): Promise<void> {
+        await this.execute(
+            `UPDATE post_counters SET total_comments = total_comments - 1 WHERE post_id = ?;`,
+            [postId]
+        );
+    }
+
+    // Sem linha em post_counters == nunca incrementado == 0 (convenção do
+    // Cassandra para counter: a partição só existe após o primeiro incremento).
+    async getCounters(postId: string): Promise<PostCounters> {
+        const result = await this.execute(
+            `SELECT total_likes, total_comments FROM post_counters WHERE post_id = ?;`,
+            [postId]
+        );
+
+        const row = result.rows[0];
+        return {
+            totalLikes: toCount(row?.total_likes),
+            totalComments: toCount(row?.total_comments),
+        };
     }
 
     async findById(postId: string): Promise<Post | null> {

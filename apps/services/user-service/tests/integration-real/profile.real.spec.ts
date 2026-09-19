@@ -54,7 +54,7 @@ describe("user-service — HTTP Integration (Postgres + Redis reais)", () => {
       expect(row).not.toBeNull();
     });
 
-    it("retorna 500 ao criar perfil duplicado", async () => {
+    it("retorna 409 ao criar perfil duplicado", async () => {
       await app.inject({
         method: "POST",
         url: "/users/profile",
@@ -67,7 +67,7 @@ describe("user-service — HTTP Integration (Postgres + Redis reais)", () => {
         payload: { accountId: ACCOUNT_ID_1 },
       });
 
-      expect(res.statusCode).toBe(500);
+      expect(res.statusCode).toBe(409);
     });
   });
 

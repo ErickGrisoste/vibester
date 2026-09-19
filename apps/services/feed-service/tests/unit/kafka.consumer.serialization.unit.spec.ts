@@ -31,7 +31,7 @@ describe("KafkaConsumer do feed-service", () => {
             fn.mockReset().mockResolvedValue(undefined);
         }
 
-        const consumer = new KafkaConsumer({} as never, {} as never);
+        const consumer = new KafkaConsumer({} as never, {} as never, {} as never);
         await consumer.start();
     });
 

@@ -4,11 +4,28 @@ import { VerifyEmailInputInterface } from "./types/email-verification.types";
 import { RegisterController } from "./controllers/register.controller";
 import { LoginController } from "./controllers/login.controller";
 import { EmailVerificationController } from "./controllers/email-verification.controller";
+import { PasswordResetController } from "./controllers/password-reset.controller";
+import { AccountController } from "./controllers/account.controller";
+import { ForgotPasswordInputInterface, ResetPasswordInputInterface } from "./types/password-reset.types";
+import { AccountIdParamsInterface, DeleteAccountInputInterface } from "./types/account.types";
 import { env } from "./config/env";
 
 const registerController = new RegisterController();
 const loginController = new LoginController();
 const emailVerificationController = new EmailVerificationController();
+const passwordResetController = new PasswordResetController();
+const accountController = new AccountController();
+
+const errorResponse = {
+    type: "object",
+    properties: { error: { type: "string" } },
+};
+
+const accountIdParams = {
+    type: "object",
+    required: ["accountId"],
+    properties: { accountId: { type: "string", format: "uuid" } },
+};
 
 export async function authRoutes(instance: FastifyInstance, options: FastifyPluginOptions) {
 
@@ -78,7 +95,7 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
         schema: {
             tags: ["Auth"],
             summary: "Verificar email e concluir cadastro",
-            description: "Valida o código enviado por email e conclui a criação da conta.",
+            description: "Valida o código enviado por email e conclui a criação da conta. Após MAX_CODE_ATTEMPTS códigos incorretos a verificação pendente é descartada (429) e o cadastro precisa ser reiniciado.",
             body: {
                 type: "object",
                 required: ["email", "code"],
@@ -122,6 +139,11 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
                     type: "object",
                     properties: { error: { type: "string" } },
                 },
+                429: {
+                    description: "Tentativas inválidas em excesso — a verificação pendente foi descartada e um novo código deve ser solicitado",
+                    type: "object",
+                    properties: { error: { type: "string" } },
+                },
                 502: {
                     description: "Serviço de perfil indisponível",
                     type: "object",
@@ -143,7 +165,7 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
         schema: {
             tags: ["Auth"],
             summary: "Login",
-            description: "Autentica uma conta usando email ou username e retorna um token JWT.",
+            description: "Autentica uma conta usando email ou username e retorna um token JWT. O username é aceito com ou sem o prefixo \"@\". Falhas consecutivas são contabilizadas e o dono da conta é notificado por email ao atingir o limite da janela.",
             body: {
                 type: "object",
                 required: ["password"],
@@ -177,6 +199,11 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
                     type: "object",
                     properties: { error: { type: "string" } },
                 },
+                403: {
+                    description: "Conta suspensa pela moderação",
+                    type: "object",
+                    properties: { error: { type: "string" } },
+                },
             },
         },
         config: {
@@ -186,6 +213,141 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
         request: FastifyRequest<{ Body: LoginInputInterface }>,
         reply: FastifyReply) => {
             return loginController.login(request, reply);
+        }
+    );
+
+    instance.post("/password/forgot", {
+        schema: {
+            tags: ["Auth"],
+            summary: "Pedir código de redefinição de senha",
+            description: "Envia um código de 6 dígitos para o email, se houver conta com ele. A resposta é sempre 202 com a mesma mensagem, exista ou não a conta, para não permitir enumeração.",
+            body: {
+                type: "object",
+                required: ["email"],
+                properties: {
+                    email: { type: "string", format: "email", example: "joao@email.com" },
+                },
+            },
+            response: {
+                202: {
+                    description: "Pedido aceito",
+                    type: "object",
+                    properties: { message: { type: "string" } },
+                },
+                400: { description: "Dados inválidos", ...errorResponse },
+            },
+        },
+        config: {
+            rateLimit: { max: env.rateLimitPasswordResetMax, timeWindow: '1 minute' },
+        },
+    }, async (
+        request: FastifyRequest<{ Body: ForgotPasswordInputInterface }>,
+        reply: FastifyReply) => {
+            return passwordResetController.forgot(request, reply);
+        }
+    );
+
+    instance.post("/password/reset", {
+        schema: {
+            tags: ["Auth"],
+            summary: "Redefinir senha com o código",
+            description: "Valida o código enviado por /password/forgot e troca a senha. O código é de uso único; após MAX_CODE_ATTEMPTS erros a pendência é descartada (429).",
+            body: {
+                type: "object",
+                required: ["email", "code", "password"],
+                properties: {
+                    email: { type: "string", format: "email", example: "joao@email.com" },
+                    code: { type: "string", minLength: 6, maxLength: 6, example: "482931" },
+                    password: { type: "string", minLength: 8, maxLength: 128, example: "novaSenha123" },
+                },
+            },
+            response: {
+                200: {
+                    description: "Senha redefinida",
+                    type: "object",
+                    properties: { message: { type: "string" } },
+                },
+                400: { description: "Dados inválidos", ...errorResponse },
+                404: { description: "Nenhum código pendente ou código expirado", ...errorResponse },
+                422: { description: "Código inválido", ...errorResponse },
+                429: { description: "Tentativas inválidas em excesso", ...errorResponse },
+            },
+        },
+        config: {
+            rateLimit: { max: env.rateLimitPasswordResetMax, timeWindow: '1 minute' },
+        },
+    }, async (
+        request: FastifyRequest<{ Body: ResetPasswordInputInterface }>,
+        reply: FastifyReply) => {
+            return passwordResetController.reset(request, reply);
+        }
+    );
+
+    instance.delete("/account", {
+        schema: {
+            tags: ["Auth"],
+            summary: "Excluir a própria conta",
+            description: "Exclui permanentemente a conta do token (Authorization: Bearer). Pede a senha de novo. Publica `user.deleted`, que remove perfil, seguidores, bloqueios, denúncias feitas, posts, curtidas, comentários e notificações nos outros serviços.",
+            security: [{ bearerAuth: [] }],
+            body: {
+                type: "object",
+                required: ["password"],
+                properties: {
+                    password: { type: "string", minLength: 1, maxLength: 128 },
+                },
+            },
+            response: {
+                204: { description: "Conta excluída", type: "null" },
+                400: { description: "Dados inválidos", ...errorResponse },
+                401: { description: "Token ausente/inválido ou senha incorreta", ...errorResponse },
+                404: { description: "Conta não encontrada", ...errorResponse },
+            },
+        },
+        config: {
+            rateLimit: { max: env.rateLimitAccountDeleteMax, timeWindow: '1 minute' },
+        },
+    }, async (
+        request: FastifyRequest<{ Body: DeleteAccountInputInterface }>,
+        reply: FastifyReply) => {
+            return accountController.delete(request, reply);
+        }
+    );
+
+    instance.post("/admin/accounts/:accountId/suspend", {
+        schema: {
+            tags: ["Admin"],
+            summary: "Suspender conta (moderação)",
+            description: "Impede o login da conta. Exige o header x-admin-key (ADMIN_API_KEY); sem a variável configurada a rota responde 404.",
+            params: accountIdParams,
+            response: {
+                204: { description: "Conta suspensa", type: "null" },
+                401: { description: "Chave de administração inválida", ...errorResponse },
+                404: { description: "Conta não encontrada", ...errorResponse },
+            },
+        },
+    }, async (
+        request: FastifyRequest<{ Params: AccountIdParamsInterface }>,
+        reply: FastifyReply) => {
+            return accountController.suspend(request, reply);
+        }
+    );
+
+    instance.post("/admin/accounts/:accountId/unsuspend", {
+        schema: {
+            tags: ["Admin"],
+            summary: "Reativar conta suspensa (moderação)",
+            description: "Desfaz a suspensão. Exige o header x-admin-key (ADMIN_API_KEY).",
+            params: accountIdParams,
+            response: {
+                204: { description: "Conta reativada", type: "null" },
+                401: { description: "Chave de administração inválida", ...errorResponse },
+                404: { description: "Conta não encontrada", ...errorResponse },
+            },
+        },
+    }, async (
+        request: FastifyRequest<{ Params: AccountIdParamsInterface }>,
+        reply: FastifyReply) => {
+            return accountController.unsuspend(request, reply);
         }
     );
 }

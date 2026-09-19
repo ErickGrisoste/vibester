@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
-import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/cards/place/place_card.dart';
+import 'package:mobile/widgets/cards/place/place_tile.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
 import 'package:provider/provider.dart';
 
+/// Estabelecimentos salvos.
+///
+/// Como [FavoritesEventsScreen], continua existindo para a rota direta e para
+/// uso embutido; a experiência principal de "o que eu salvei" é `SavedScreen`.
 class FavoritePlacesScreen extends StatefulWidget {
-  // Quando embutida nas sub-abas do perfil, o refresh já é feito pelo
-  // RefreshIndicator externo (UserProfileScreen), evitando indicators aninhados.
   final bool showRefreshIndicator;
 
   const FavoritePlacesScreen({super.key, this.showRefreshIndicator = true});
@@ -18,77 +21,72 @@ class FavoritePlacesScreen extends StatefulWidget {
   State<FavoritePlacesScreen> createState() => _FavoritePlacesScreenState();
 }
 
-class _FavoritePlacesScreenState extends State<FavoritePlacesScreen>
-    with AutomaticKeepAliveClientMixin<FavoritePlacesScreen> {
+class _FavoritePlacesScreenState extends State<FavoritePlacesScreen> {
   @override
-  bool get wantKeepAlive => true;
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<PlaceListProvider>().fetchPlaces();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    final colors = context.colors;
+    final places = context.watch<PlaceListProvider>().favorites;
 
-    final List<PlaceModel> favorites = context
-        .watch<PlaceListProvider>()
-        .favorites;
-
-    final list = favorites.isEmpty
+    final list = places.isEmpty
         ? ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            children: [
-              const SizedBox(height: 90),
-              Center(
-                child: SizedBox(
-                  height: 200,
-                  width: 200,
-                  child: Opacity(
-                    opacity: 0.8,
-                    child: Image.asset('assets/img/mascote/lupa.png'),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: Text(
-                  'Nenhum lugar marcado como favorito',
-                  style: context.typography.bodyLarge.copyWith(
-                    color: context.colors.textDisabled,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+            children: const [
+              VibesterState(
+                headline: 'Nada salvo ainda',
+                message:
+                    'Salve os lugares que você quer acompanhar e veja o '
+                    'movimento deles direto daqui.',
+                icon: Icons.bookmark_border_rounded,
               ),
             ],
           )
         : ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            itemCount: favorites.length + 1,
-            itemBuilder: (context, index) {
-              if (index == favorites.length) return SizedBox(height: 80);
-              return StaggeredEntrance(
-                index: index,
-                child: PlaceCard(
-                  place: favorites[index],
-                  onTap: () {
-                    Navigator.pushNamed(
-                      context,
-                      AppRoutes.placeDetail,
-                      arguments: favorites[index].id,
-                    );
-                  },
-                ),
-              );
-            },
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screen,
+              AppSpacing.lg,
+              AppSpacing.screen,
+              AppSpacing.dockGap,
+            ),
+            itemCount: places.length,
+            itemBuilder: (context, i) => StaggeredEntrance(
+              index: i,
+              child: PlaceTile(place: places[i], hero: false),
+            ),
           );
 
+    if (!widget.showRefreshIndicator) return list;
+
     return Scaffold(
-      backgroundColor: context.colors.noturno,
-      body: widget.showRefreshIndicator
-          ? RefreshIndicator(
-              color: context.colors.ambar,
-              onRefresh: () =>
-                  context.read<PlaceListProvider>().fetchPlaces(force: true),
-              child: list,
-            )
-          : list,
+      backgroundColor: colors.noturno,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const ScreenHeader(
+              title: 'Seus lugares',
+              eyebrow: 'SALVOS POR VOCÊ',
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                color: colors.ambar,
+                backgroundColor: colors.surface,
+                onRefresh: () =>
+                    context.read<PlaceListProvider>().fetchPlaces(force: true),
+                child: list,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

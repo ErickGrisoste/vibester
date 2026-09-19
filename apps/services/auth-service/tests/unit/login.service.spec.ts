@@ -69,4 +69,38 @@ describe('LoginService', () => {
     expect(err.name).toBe('AppError');
     expect(err.statusCode).toBe(401);
   });
+  // Regressao: o cadastro grava o username prefixado com "@" (ex.: "@joaosilva"),
+  // mas o usuario digita a forma sem "@" na tela de login. Consultar so o texto
+  // cru fazia todo login por username falhar com credenciais corretas.
+  it('should match username stored with "@" when the user types it without', async () => {
+    mockAccess.findFirst.mockResolvedValueOnce(null);
+
+    await service.login({ username: 'joaosilva', password: 'x' }).catch(() => {});
+
+    const call = mockAccess.findFirst.mock.calls[0][0];
+    expect(call.where.OR).toHaveLength(1);
+    expect(call.where.OR[0].username.in).toEqual(
+      expect.arrayContaining(['joaosilva', '@joaosilva']),
+    );
+  });
+
+  it('should match username stored without "@" when the user types it with', async () => {
+    mockAccess.findFirst.mockResolvedValueOnce(null);
+
+    await service.login({ username: '@joaosilva', password: 'x' }).catch(() => {});
+
+    const call = mockAccess.findFirst.mock.calls[0][0];
+    expect(call.where.OR[0].username.in).toEqual(
+      expect.arrayContaining(['joaosilva', '@joaosilva']),
+    );
+  });
+
+  it('should not build a username clause when only "@" was typed', async () => {
+    mockAccess.findFirst.mockResolvedValueOnce(null);
+
+    await service.login({ username: '@', password: 'x' }).catch(() => {});
+
+    const call = mockAccess.findFirst.mock.calls[0][0];
+    expect(call.where.OR).toHaveLength(0);
+  });
 });

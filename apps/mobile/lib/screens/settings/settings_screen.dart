@@ -1,16 +1,31 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:mobile/providers/notification/notification_provider.dart';
+import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/service/payment/payment_service.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/theme/vibester_dialog.dart';
+import 'package:mobile/utils/external_links.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/common/settings_row.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+/// Configurações.
+///
+/// A versão anterior desenhava cada grupo como um cartão arredondado de altura
+/// fixa (`height: Platform.isIOS ? 190 : 150`) com divisórias internas — o que
+/// quebra assim que o texto de um item quebra em duas linhas — e apresentava
+/// como iguais tanto os itens que funcionavam quanto os oito que tinham
+/// `onTap: () {}`. Aqui os grupos são apenas rótulos em DM Mono sobre linhas
+/// separadas por fio, a altura vem do conteúdo, e **o que ainda não existe não
+/// aparece**: nada de item "em breve" prometendo um destino que não abre.
+///
+/// Fora desta versão: "Ghost vibe" (switch só local, sem backend) e "Vibester
+/// Club" (assinatura por checkout externo, fora das regras de compra da App
+/// Store). O `PaymentService` continua no código para quando voltar.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -19,28 +34,23 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  Color get _color => context.colors.darkGrey;
-  final PaymentService _paymentService = PaymentService();
-  bool modoFantasma = false;
-  bool _carregandoCheckout = false;
-
-  static const String _promocoesProductId = 'prod_g3JtzRb2TASCFuBYrQ2M4gTp';
-
   Future<void> _confirmarLogout() async {
+    final colors = context.colors;
+
     final confirmar = await showVibesterDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: context.colors.darkGrey,
+        backgroundColor: colors.surfaceRaised,
         title: Text(
           'Sair da conta',
           style: context.typography.titleLarge.copyWith(
-            color: context.colors.textPrimary,
+            color: colors.textPrimary,
           ),
         ),
         content: Text(
-          'Tem certeza que deseja sair?',
+          'Você vai precisar entrar de novo pra usar o app.',
           style: context.typography.bodyMedium.copyWith(
-            color: context.colors.textSecondary,
+            color: colors.textSecondary,
           ),
         ),
         actions: [
@@ -48,8 +58,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(
               'Cancelar',
-              style: context.typography.bodyMedium.copyWith(
-                color: context.colors.textMuted,
+              style: context.typography.titleSmall.copyWith(
+                color: colors.textMuted,
               ),
             ),
           ),
@@ -58,7 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Text(
               'Sair',
               style: context.typography.titleSmall.copyWith(
-                color: context.colors.error,
+                color: colors.error,
               ),
             ),
           ),
@@ -68,7 +78,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmar != true || !mounted) return;
 
+    final notificationProvider = context.read<NotificationProvider>();
+    final blockProvider = context.read<BlockProvider>();
     await context.read<UserProvider>().logout();
+    notificationProvider.clear();
+    blockProvider.clear();
 
     if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(
@@ -78,681 +92,116 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Future<void> _abrirCheckoutPromocoes() async {
-    if (_carregandoCheckout) return;
-
-    setState(() => _carregandoCheckout = true);
-
-    try {
-      final url = await _paymentService.createCheckout(
-        productId: _promocoesProductId,
-        quantity: 1,
-      );
-
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não foi possível abrir o checkout')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _carregandoCheckout = false);
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final themeProvider = context.watch<ThemeProvider>();
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Configurações',
-          style: context.typography.titleLarge.copyWith(
-            color: context.colors.textPrimary,
-          ),
-        ),
-        backgroundColor: context.colors.noturno,
-        foregroundColor: context.colors.textPrimary,
-      ),
-      backgroundColor: context.colors.noturno,
-      body: SingleChildScrollView(
-        child: Column(
+      backgroundColor: colors.noturno,
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: AppSpacing.huge),
           children: [
-            SizedBox(height: 30),
+            const ScreenHeader(title: 'Ajustes', eyebrow: 'SUA CONTA'),
 
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "CONTA",
-                    style: context.typography.titleMedium.copyWith(
-                      color: context.colors.textSecondary,
-                    ),
-                  ),
-                ],
+            const SettingsGroupLabel('CONTA'),
+            SettingsRow(
+              icon: Icons.person_outline_rounded,
+              label: 'Informações pessoais',
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRoutes.personalInformationSettings,
+              ),
+            ),
+            SettingsRow(
+              icon: Icons.block_rounded,
+              label: 'Contas bloqueadas',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.blockedAccounts),
+            ),
+
+            const SettingsGroupLabel('APARÊNCIA'),
+            SettingsRow(
+              icon: themeProvider.isDarkMode
+                  ? Icons.dark_mode_outlined
+                  : Icons.light_mode_outlined,
+              label: themeProvider.isDarkMode ? 'Modo escuro' : 'Modo claro',
+              trailing: Switch(
+                value: themeProvider.isDarkMode,
+                activeThumbColor: colors.onAmbar,
+                activeTrackColor: colors.ambar,
+                inactiveTrackColor: colors.surface,
+                onChanged: (_) => themeProvider.toggleTheme(),
               ),
             ),
 
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              padding: EdgeInsets.all(12),
-              height: Platform.isIOS ? 190 : 150,
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  //Infos
-                  InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.personalInformationSettings,
-                      );
-                    },
-
-                    child: Row(
-                      children: [
-                        Icon(Icons.person, color: context.colors.textMuted),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Informações Pessoais",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Seguranca
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.security_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Segurança",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Gerenciar
-                  InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.accountManagementSettings,
-                      );
-                    },
-
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.settings_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Gerenciamento de Conta",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            const SettingsGroupLabel('AJUDA E PRIVACIDADE'),
+            SettingsRow(
+              icon: Icons.mail_outline_rounded,
+              label: 'Ajuda e contato',
+              description: ExternalLinks.contactEmail,
+              onTap: () => ExternalLinks.openContact(context),
+            ),
+            SettingsRow(
+              icon: Icons.description_outlined,
+              label: 'Termos de Uso',
+              onTap: () => ExternalLinks.open(context, ExternalLinks.terms),
+            ),
+            SettingsRow(
+              icon: Icons.privacy_tip_outlined,
+              label: 'Política de Privacidade',
+              onTap: () => ExternalLinks.open(context, ExternalLinks.privacy),
             ),
 
-            SizedBox(height: 30),
-
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "APARÊNCIA",
-                    style: context.typography.titleMedium.copyWith(
-                      color: context.colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    context.watch<ThemeProvider>().isDarkMode
-                        ? Icons.dark_mode_outlined
-                        : Icons.light_mode_outlined,
-                    color: context.colors.textMuted,
-                  ),
-                  SizedBox(width: 15),
-                  Expanded(
-                    child: Text(
-                      "Modo Escuro",
-                      style: context.typography.headlineSmall.copyWith(
-                        color: context.colors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  Transform.scale(
-                    scale: Platform.isIOS ? 1.0 : 0.8,
-                    child: Switch(
-                      value: context.watch<ThemeProvider>().isDarkMode,
-                      onChanged: (value) {
-                        context.read<ThemeProvider>().setThemeMode(
-                          value ? ThemeMode.dark : ThemeMode.light,
-                        );
-                      },
-                      activeColor: context.colors.brasa,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 30),
-
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "PRIVACIDADE",
-                    style: context.typography.titleMedium.copyWith(
-                      color: context.colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              height: Platform.isIOS ? 230 : 150,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  //Permição
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.location_on_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Permissões de Localização",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                              fontSize: 19,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Fantasma
-                  Row(
-                    children: [
-                      FaIcon(
-                        FontAwesomeIcons.ghost,
-                        color: context.colors.textMuted,
-                      ),
-                      SizedBox(width: 15),
-                      Expanded(
-                        child: Text(
-                          "Ghost Vibe",
-                          style: context.typography.headlineSmall.copyWith(
-                            color: context.colors.textPrimary,
-                          ),
-                        ),
-                      ),
-
-                      Transform.scale(
-                        scale: Platform.isIOS ? 1.0 : 0.8,
-                        child: Switch(
-                          value: modoFantasma,
-                          onChanged: (value) {
-                            setState(() {
-                              modoFantasma = value;
-                            });
-                          },
-                          activeColor: context.colors.brasa,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Gerenciar
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.visibility_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Visualizar Vibe Checks",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 30),
-
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "NOTIFICAÇÕES",
-                    style: context.typography.titleMedium.copyWith(
-                      color: context.colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              height: Platform.isIOS ? 190 : 150,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  //Friends in the area, fds
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.notifications_outlined,
-                          color: context.colors.textMuted,
-                        ),
-
-                        SizedBox(width: 10),
-
-                        Expanded(
-                          child: Text(
-                            "Amigos na Área",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Eventos
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today_outlined,
-                          color: context.colors.textMuted,
-                        ),
-
-                        SizedBox(width: 10),
-
-                        Expanded(
-                          child: Text(
-                            "Atualizações de Eventos",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Parceria
-                  InkWell(
-                    onTap: _abrirCheckoutPromocoes,
-                    child: Row(
-                      children: [
-                        _carregandoCheckout
-                            ? SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: context.colors.textMuted,
-                                ),
-                              )
-                            : Icon(
-                                Icons.confirmation_number_outlined,
-                                color: context.colors.textMuted,
-                              ),
-
-                        SizedBox(width: 10),
-
-                        Expanded(
-                          child: Text(
-                            "Assinar o Vibester Club",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 30),
-
-            Container(
-              margin: EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    "AJUDA",
-                    style: context.typography.titleMedium.copyWith(
-                      color: context.colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 10),
-
-            Container(
-              margin: EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              height: Platform.isIOS ? 190 : 150,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: _color,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  //Ajuda
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.help_outline,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Central de Ajuda",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Add amigo
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.group_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Convidar um Amigo",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Container(
-                    margin: EdgeInsets.only(left: 30, right: 5),
-                    color: context.colors.border,
-                    width: double.infinity,
-                    height: 1,
-                  ),
-
-                  //Termos
-                  InkWell(
-                    onTap: () {},
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.description_outlined,
-                          color: context.colors.textMuted,
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            "Termos e Política",
-                            style: context.typography.headlineSmall.copyWith(
-                              color: context.colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          color: context.colors.textPrimary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 30),
-
+            const SizedBox(height: AppSpacing.xxl),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _confirmarLogout,
-                  icon: Icon(Icons.logout, color: context.colors.error),
-                  label: Text(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.screen,
+              ),
+              child: VibesterPressable(
+                onTap: _confirmarLogout,
+                borderRadius: AppRadius.pillAll,
+                child: Container(
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: AppRadius.pillAll,
+                    border: Border.all(
+                      color: colors.error.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Text(
                     'Sair da conta',
                     style: context.typography.titleMedium.copyWith(
-                      color: context.colors.error,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: BorderSide(color: context.colors.error),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      color: colors.error,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
               ),
             ),
 
-            SizedBox(height: 30),
+            const SizedBox(height: AppSpacing.md),
+            Center(
+              child: VibesterPressable(
+                borderRadius: AppRadius.pillAll,
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.deleteAccount),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Text(
+                    'Excluir conta',
+                    style: context.typography.titleSmall.copyWith(
+                      color: colors.textMuted,
+                      decoration: TextDecoration.underline,
+                      decorationColor: colors.textMuted,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

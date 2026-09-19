@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EditProfileService } from "../editProfile.service";
+import { profileSelect } from "../../prisma/profile.select";
 
 const {
   mockUpdate,
@@ -91,6 +92,7 @@ describe("EditProfileService", () => {
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { userID: FOLLOWING_ID },
         data: { bio: "Minha nova bio" },
+        select: profileSelect,
       });
       expect(result.bio).toBe("Minha nova bio");
     });
@@ -117,6 +119,7 @@ describe("EditProfileService", () => {
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { userID: FOLLOWING_ID },
         data: { avatarUrl: url },
+        select: profileSelect,
       });
       expect(result.avatarUrl).toBe(url);
     });
@@ -150,10 +153,12 @@ describe("EditProfileService", () => {
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { userID: FOLLOWING_ID },
         data: { followers: { increment: 1 } },
+        select: profileSelect,
       });
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { userID: FOLLOWER_ID },
         data: { following: { increment: 1 } },
+        select: profileSelect,
       });
       expect(mockProducerSend).toHaveBeenCalledWith({
         topic: "user.followed",
@@ -199,10 +204,12 @@ describe("EditProfileService", () => {
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { userID: FOLLOWING_ID },
         data: { followers: { decrement: 1 } },
+        select: profileSelect,
       });
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { userID: FOLLOWER_ID },
         data: { following: { decrement: 1 } },
+        select: profileSelect,
       });
       expect(result.followers).toBe(0);
     });

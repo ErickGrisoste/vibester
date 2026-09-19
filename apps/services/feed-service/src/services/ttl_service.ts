@@ -21,8 +21,6 @@ export class FeedTtlService {
                 //return item.campaignDurationInSeconds;
                 return FEED_TTL.ESTABLISHMENT_POST;
 
-            case "EVENT_USER":
-            case "EVENT_ESTABLISHMENT":    
             case "EVENT":
                 return this.calculateEventTTL(item.eventDate!);
 

@@ -22,10 +22,12 @@ export function register(user) {
     { headers: HEADERS, tags: { endpoint: 'register' } },
   );
 
+  // 202, não 201: o /register apenas guarda a pendência no Redis e dispara o
+  // email — a conta só passa a existir depois do /verify-email.
   check(res, {
-    'register: status 201': (r) => r.status === 201,
-    'register: retornou id': (r) => {
-      try { return !!JSON.parse(r.body).id; } catch { return false; }
+    'register: status 202': (r) => r.status === 202,
+    'register: retornou message': (r) => {
+      try { return !!JSON.parse(r.body).message; } catch { return false; }
     },
   });
 
@@ -44,6 +46,29 @@ export function login(credentials) {
     'login: retornou token': (r) => {
       try { return !!JSON.parse(r.body).token; } catch { return false; }
     },
+  });
+
+  return res;
+}
+
+/**
+ * Exercita a validação do código de verificação.
+ *
+ * O código real chega por email, então a carga é medida no caminho de
+ * rejeição — que é justamente o que um atacante percorreria e o que precisa
+ * responder rápido: Redis GET + comparação HMAC + gravação do contador de
+ * tentativas.
+ */
+export function verifyEmailWithWrongCode(email, code = '000000') {
+  const res = http.post(
+    `${BASE_URL}/verify-email`,
+    JSON.stringify({ email, code }),
+    { headers: HEADERS, tags: { endpoint: 'verify-email' } },
+  );
+
+  check(res, {
+    'verify-email: rejeitou o código (422) ou barrou por excesso (429)': (r) =>
+      r.status === 422 || r.status === 429,
   });
 
   return res;

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CreateProfileService } from "../createProfile.service";
+import { profileSelect } from "../../prisma/profile.select";
 
 const { mockCreate } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
@@ -58,6 +59,7 @@ describe("CreateProfileService", () => {
 
     expect(mockCreate).toHaveBeenCalledWith({
       data: { userID: "user-uuid-1" },
+      select: profileSelect,
     });
     expect(result).toEqual(profile);
   });

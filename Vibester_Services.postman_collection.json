@@ -91,7 +91,8 @@
 							"raw": "{{auth_service_url}}/register",
 							"host": ["{{auth_service_url}}"],
 							"path": ["register"]
-						}
+						},
+						"description": "Guarda o cadastro pendente no Redis (TTL EMAIL_VERIFICATION_TTL_SECONDS, padrão 600s) e publica em auth.email.verification para o notification-service enviar o código.\n\nRetorna 202 mesmo antes da conta existir — a conta só é criada no /verify-email.\n\nErros: 400 (payload inválido), 409 (email ou username já em uso)."
 					}
 				},
 				{
@@ -112,7 +113,8 @@
 							"raw": "{{auth_service_url}}/verify-email",
 							"host": ["{{auth_service_url}}"],
 							"path": ["verify-email"]
-						}
+						},
+						"description": "Valida o código e conclui o cadastro.\n\nO código só é invalidado no Redis DEPOIS que a conta e o perfil são criados com sucesso — uma falha no user-service não queima o código.\n\nApós MAX_CODE_ATTEMPTS (padrão 5) códigos incorretos a pendência é descartada e o cadastro precisa ser reiniciado.\n\nErros: 400 (código fora do formato de 6 dígitos), 404 (sem pendência ou expirado), 409 (email/username em uso), 422 (código incorreto), 429 (tentativas em excesso), 502 (user-service indisponível)."
 					}
 				},
 				{
@@ -133,7 +135,140 @@
 							"raw": "{{auth_service_url}}/login",
 							"host": ["{{auth_service_url}}"],
 							"path": ["login"]
-						}
+						},
+						"description": "Autentica por email OU username e retorna o JWT.\n\nO username é aceito com e sem o prefixo \"@\" — o cadastro grava \"@joaosilva\", e o login casa com as duas formas.\n\nFalhas consecutivas na senha de uma conta existente são contadas no Redis; ao atingir AUTH_FAIL_NOTIFY_THRESHOLD (padrão 5) dentro de AUTH_FAIL_WINDOW_SECONDS (padrão 900s) o dono da conta recebe um email de alerta (evento auth.attempts.exceeded). Um login bem-sucedido zera o contador.\n\nErros: 400 (nem email nem username), 401 (credenciais inválidas — mesma mensagem para conta inexistente e senha errada, de propósito, para não permitir enumeração)."
+					}
+				},
+				{
+					"name": "Login (por Username)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"joaosilva\",\n  \"password\": \"senha123\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/login",
+							"host": ["{{auth_service_url}}"],
+							"path": ["login"]
+						},
+						"description": "Mesma rota, autenticando por username em vez de email. Funciona com \"joaosilva\" e com \"@joaosilva\"."
+					}
+				},
+				{
+					"name": "Login — Credenciais Inválidas (401)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"joao@email.com\",\n  \"password\": \"senha-errada\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/login",
+							"host": ["{{auth_service_url}}"],
+							"path": ["login"]
+						},
+						"description": "Cenário de borda: senha errada em conta existente. Cada chamada incrementa o contador de falhas; na 5ª o dono da conta recebe o email de alerta.\n\nA resposta é idêntica à de conta inexistente por design."
+					}
+				},
+				{
+					"name": "Verify Email — Código Inválido (422)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"joao@email.com\",\n  \"code\": \"000000\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/verify-email",
+							"host": ["{{auth_service_url}}"],
+							"path": ["verify-email"]
+						},
+						"description": "Cenário de borda: código incorreto. A pendência sobrevive e o TTL restante é preservado — errar o código não estende a validade dele."
+					}
+				},
+				{
+					"name": "Verify Email — Tentativas em Excesso (429)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"joao@email.com\",\n  \"code\": \"000000\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/verify-email",
+							"host": ["{{auth_service_url}}"],
+							"path": ["verify-email"]
+						},
+						"description": "Cenário de borda: repita a chamada acima até MAX_CODE_ATTEMPTS (padrão 5). Na última a pendência é apagada do Redis e o cadastro precisa recomeçar pelo /register."
+					}
+				},
+				{
+					"name": "Verify Email — Código Expirado / Sem Pendência (404)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"ninguem@email.com\",\n  \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/verify-email",
+							"host": ["{{auth_service_url}}"],
+							"path": ["verify-email"]
+						},
+						"description": "Cenário de borda: email sem cadastro pendente, ou pendência que passou do TTL."
+					}
+				},
+				{
+					"name": "Verify Email — Formato Inválido (400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"joao@email.com\",\n  \"code\": \"12345\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/verify-email",
+							"host": ["{{auth_service_url}}"],
+							"path": ["verify-email"]
+						},
+						"description": "Cenário de borda: o schema exige exatamente 6 dígitos, então isso é barrado na validação antes de chegar ao Redis."
 					}
 				}
 			]
@@ -183,7 +318,8 @@
 							"raw": "{{user_service_url}}/users/profile",
 							"host": ["{{user_service_url}}"],
 							"path": ["users", "profile"]
-						}
+						},
+						"description": "Chamado pelo auth-service ao final do /verify-email.\n\nRetorna 409 (não 500) quando o accountId ou o username já têm perfil — o 500 fazia o auth-service interpretar como \"serviço indisponível\" e derrubar uma conta que só precisava de outro username."
 					}
 				},
 				{
@@ -201,7 +337,8 @@
 									"value": "11111111-1111-1111-1111-111111111111"
 								}
 							]
-						}
+						},
+						"description": "Usado pelo app logo após o login para montar a sessão.\n\nRetorna só as colunas do contrato público (sem id interno e sem shareCount): a query não depende de colunas que a resposta descarta.\n\nErros: 400 (accountId não é UUID), 404 (perfil não existe)."
 					}
 				},
 				{

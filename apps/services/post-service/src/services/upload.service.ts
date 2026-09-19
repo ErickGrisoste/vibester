@@ -5,8 +5,15 @@ import { randomUUID } from "node:crypto";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { MediaType, PresignedUrlItem, UploadFileInput } from "../types/post.types";
+import { presignedUrlGeneratedTotal } from "../metrics/registry";
 
 const PRESIGN_CONCURRENCY = 5;
+
+// Única fonte do prefixo de key usado tanto para gerar quanto para validar
+// posse de mídia (ver ownPrefix em schema/post.schema.ts) — duplicar essa
+// string nos dois arquivos arriscava divergência silenciosa se o padrão de
+// key mudasse só de um lado.
+export const MEDIA_KEY_PREFIX = "posts/";
 
 // A URL assinada carrega o content-type: se o app subir o arquivo com outro
 // header, o R2 rejeita a assinatura. Por isso a lista é fechada — aceitar
@@ -37,7 +44,7 @@ export class UploadService {
 
     private async generateOnePresignedUrl(userId: string, file: UploadFileInput): Promise<PresignedUrlItem> {
         const extension = EXTENSION_BY_CONTENT_TYPE[file.contentType];
-        const key = `posts/${userId}/${randomUUID()}.${extension}`;
+        const key = `${MEDIA_KEY_PREFIX}${userId}/${randomUUID()}.${extension}`;
 
         const command = new PutObjectCommand({
             Bucket: env.r2_bucket_name,
@@ -51,6 +58,8 @@ export class UploadService {
         });
 
         const publicUrl = `${env.r2_public_url}/${key}`;
+
+        presignedUrlGeneratedTotal.inc({ media_type: file.type });
 
         return { uploadUrl, key, publicUrl, type: file.type, contentType: file.contentType };
     }
@@ -66,7 +75,7 @@ export class UploadService {
             throw new Error(`Tipo não suportado no upload direto: ${mimetype}`);
         }
 
-        const key = `posts/${userId}/${postId}/${randomUUID()}.webp`;
+        const key = `${MEDIA_KEY_PREFIX}${userId}/${postId}/${randomUUID()}.webp`;
 
         await r2Client.send(new PutObjectCommand({
             Bucket: env.r2_bucket_name,

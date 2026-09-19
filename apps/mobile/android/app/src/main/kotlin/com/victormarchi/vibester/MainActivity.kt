@@ -1,0 +1,5 @@
+package com.victormarchi.vibester
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GetProfileService } from "../getProfile.service";
+import { profileSelect } from "../../prisma/profile.select";
 
 const { mockFindUnique } = vi.hoisted(() => ({
   mockFindUnique: vi.fn(),
@@ -56,7 +57,7 @@ describe("GetProfileService", () => {
 
     const result = await service.getProfileByAccountId("user-uuid-1");
 
-    expect(mockFindUnique).toHaveBeenCalledWith({ where: { userID: "user-uuid-1" } });
+    expect(mockFindUnique).toHaveBeenCalledWith({ where: { userID: "user-uuid-1" }, select: profileSelect });
     expect(result).toEqual(profile);
   });
 
@@ -65,7 +66,7 @@ describe("GetProfileService", () => {
 
     const result = await service.getProfileByAccountId("non-existent-id");
 
-    expect(mockFindUnique).toHaveBeenCalledWith({ where: { userID: "non-existent-id" } });
+    expect(mockFindUnique).toHaveBeenCalledWith({ where: { userID: "non-existent-id" }, select: profileSelect });
     expect(result).toBeNull();
   });
 

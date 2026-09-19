@@ -1,5 +1,5 @@
 name: mobile
-description: "A new Flutter project."
+description: "Vibester — descubra eventos, lugares e rolês perto de você."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -36,9 +36,12 @@ dependencies:
   diacritic: ^0.1.6
   flutter_map: ^7.0.0
   latlong2: ^0.9.0   
-  font_awesome_flutter: ^10.7.0
+  font_awesome_flutter: ^11.0.0
   provider: ^6.1.5+1
   cached_network_image: ^3.4.1
+  # Direta porque o cache de imagem é configurado no app
+  # (lib/service/media/image_cache.dart); já vinha via cached_network_image.
+  flutter_cache_manager: ^3.4.1
 
 
   # The following adds the Cupertino Icons font to your application.
@@ -51,6 +54,12 @@ dependencies:
   share_plus: ^13.3.0
   app_links: ^7.0.0
   shared_preferences: ^2.5.3
+  camera: ^0.12.0+2
+  image_cropper: ^12.2.1
+  flutter_image_compress: ^2.5.1
+  video_compress: ^3.1.4
+  video_player: ^2.11.1
+  gal: ^2.3.3
 
 dependency_overrides:
   # path_provider_foundation 2.6.0 (assim como a 2.5.0) depende de package:objective_c,
@@ -72,6 +81,28 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Gera os ícones de app das duas plataformas a partir de assets/icon/.
+  # Só roda sob demanda (`dart run flutter_launcher_icons`), não entra no bundle.
+  flutter_launcher_icons: ^0.14.4
+
+# Ícone do app. Fonte da arte: design/assets/icone_app.png (mascote sobre o navy
+# #041440). `app_icon.png` é a arte cheia, sem alpha, que o iOS usa; o foreground
+# adaptativo do Android é só o mascote recortado, preenchendo o canvas — quem o
+# reduz para a safe zone da máscara é o inset de 16% do ic_launcher.xml gerado,
+# e o navy volta como adaptive_icon_background. Não encolha a arte do foreground
+# de novo por cima disso, senão o mascote fica minúsculo na tela.
+# Regerar: `dart run flutter_launcher_icons` na pasta apps/mobile. O pacote troca
+# ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS por engano no
+# project.pbxproj do iOS (match de substring numa chave booleana) — reverta isso.
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: "ic_launcher"
+  adaptive_icon_background: "#041440"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  adaptive_icon_monochrome: "assets/icon/app_icon_foreground.png"
+  ios: true
+  remove_alpha_ios: true
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -80,24 +111,29 @@ flutter:
   uses-material-design: true
   assets:
     - assets/img/
-    - assets/img/places/
+    # Arte do mascote e fotos de estabelecimentos: continuam empacotadas,
+    # embora nenhuma tela do redesenho as use hoje.
     - assets/img/mascote/
+    - assets/img/places/
     - assets/img/logo/
-    - assets/img/descontoMocado/
   fonts:
-    - family: Geist
+    - family: Outfit
       fonts:
-        - asset: assets/fonts/Geist/Geist-Regular.ttf
+        - asset: assets/fonts/Outfit/Outfit-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Geist/Geist-Medium.ttf
+        - asset: assets/fonts/Outfit/Outfit-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Geist/Geist-SemiBold.ttf
+        - asset: assets/fonts/Outfit/Outfit-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/Geist/Geist-Bold.ttf
+        - asset: assets/fonts/Outfit/Outfit-Bold.ttf
           weight: 700
-        - asset: assets/fonts/Geist/Geist-ExtraBold.ttf
+        - asset: assets/fonts/Outfit/Outfit-ExtraBold.ttf
           weight: 800
-    - family: GeistPixel
+    - family: DMMono
       fonts:
-        - asset: assets/fonts/GeistPixel/GeistPixel-Square.ttf
+        - asset: assets/fonts/DMMono/DMMono-Light.ttf
+          weight: 300
+        - asset: assets/fonts/DMMono/DMMono-Regular.ttf
           weight: 400
+        - asset: assets/fonts/DMMono/DMMono-Medium.ttf
+          weight: 500

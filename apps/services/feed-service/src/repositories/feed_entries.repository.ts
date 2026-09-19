@@ -1,4 +1,5 @@
 import { BaseRepository } from "./base.repository";
+import { runFanout } from "../utils/fanout";
 
 export class FeedEntriesByPostRepository extends BaseRepository {
 
@@ -57,8 +58,9 @@ export class FeedEntriesByPostRepository extends BaseRepository {
     async deleteByItemId(itemId: string) {
         const entries = await this.findByItemId(itemId);
 
-        await Promise.all(
-            entries.rows.map((entry) =>
+        await runFanout(
+            "feedEntries.deleteByItemId",
+            entries.rows.map((entry) => () =>
                 this.delete(entry.post_id, entry.user_id, entry.created_at)
             )
         );

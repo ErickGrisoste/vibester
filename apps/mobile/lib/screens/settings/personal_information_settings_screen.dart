@@ -1,14 +1,38 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
+import 'package:mobile/models/media/media_item.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
+import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/service/user/interests_storage.dart';
 import 'package:mobile/service/user/user_service.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/theme/vibester_dialog.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
 import 'package:mobile/widgets/cards/users/editing_avatar.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/common/settings_row.dart';
+import 'package:mobile/widgets/common/vibester_skeleton.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/text-field/primary_text_field.dart';
 import 'package:provider/provider.dart';
 
+/// Informações pessoais.
+///
+/// Reorganizada em torno do que o backend realmente aceita alterar. Antes,
+/// **oito** campos pareciam editáveis, mas só quatro (avatar, nome, usuário e
+/// bio) chegavam a uma chamada de API: e-mail, telefone, data de nascimento,
+/// cidade e interesses apenas escreviam no provider em memória, então o
+/// usuário editava, via o valor mudar, fechava o app e perdia tudo — sem
+/// nunca receber um aviso.
+///
+/// Agora os campos com API ficam num grupo editável, e os demais aparecem
+/// como leitura, com uma nota explicando por quê. Interesses viraram um
+/// atalho para a tela que de fato guarda a escolha.
+///
+/// A edição também mudou de forma: era um `Dialog` com um botão verde
+/// "Confirmar" e um vermelho "Cancelar" lado a lado, ambos do mesmo tamanho —
+/// duas ações de peso igual, sendo que uma delas destrói o que foi digitado.
+/// Virou uma folha inferior com um campo e uma ação principal.
 class PersonalInformationSettingsScreen extends StatefulWidget {
   const PersonalInformationSettingsScreen({super.key});
 
@@ -40,12 +64,13 @@ class _PersonalInformationSettingsScreenState
     ).showSnackBar(SnackBar(content: Text(mensagem)));
   }
 
-  Future<void> _salvarAvatar(File image) async {
+  /// Devolve se a foto subiu — o `EditableAvatar` volta para a anterior
+  /// quando não sobe, em vez de mostrar uma foto que ninguém mais vai ver.
+  Future<bool> _salvarAvatar(MediaItem image) async {
     final user = context.read<UserProvider>().user;
     final accountId = user?.accountId ?? '';
     final tokenAtual = user?.token;
-
-    if (accountId.isEmpty) return;
+    if (accountId.isEmpty) return false;
 
     setState(() => _isLoadingAvatar = true);
 
@@ -54,17 +79,22 @@ class _PersonalInformationSettingsScreenState
         accountId: accountId,
         image: image,
       );
-
-      if (!mounted) return;
-
+      if (!mounted) return true;
       final usuarioAtualizado = UserModel.fromProfileJson(
         response,
         accountId: accountId,
         token: tokenAtual,
       );
       context.read<UserProvider>().setUser(usuarioAtualizado);
+      return true;
     } catch (e) {
-      _mostrarErro('Não foi possível atualizar o avatar.');
+      debugPrint('Falha ao atualizar avatar: $e');
+      _mostrarErro(
+        e is Exception
+            ? e.toString().replaceFirst('Exception: ', '')
+            : 'Não foi possível atualizar a foto.',
+      );
+      return false;
     } finally {
       if (mounted) setState(() => _isLoadingAvatar = false);
     }
@@ -72,10 +102,9 @@ class _PersonalInformationSettingsScreenState
 
   Future<void> _salvarNome(String novoNome) async {
     final user = context.read<UserProvider>().user;
-    final accountId = user?.accountId ?? '';
     try {
       final response = await _userService.updateName(
-        accountId: accountId,
+        accountId: user?.accountId ?? '',
         name: novoNome,
         username: user?.nomeUsuario ?? '',
       );
@@ -88,14 +117,13 @@ class _PersonalInformationSettingsScreenState
 
   Future<void> _salvarUsername(String novoUsername) async {
     final user = context.read<UserProvider>().user;
-    final accountId = user?.accountId ?? '';
     var usernameFormatado = novoUsername.replaceAll(' ', '');
     if (!usernameFormatado.startsWith('@')) {
       usernameFormatado = '@$usernameFormatado';
     }
     try {
       final response = await _userService.updateName(
-        accountId: accountId,
+        accountId: user?.accountId ?? '',
         name: user?.nome ?? '',
         username: usernameFormatado,
       );
@@ -108,10 +136,9 @@ class _PersonalInformationSettingsScreenState
 
   Future<void> _salvarBio(String novaBio) async {
     final user = context.read<UserProvider>().user;
-    final accountId = user?.accountId ?? '';
     try {
       final response = await _userService.updateBio(
-        accountId: accountId,
+        accountId: user?.accountId ?? '',
         bio: novaBio,
       );
       if (!mounted) return;
@@ -121,417 +148,295 @@ class _PersonalInformationSettingsScreenState
     }
   }
 
-  void _editarCampo(
-    String titulo,
-    String valorAtual,
-    Function(String) onSalvar, {
+  Future<void> _editarCampo({
+    required String titulo,
+    required String valorAtual,
+    required Future<void> Function(String) onSalvar,
     int? maxCaracteres,
-  }) {
-    final controller = TextEditingController(text: valorAtual);
-    final focusNode = FocusNode();
-    showVibesterDialog(
+    int maxLines = 1,
+  }) async {
+    final novoValor = await showModalBottomSheet<String>(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          decoration: BoxDecoration(
-            color: context.colors.darkGrey.withAlpha(230),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                decoration: BoxDecoration(
-                  color: context.colors.navy.withAlpha(230),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                ),
-                child: Text(
-                  'Alterar $titulo',
-                  style: context.typography.headlineSmall.copyWith(
-                    color: context.colors.textPrimary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 20,
-                ),
-                child: TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  autofocus: true,
-                  maxLength: maxCaracteres,
-                  style: context.typography.bodyLarge.copyWith(
-                    color: context.colors.textPrimary,
-                  ),
-                  cursorColor: context.colors.ambar,
-                  decoration: InputDecoration(
-                    enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: context.colors.border),
-                    ),
-                    focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: context.colors.ambar),
-                    ),
-                    counterStyle: context.typography.bodySmall.copyWith(
-                      color: context.colors.textDisabled,
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    TextButton(
-                      onPressed: () {
-                        focusNode.unfocus();
-                        onSalvar(controller.text);
-                        Navigator.pop(context);
-                      },
-                      // Fundo/rótulo do botão de confirmação ficam fixos
-                      // (verde + branco) para manter contraste, independente
-                      // do tema ativo.
-                      style: TextButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        'Confirmar',
-                        style: context.typography.titleMedium,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    TextButton(
-                      onPressed: () {
-                        focusNode.unfocus();
-                        Navigator.pop(context);
-                      },
-                      // Rótulo fica fixo em branco para manter contraste
-                      // sobre o fundo de erro (que também varia por tema).
-                      style: TextButton.styleFrom(
-                        backgroundColor: context.colors.error,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: Text(
-                        'Cancelar',
-                        style: context.typography.titleMedium,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+      isScrollControlled: true,
+      builder: (_) => _EditSheet(
+        titulo: titulo,
+        valorAtual: valorAtual,
+        maxCaracteres: maxCaracteres,
+        maxLines: maxLines,
       ),
     );
-  }
 
-  Widget _buildRow(String label, String valor, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        children: [
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: context.typography.headlineSmall.copyWith(
-                    color: context.colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  valor,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.typography.titleMedium.copyWith(
-                    color: context.colors.textMuted,
-                    fontSize: 15,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons.edit_outlined,
-            color: context.colors.textDisabled,
-            size: 18,
-          ),
-          const SizedBox(width: 5),
-        ],
-      ),
-    );
+    if (novoValor == null || novoValor == valorAtual) return;
+    await onSalvar(novoValor);
   }
-
-  Widget _divider() => Container(
-    margin: const EdgeInsets.only(left: 5, right: 5),
-    color: context.colors.border,
-    width: double.infinity,
-    height: 1,
-  );
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final user = context.watch<UserProvider>().user;
 
     if (user == null) {
       return Scaffold(
-        backgroundColor: context.colors.noturno,
-        appBar: AppBar(
-          title: const Text('Informações pessoais'),
-          backgroundColor: context.colors.noturno,
-          foregroundColor: context.colors.textPrimary,
+        backgroundColor: colors.noturno,
+        body: const SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.screen),
+            child: VibesterSkeletonLines(lines: 4, spacing: AppSpacing.lg),
+          ),
         ),
-        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    final Color cardColor = context.colors.darkGrey;
-
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Informações pessoais',
-          style: context.typography.titleLarge.copyWith(
-            color: context.colors.textPrimary,
-          ),
-        ),
-        backgroundColor: context.colors.noturno,
-        foregroundColor: context.colors.textPrimary,
-      ),
-      backgroundColor: context.colors.noturno,
-      body: SingleChildScrollView(
-        child: Column(
+      backgroundColor: colors.noturno,
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: AppSpacing.huge),
           children: [
-            const SizedBox(height: 30),
+            const ScreenHeader(
+              title: 'Seus dados',
+              eyebrow: 'INFORMAÇÕES PESSOAIS',
+              bottomSpacing: AppSpacing.md,
+            ),
 
-            Container(
-              margin: const EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
+            Center(
               child: Column(
                 children: [
-                  const SizedBox(height: 4),
                   EditableAvatar(
-                    radius: 64,
+                    radius: 56,
                     imageUrl: user.fotoPerfil.isNotEmpty
                         ? user.fotoPerfil
                         : null,
                     onImageChanged: _salvarAvatar,
                   ),
-                  if (_isLoadingAvatar)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: CircularProgressIndicator(),
-                    ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.md),
                   Text(
-                    user.nome,
-                    style: context.typography.headlineMedium.copyWith(
-                      color: context.colors.textPrimary,
-                      fontSize: 20,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            Container(
-              margin: const EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    'DADOS',
-                    style: context.typography.titleMedium.copyWith(
-                      color: context.colors.textMuted,
+                    _isLoadingAvatar ? 'ENVIANDO…' : 'TOCA PRA TROCAR A FOTO',
+                    style: context.typography.monoMicro.copyWith(
+                      color: _isLoadingAvatar
+                          ? colors.ambar
+                          : colors.textDisabled,
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 10),
-
-            Container(
-              margin: const EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildRow(
-                    'Nome',
-                    user.nome,
-                    () => _editarCampo(
-                      'Nome',
-                      user.nome,
-                      _salvarNome,
-                      maxCaracteres: 30,
-                    ),
-                  ),
-                  _divider(),
-                  const SizedBox(height: 12),
-                  _buildRow(
-                    'Nome de usuário',
-                    user.nomeUsuario,
-                    () => _editarCampo(
-                      'Nome de Usuário',
-                      user.nomeUsuario,
-                      _salvarUsername,
-                      maxCaracteres: 30,
-                    ),
-                  ),
-                  _divider(),
-                  const SizedBox(height: 12),
-                  _buildRow(
-                    'Bio',
-                    user.bio,
-                    () => _editarCampo(
-                      'Bio',
-                      user.bio,
-                      _salvarBio,
-                      maxCaracteres: 150,
-                    ),
-                  ),
-                  _divider(),
-                  const SizedBox(height: 12),
-                  _buildRow(
-                    'Interesses',
-                    user.interesses,
-                    () => _editarCampo('Interesses', user.interesses, (valor) {
-                      context.read<UserProvider>().atualizarCampo(
-                        'interesses',
-                        valor,
-                      );
-                    }),
-                  ),
-                ],
+            const SettingsGroupLabel('PERFIL'),
+            SettingsRow(
+              icon: Icons.badge_outlined,
+              label: 'Nome',
+              description: user.nome.isEmpty ? '—' : user.nome,
+              onTap: () => _editarCampo(
+                titulo: 'Nome',
+                valorAtual: user.nome,
+                onSalvar: _salvarNome,
+                maxCaracteres: 30,
               ),
             ),
-
-            const SizedBox(height: 30),
-
-            Container(
-              margin: const EdgeInsets.only(left: 30),
-              child: Row(
-                children: [
-                  Text(
-                    'INFORMAÇÕES DA CONTA',
-                    style: context.typography.titleMedium.copyWith(
-                      color: context.colors.textMuted,
-                    ),
-                  ),
-                ],
+            SettingsRow(
+              icon: Icons.alternate_email_rounded,
+              label: 'Nome de usuário',
+              description: user.nomeUsuario.isEmpty ? '—' : user.nomeUsuario,
+              onTap: () => _editarCampo(
+                titulo: 'Nome de usuário',
+                valorAtual: user.nomeUsuario,
+                onSalvar: _salvarUsername,
+                maxCaracteres: 30,
               ),
             ),
-
-            const SizedBox(height: 10),
-
-            Container(
-              margin: const EdgeInsets.only(left: 16, right: 16),
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: context.colors.border, width: 1),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildRow(
-                    'E-mail',
-                    user.email,
-                    () => _editarCampo('E-mail', user.email, (valor) {
-                      context.read<UserProvider>().atualizarCampo(
-                        'email',
-                        valor,
-                      );
-                    }),
-                  ),
-                  _divider(),
-                  _buildRow(
-                    'Telefone',
-                    user.telefone,
-                    () => _editarCampo('Telefone', user.telefone, (valor) {
-                      context.read<UserProvider>().atualizarCampo(
-                        'telefone',
-                        valor,
-                      );
-                    }),
-                  ),
-                  _divider(),
-                  _buildRow(
-                    'Data de nascimento',
-                    user.dataNascimento,
-                    () => _editarCampo(
-                      'Data de Nascimento',
-                      user.dataNascimento,
-                      (valor) {
-                        context.read<UserProvider>().atualizarCampo(
-                          'dataNascimento',
-                          valor,
-                        );
-                      },
-                    ),
-                  ),
-                  _divider(),
-                  _buildRow(
-                    'Cidade',
-                    user.cidade,
-                    () => _editarCampo('Cidade', user.cidade, (valor) {
-                      context.read<UserProvider>().atualizarCampo(
-                        'cidade',
-                        valor,
-                      );
-                    }),
-                  ),
-                ],
+            SettingsRow(
+              icon: Icons.notes_rounded,
+              label: 'Bio',
+              description: user.bio.isEmpty ? '—' : user.bio,
+              onTap: () => _editarCampo(
+                titulo: 'Bio',
+                valorAtual: user.bio,
+                onSalvar: _salvarBio,
+                maxCaracteres: 150,
+                maxLines: 3,
               ),
             ),
+            SettingsRow(
+              icon: Icons.favorite_border_rounded,
+              label: 'Seus interesses',
+              description: InterestsStorage.selected.isEmpty
+                  ? 'Nenhum escolhido'
+                  : InterestsStorage.selected.map((i) => i.label).join(', '),
+              // A descrição acima lê `InterestsStorage` no build, e voltar de
+              // uma rota não reconstrói a de baixo: sem este setState a linha
+              // continuaria mostrando a lista antiga até a tela ser refeita
+              // por outro motivo.
+              onTap: () async {
+                await Navigator.pushNamed(context, AppRoutes.userInterests);
+                if (!mounted) return;
+                setState(() {});
+              },
+            ),
 
-            const SizedBox(height: 30),
+            const SettingsGroupLabel('CONTA'),
+            _ReadOnlyRow(label: 'E-mail', value: user.email),
+            _ReadOnlyRow(label: 'Telefone', value: user.telefone),
+            _ReadOnlyRow(
+              label: 'Data de nascimento',
+              value: user.dataNascimento,
+            ),
+            _ReadOnlyRow(label: 'Cidade', value: user.cidade),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screen,
+                AppSpacing.md,
+                AppSpacing.screen,
+                0,
+              ),
+              child: Text(
+                'Esses dados ainda não podem ser alterados pelo app. Se algum '
+                'estiver errado, escreve pra contato@vibester.com.br.',
+                style: context.typography.bodySmall.copyWith(
+                  color: colors.textDisabled,
+                ),
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Linha de leitura: mesma anatomia da linha de ajuste, sem afordância de
+/// toque — sem seta, sem ripple, sem promessa de edição.
+class _ReadOnlyRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _ReadOnlyRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.screen,
+        vertical: AppSpacing.lg,
+      ),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.hairline)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: context.typography.titleMedium.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Text(
+            value.isEmpty ? '—' : value,
+            style: context.typography.monoSmall.copyWith(
+              color: colors.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Folha de edição de um campo. Uma ação principal ("Salvar"); cancelar é
+/// fechar a folha, como em qualquer bottom sheet.
+class _EditSheet extends StatefulWidget {
+  final String titulo;
+  final String valorAtual;
+  final int? maxCaracteres;
+  final int maxLines;
+
+  const _EditSheet({
+    required this.titulo,
+    required this.valorAtual,
+    required this.maxCaracteres,
+    required this.maxLines,
+  });
+
+  @override
+  State<_EditSheet> createState() => _EditSheetState();
+}
+
+class _EditSheetState extends State<_EditSheet> {
+  late final _controller = TextEditingController(text: widget.valorAtual);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screen,
+            AppSpacing.sm,
+            AppSpacing.screen,
+            AppSpacing.lg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PrimaryTextField(
+                controller: _controller,
+                label: widget.titulo,
+                maxLines: widget.maxLines,
+                textInputAction: widget.maxLines > 1
+                    ? TextInputAction.newline
+                    : TextInputAction.done,
+                onSubmitted: (value) => Navigator.pop(context, value.trim()),
+              ),
+              if (widget.maxCaracteres != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.xs),
+                  child: Text(
+                    'ATÉ ${widget.maxCaracteres} CARACTERES',
+                    style: context.typography.monoMicro.copyWith(
+                      color: context.colors.textDisabled,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: AppSpacing.lg),
+              VibesterButton(
+                label: 'Salvar',
+                onPressed: () =>
+                    Navigator.pop(context, _controller.text.trim()),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Center(
+                child: VibesterPressable(
+                  onTap: () => Navigator.pop(context),
+                  borderRadius: AppRadius.pillAll,
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Text(
+                      'CANCELAR',
+                      style: context.typography.monoMicro.copyWith(
+                        color: context.colors.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
