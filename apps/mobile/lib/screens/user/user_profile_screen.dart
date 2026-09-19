@@ -45,6 +45,10 @@ class UserProfileScreenState extends State<UserProfileScreen> {
   /// Impede dois resets empilhados por toques seguidos no botão.
   bool _resetting = false;
 
+  /// Quantidade de posts que a grade de fato carregou. Enquanto a grade não
+  /// responde fica `null` e a tela usa o `totalPosts` que veio do perfil.
+  int? _gridCount;
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -148,7 +152,12 @@ class UserProfileScreenState extends State<UserProfileScreen> {
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(child: _ProfileIdentity(user: user)),
+            SliverToBoxAdapter(
+              child: _ProfileIdentity(
+                user: user,
+                postsCount: _gridCount ?? user.totalPosts,
+              ),
+            ),
             SliverToBoxAdapter(child: _ProfileActions(onShare: _shareProfile)),
             SliverToBoxAdapter(
               child: Padding(
@@ -168,7 +177,9 @@ class UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                     const Spacer(),
                     Text(
-                      user.totalPosts.toString().padLeft(2, '0'),
+                      (_gridCount ?? user.totalPosts)
+                          .toString()
+                          .padLeft(2, '0'),
                       style: context.typography.monoSmall.copyWith(
                         color: colors.textDisabled,
                       ),
@@ -181,6 +192,11 @@ class UserProfileScreenState extends State<UserProfileScreen> {
               key: _highlightsKey,
               accountId: user.accountId ?? '',
               asSliver: true,
+              onCountChanged: (count) {
+                if (mounted && count != _gridCount) {
+                  setState(() => _gridCount = count);
+                }
+              },
             ),
           ],
         ),
@@ -193,8 +209,9 @@ class UserProfileScreenState extends State<UserProfileScreen> {
 
 class _ProfileIdentity extends StatelessWidget {
   final UserModel user;
+  final int postsCount;
 
-  const _ProfileIdentity({required this.user});
+  const _ProfileIdentity({required this.user, required this.postsCount});
 
   /// `interesses` chega da API como texto único; aceita vírgula ou barra como
   /// separador porque as duas formas aparecem nos dados existentes.
@@ -298,7 +315,7 @@ class _ProfileIdentity extends StatelessWidget {
                 ],
 
                 const SizedBox(height: AppSpacing.lg),
-                _Counters(user: user),
+                _Counters(user: user, postsCount: postsCount),
 
                 if (_interests.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
@@ -329,8 +346,9 @@ class _ProfileIdentity extends StatelessWidget {
 /// `fromProfileJson` — nenhum é decorativo.
 class _Counters extends StatelessWidget {
   final UserModel user;
+  final int postsCount;
 
-  const _Counters({required this.user});
+  const _Counters({required this.user, required this.postsCount});
 
   @override
   Widget build(BuildContext context) {
@@ -339,7 +357,7 @@ class _Counters extends StatelessWidget {
     return Row(
       children: [
         for (final (i, cell) in <(int, String)>[
-          (user.totalPosts, 'POSTS'),
+          (postsCount, 'POSTS'),
           (user.seguidores, 'SEGUIDORES'),
           (user.seguindo, 'SEGUINDO'),
         ].indexed) ...[
