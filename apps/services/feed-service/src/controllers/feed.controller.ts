@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { InvalidFeedCursorError, RankedFeedService } from "../services/ranked_feed.service";
+import { RankedFeedService } from "../services/ranked_feed.service";
 
 const rankedFeedService = new RankedFeedService();
 
@@ -18,39 +18,29 @@ export class FeedController {
     }>,
     reply: FastifyReply
   ) {
-    try {
-      const { userId } = request.params;
+    const { userId } = request.params;
 
-      const limit = request.query.limit ? Number(request.query.limit) : 20;
+    const limit = request.query.limit ? Number(request.query.limit) : 20;
 
-      if (!userId) {
-        return reply.status(400).send({
-          message: "User id is required",
-        });
-      }
-
-      if (Number.isNaN(limit) || limit <= 0 || limit > 50) {
-        return reply.status(400).send({
-          message: "Invalid limit",
-        });
-      }
-
-      // O cursor segue cru: é o serviço que sabe distinguir data legada de token de sessão.
-      const feed = await rankedFeedService.getFeed(userId, limit, request.query.cursor);
-
-      return reply.status(200).send(feed);
-    } catch (error) {
-      if (error instanceof InvalidFeedCursorError) {
-        return reply.status(400).send({
-          message: "Invalid cursor",
-        });
-      }
-
-      console.error(error);
-
-      return reply.status(500).send({
-        message: "Internal server error",
+    if (!userId) {
+      return reply.status(400).send({
+        message: "User id is required",
       });
     }
+
+    if (Number.isNaN(limit) || limit <= 0 || limit > 50) {
+      return reply.status(400).send({
+        message: "Invalid limit",
+      });
+    }
+
+    // O cursor segue cru: é o serviço que sabe distinguir uma data legada de um
+    // token de sessão rankeada. Cursor inválido vira InvalidFeedCursorError, que
+    // é um HttpError 400 — assim ele segue o mesmo caminho de todo erro daqui
+    // pra frente: o errorHandler global (src/errors/error.handler.ts) decide o
+    // status e loga de forma estruturada, sem try/catch novo no controller.
+    const feed = await rankedFeedService.getFeed(userId, limit, request.query.cursor);
+
+    return reply.status(200).send(feed);
   }
 }

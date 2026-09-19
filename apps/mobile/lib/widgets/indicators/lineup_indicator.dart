@@ -1,9 +1,14 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/models/event/lineup_model.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/common/vibester_image.dart';
 
+/// Line-up de um evento: os artistas, em retratos quadrados.
+///
+/// Quadrado e não círculo — pela mesma razão do resto do app, a foto é um
+/// recorte colado, não um selo. O nome vai em DM Mono, porque ali ele funciona
+/// como legenda de identificação, não como título.
 class LineupIndicator extends StatelessWidget {
   final List<LineupModel>? lineup;
 
@@ -11,48 +16,49 @@ class LineupIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (lineup == null || lineup!.isEmpty) {
-      return const SizedBox();
-    }
+    final artistas = lineup;
+    if (artistas == null || artistas.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
-      height: 130,
+      height: 116,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: lineup!.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 16),
+        physics: const BouncingScrollPhysics(),
+        itemCount: artistas.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.md),
         itemBuilder: (context, index) {
-          final artista = lineup![index];
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                width: 83,
-                height: 83,
-                padding: EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: context.colors.ambar, width: 2),
-                ),
-                child: ClipOval(
-                  child: CachedNetworkImage(
-                    imageUrl: artista.url,
-                    fit: BoxFit.cover,
-                    fadeInDuration: AppMotion.imageFade,
-                    fadeOutDuration: AppMotion.imageFade,
-                    errorWidget: (_, __, ___) => const Placeholder(),
+          final artista = artistas[index];
+          return SizedBox(
+            width: 76,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(AppRadius.sm),
+                    topRight: Radius.circular(AppRadius.sm),
+                    bottomRight: Radius.circular(AppRadius.sm),
+                  ),
+                  child: SizedBox(
+                    width: 76,
+                    height: 82,
+                    child: VibesterImage(
+                      source: artista.url,
+                      placeholderIcon: Icons.music_note_outlined,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                artista.nome,
-                style: context.typography.bodySmall.copyWith(
-                  color: context.colors.textPrimary,
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  artista.nome,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.typography.monoSmall.copyWith(
+                    color: context.colors.textSecondary,
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),

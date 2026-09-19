@@ -2,9 +2,11 @@ import { randomUUID } from "crypto";
 
 import { CommentRepository } from "../repository/comment.repository";
 import { PostRepository } from "../repository/post.repository";
-import { Comment, CreateCommentInput, UpdateCommentInput } from "../types/comment.type";
-import { producer } from "../kafka/producer";
+import { Comment, CreateCommentInput, PaginatedComments, UpdateCommentInput } from "../types/comment.type";
+import { publishEvent } from "../kafka/events";
 import { HttpError } from "../errors/http.error";
+import { decodeCommentCursor } from "../utils/cursor";
+import { commentsTotal } from "../metrics/registry";
 
 export class CommentService {
     constructor(private readonly commentRepository: CommentRepository,
@@ -27,44 +29,33 @@ export class CommentService {
             updatedAt: null
         };
 
-        const totalComments = post.totalComments + 1;
-
         await Promise.all([
             this.commentRepository.createCommentById(comment),
             this.commentRepository.createCommentByPost(comment),
             this.commentRepository.createCommentByUser(comment),
-
-            this.postRepository.updateTotalCommentsById(totalComments, post.postId),
-            this.postRepository.updateTotalCommentsByUser(post.userId, post.createdAt, totalComments, post.postId),
+            this.postRepository.incrementComments(post.postId),
         ]);
 
-        if (post.establishmentId){
-           await this.postRepository.updateTotalCommentsByEstablishment(post.establishmentId, post.createdAt,
-            totalComments, post.postId);
-        }
+        const { totalComments } = await this.postRepository.getCounters(post.postId);
+        await this.postRepository.updateTotalCommentsInAllViews(post, totalComments);
+        commentsTotal.inc({ action: "created" });
 
-        await producer.send({
-            topic: 'post.commented',
-            messages: [{
-                key: comment.postId,
-                value: JSON.stringify({
-                    postId: comment.postId,
-                    postOwnerId: post.userId,
-                    commentedByUserId: comment.userId,
-                    content: comment.content,
-                }),
-            }],
+        await publishEvent('post.commented', comment.postId, 'post.commented', {
+            postId: comment.postId,
+            postOwnerId: post.userId,
+            commentedByUserId: comment.userId,
+            content: comment.content,
         });
 
         return comment;
     }
 
-    async findByPost(postId: string, limit = 50): Promise<Comment[]> {
-        return this.commentRepository.findByPost(postId, limit);
+    async findByPost(postId: string, limit = 50, rawCursor?: string): Promise<PaginatedComments> {
+        return this.commentRepository.findByPost(postId, limit, decodeCommentCursor(rawCursor));
     }
 
-    async findByUser(userId: string, limit = 50): Promise<Comment[]> {
-        return this.commentRepository.findByUser(userId, limit);
+    async findByUser(userId: string, limit = 50, rawCursor?: string): Promise<PaginatedComments> {
+        return this.commentRepository.findByUser(userId, limit, decodeCommentCursor(rawCursor));
     }
 
     async findById(commentId: string): Promise<Comment | null> {
@@ -115,27 +106,26 @@ export class CommentService {
 
         if (post?.isDeleted) { throw new HttpError("Post deleted", 404); }
 
-        const totalComments = Math.max(0, (post?.totalComments ?? 0) - 1);
-
-        if ((post?.totalComments ?? 0) <= 0) {
-            throw new HttpError("Inconsistent comment count", 400);
-        }
+        // A checagem de comment.isDeleted acima é só o caminho feliz — sob
+        // concorrência, dois DELETE do mesmo comentário podem passar por ela
+        // antes de qualquer escrita acontecer. softDeleteCommentById usa
+        // IF is_deleted = false e é quem realmente decide: só uma das duas
+        // chamadas concorrentes recebe `true`, evitando decrementar
+        // total_comments duas vezes para o mesmo comentário.
+        const deleted = await this.commentRepository.softDeleteCommentById(comment.commentId);
+        if (!deleted) { throw new HttpError("Comment already deleted", 409); }
 
         await Promise.all([
-            this.commentRepository.softDeleteCommentById(comment.commentId),
             this.commentRepository.softDeleteCommentByPost(comment.postId, comment.createdAt, comment.commentId),
             this.commentRepository.softDeleteCommentByUser(comment.userId, comment.createdAt, comment.commentId),
+            this.postRepository.decrementComments(comment.postId),
         ]);
 
-        if (post){
-            await Promise.all([
-                this.postRepository.updateTotalCommentsById(totalComments, comment.postId),
-                this.postRepository.updateTotalCommentsByUser(post.userId, post.createdAt, totalComments, comment.postId)
-            ]);
+        if (post) {
+            const { totalComments } = await this.postRepository.getCounters(post.postId);
+            await this.postRepository.updateTotalCommentsInAllViews(post, totalComments);
         }
 
-        if (post && post.establishmentId){
-            await this.postRepository.updateTotalCommentsByEstablishment(post.establishmentId, post.createdAt, totalComments, post.postId);
-        }
+        commentsTotal.inc({ action: "deleted" });
     }
 }

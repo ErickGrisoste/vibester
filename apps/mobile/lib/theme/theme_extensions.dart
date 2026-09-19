@@ -12,7 +12,7 @@ extension AppColorsX on BuildContext {
 }
 
 extension AppTypographyX on BuildContext {
-  /// Tokens de tipografia do Vibester (Geist Sans + Geist Pixel). Equivale a
+  /// Tokens de tipografia do Vibester (Outfit + DM Mono). Equivale a
   /// `context.colors`, mas para estilo de texto — ver `app_typography.dart`.
   AppTypography get typography => AppTypography.instance;
 }

@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "@fastify/type-provider-zod";
 import { z } from "zod";
 import { profileRoutes } from "./controllers/profile.controller.js";
+import { safetyRoutes } from "./controllers/safety.controller.js";
 import prismaClient from "./prisma/index.js";
 import { redis } from "./config/redis.js";
 
@@ -44,4 +45,5 @@ export async function setupRoutes(app: FastifyInstance) {
   });
 
   app.register(profileRoutes, { prefix: "/users" });
+  app.register(safetyRoutes, { prefix: "/users" });
 }

@@ -1,19 +1,33 @@
+import 'package:email_validator/email_validator.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/screens/register/email_confirm_screen.dart';
+import 'package:mobile/service/user/user_service.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/buttons/primary_button.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/text-field/primary_text_field.dart';
 
+/// Recuperar acesso: pede ao auth-service um código de redefinição
+/// (`POST /auth/password/forgot`) e segue para a tela que o usa.
+///
+/// O backend responde igual exista ou não conta com o email, então a tela
+/// também não distingue — só avisa para conferir a caixa de entrada.
 class RecoverPasswordScreen extends StatefulWidget {
-  const RecoverPasswordScreen({super.key});
+  final UserService? userService;
+
+  const RecoverPasswordScreen({super.key, this.userService});
 
   @override
   State<RecoverPasswordScreen> createState() => _RecoverPasswordScreenState();
 }
 
 class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
+  late final UserService _userService = widget.userService ?? UserService();
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  bool _enviando = false;
 
   @override
   void dispose() {
@@ -21,151 +35,95 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
     super.dispose();
   }
 
+  Future<void> _enviarCodigo() async {
+    if (_enviando || !_formKey.currentState!.validate()) return;
+
+    final email = _emailController.text.trim();
+    setState(() => _enviando = true);
+
+    try {
+      await _userService.requestPasswordReset(email: email);
+      if (!mounted) return;
+      Navigator.pushNamed(context, AppRoutes.resetPassword, arguments: email);
+    } catch (e) {
+      debugPrint('Falha ao pedir código de senha: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+
     return Scaffold(
-      backgroundColor: context.colors.darkGrey,
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 100),
-            child: Column(
-              children: [
-                Center(
-                  child: SizedBox(
-                    width: 130,
-                    height: 265,
-                    child: Image.asset('assets/img/mascote/mascote.png'),
+      backgroundColor: colors.noturno,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: Grain(opacity: 0.04, density: 0.4)),
+          SafeArea(
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+                children: [
+                  const ScreenHeader(
+                    title: 'Recuperar\nacesso',
+                    eyebrow: 'ESQUECEU A SENHA',
                   ),
-                ),
-
-                Text(
-                  'Recuperar Vibe',
-                  style: context.typography.displayLarge.copyWith(
-                    color: context.colors.textPrimary,
-                  ),
-                ),
-                Text(
-                  'Insira seu email para recuperação de conta',
-                  style: context.typography.bodyMedium.copyWith(
-                    color: context.colors.grey,
-                  ),
-                ),
-
-                SizedBox(height: 15),
-
-                Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: 280, bottom: 10),
-                      child: Text(
-                        'E-MAIL',
-                        style: context.typography.labelSmall.copyWith(
-                          color: context.colors.grey,
-                        ),
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.screen,
                     ),
-                    SizedBox(
-                      width: 350,
-                      child: TextFormField(
-                        controller: _emailController,
-                        style: context.typography.bodyLarge.copyWith(
-                          color: context.colors.textPrimary,
-                        ),
-                        cursorColor: context.colors.ambar,
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: context.colors.darkGrey,
-                          prefixIcon: Icon(Icons.email_outlined),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          errorStyle: context.typography.bodySmall.copyWith(
-                            color: context.colors.error,
-                            fontSize: 12,
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: context.colors.border,
-                              width: 1.3,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: context.colors.ambar,
-                              width: 1.3,
-                            ),
-                          ),
-                          errorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: context.colors.error,
-                              width: 1.3,
-                            ),
-                          ),
-                          focusedErrorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(18),
-                            borderSide: BorderSide(
-                              color: context.colors.error,
-                              width: 1.3,
-                            ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Informe o email da sua conta. A gente manda um '
+                          'código de 6 dígitos pra você criar uma senha nova.',
+                          style: context.typography.bodyLarge.copyWith(
+                            color: colors.textMuted,
                           ),
                         ),
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Campo obrigatório!';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-
-                Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 50),
-                      child: SizedBox(
-                        width: 350,
-                        height: 50,
-                        child: PrimaryButton(
-                          label: 'Enviar Codigo',
-                          onPressed: () {
-                            if (!_formKey.currentState!.validate()) return;
-
-                            final email = _emailController.text.trim();
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => EmailConfirmScreen(
-                                  senha: '',
-                                  email: email,
-                                  onEmailConfirmed: () {
-                                    Navigator.pushNamed(
-                                      context,
-                                      AppRoutes.resetPassword,
-                                      arguments: email,
-                                    );
-                                  },
-                                ),
-                              ),
-                            );
+                        const SizedBox(height: AppSpacing.xl),
+                        PrimaryTextField(
+                          controller: _emailController,
+                          label: 'E-mail',
+                          icon: Icons.mail_outline_rounded,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.done,
+                          enabled: !_enviando,
+                          onSubmitted: (_) => _enviarCodigo(),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Informe seu e-mail';
+                            }
+                            if (!EmailValidator.validate(value.trim())) {
+                              return 'Esse e-mail não parece válido';
+                            }
+                            return null;
                           },
                         ),
-                      ),
+                        const SizedBox(height: AppSpacing.xl),
+                        VibesterButton(
+                          label: 'Enviar código',
+                          state: _enviando
+                              ? VibesterButtonState.loading
+                              : VibesterButtonState.idle,
+                          onPressed: _enviarCodigo,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

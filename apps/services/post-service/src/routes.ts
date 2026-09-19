@@ -13,6 +13,7 @@ import { CommentController } from "./controller/comment.controller";
 import { getCassandraClient } from "./config/cassandra";
 import { redis } from "./config/redis";
 import { env } from "./config/env";
+import { registry } from "./metrics/registry";
 
 const postSchema = {
     type: "object",
@@ -73,7 +74,19 @@ const likeSchema = {
 
 const errorSchema = {
     type: "object",
-    properties: { message: { type: "string" } },
+    properties: {
+        message: { type: "string" },
+        errors: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    field: { type: "string" },
+                    message: { type: "string" },
+                },
+            },
+        },
+    },
 };
 
 const postIdParam = {
@@ -106,10 +119,35 @@ const postsQuerystring = {
 };
 
 export async function routes(app: FastifyInstance) {
+    // Liveness — só confirma que o processo Fastify está de pé, sem tocar em
+    // Redis/Cassandra. Uma degradação externa não deve derrubar o pod: matar o
+    // processo não conserta o Astra/Redis, só causa reconexão em massa quando
+    // (se) o pod novo sobe no meio da mesma instabilidade. Ver /ready para a
+    // checagem de dependências.
     app.get("/health", {
         schema: {
             tags: ["Health"],
-            summary: "Health check com verificação de dependências",
+            summary: "Liveness — processo vivo, sem checar dependências externas",
+            response: {
+                200: {
+                    type: "object",
+                    properties: { status: { type: "string", example: "ok" } },
+                },
+            },
+        },
+    }, async (_request, reply) => {
+        return reply.status(200).send({ status: "ok" });
+    });
+
+    // Readiness — controla se o pod recebe tráfego (não reinicia nada).
+    // Cassandra é dependência dura (toda rota o usa) e derruba o readiness;
+    // Redis não é — cacheAside já cai pro Cassandra direto quando o Redis
+    // falha (ver config/redis.ts), então Redis fora do ar deixa o serviço
+    // mais lento, não quebrado, e por isso não tira o pod de rotação sozinho.
+    app.get("/ready", {
+        schema: {
+            tags: ["Health"],
+            summary: "Readiness — Cassandra crítico, Redis best-effort",
             response: {
                 200: {
                     type: "object",
@@ -153,10 +191,20 @@ export async function routes(app: FastifyInstance) {
             cassandra: cassandraOk ? "ok" : "error",
         };
 
-        if (redisOk && cassandraOk) {
-            return reply.status(200).send({ status: "ok", dependencies });
+        if (cassandraOk) {
+            return reply.status(200).send({ status: redisOk ? "ok" : "degraded", dependencies });
         }
         return reply.status(503).send({ status: "degraded", dependencies });
+    });
+
+    app.get("/metrics", {
+        schema: {
+            tags: ["Health"],
+            summary: "Métricas Prometheus",
+        },
+    }, async (_request, reply) => {
+        reply.header("Content-Type", registry.contentType);
+        return reply.send(await registry.metrics());
     });
 
     const uploadService = new UploadService();
@@ -297,13 +345,17 @@ export async function routes(app: FastifyInstance) {
         schema: {
             tags: ["Posts"],
             summary: "Atualizar legenda",
+            description: "Só o dono do post pode atualizar a legenda — `userId` precisa bater com o `userId` gravado no post.",
             params: postIdParam,
             body: {
                 type: "object",
-                required: ["caption"],
-                properties: { caption: { type: "string", maxLength: 2000 } },
+                required: ["caption", "userId"],
+                properties: {
+                    caption: { type: "string", maxLength: 2000 },
+                    userId: { type: "string", format: "uuid", description: "Precisa ser o dono do post" },
+                },
             },
-            response: { 200: postSchema, 400: errorSchema, 404: errorSchema },
+            response: { 200: postSchema, 400: errorSchema, 403: errorSchema, 404: errorSchema },
         },
     }, postController.updateCaption.bind(postController));
 
@@ -312,8 +364,14 @@ export async function routes(app: FastifyInstance) {
         schema: {
             tags: ["Posts"],
             summary: "Remover post (soft delete)",
+            description: "Só o dono do post pode removê-lo — `userId` precisa bater com o `userId` gravado no post.",
             params: postIdParam,
-            response: { 204: { type: "null", description: "Removido com sucesso" }, 404: errorSchema },
+            body: {
+                type: "object",
+                required: ["userId"],
+                properties: { userId: { type: "string", format: "uuid", description: "Precisa ser o dono do post" } },
+            },
+            response: { 204: { type: "null", description: "Removido com sucesso" }, 403: errorSchema, 404: errorSchema },
         },
     }, postController.softDelete.bind(postController));
 

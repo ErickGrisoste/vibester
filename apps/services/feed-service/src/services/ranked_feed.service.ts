@@ -3,7 +3,8 @@ import { types } from "cassandra-driver";
 import { env } from "../config/env";
 import { FeedRepository } from "../repositories/feed.repository";
 import { FeedItemKey, FeedSessionRepository } from "../repositories/feed_session.repository";
-import { FeedService } from "./feed.service";
+import { FeedReadService } from "./feed-read.service";
+import { HttpError } from "../errors/http.error";
 import { RankingFeaturesService } from "./ranking_features.service";
 import { HeuristicScorer } from "../ranking/heuristic.scorer";
 import { rankItems } from "../ranking/types";
@@ -32,9 +33,15 @@ export interface FeedPage {
     nextCursor: string | null;
 }
 
-export class InvalidFeedCursorError extends Error {
+/**
+ * Cursor que não é nem data legada nem token de sessão.
+ *
+ * É um `HttpError` 400 para que o errorHandler global responda por ele, como por
+ * qualquer outro erro do serviço — o controller não precisa de try/catch próprio.
+ */
+export class InvalidFeedCursorError extends HttpError {
     constructor() {
-        super("Invalid cursor");
+        super("Invalid cursor", 400);
         this.name = "InvalidFeedCursorError";
     }
 }
@@ -57,7 +64,7 @@ export type FeedVariant = "ranked" | "chronological";
  */
 export class RankedFeedService {
     constructor(
-        private readonly feedService: Pick<FeedService, "getFeedByUser"> = new FeedService(),
+        private readonly feedReadService: Pick<FeedReadService, "getFeedByUser"> = new FeedReadService(),
         private readonly feedRepository: Pick<FeedRepository, "findByUser" | "findByKeys"> = new FeedRepository(),
         private readonly sessionRepository: Pick<FeedSessionRepository, "saveSession" | "findPage"> = new FeedSessionRepository(),
         private readonly rankingFeaturesService: Pick<RankingFeaturesService, "buildItemFeatures"> = new RankingFeaturesService(),
@@ -102,7 +109,7 @@ export class RankedFeedService {
     }
 
     private async chronological(userId: string, limit: number, before?: Date): Promise<FeedPage> {
-        const page = await this.feedService.getFeedByUser(userId, limit, before);
+        const page = await this.feedReadService.getFeedByUser(userId, limit, before);
 
         return {
             items: page.items,

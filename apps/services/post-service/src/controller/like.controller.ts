@@ -37,26 +37,32 @@ export class LikeController {
     async findLikesByUser(
         request: FastifyRequest<{
             Params: { userId: string };
+            Querystring: { limit?: number; cursor?: string };
         }>,
         reply: FastifyReply
     ) {
-        const likes = await this.likeService.findLikesByUser(
-            request.params.userId
+        const limit = request.query.limit ?? 50;
+        const result = await this.likeService.findLikesByUser(
+            request.params.userId, limit, request.query.cursor
         );
 
-        return reply.status(200).send(likes);
+        if (result.nextCursor) { reply.header("X-Next-Cursor", result.nextCursor); }
+        return reply.status(200).send(result.likes);
     }
 
     async findLikesByPost(
         request: FastifyRequest<{
             Params: { postId: string };
+            Querystring: { limit?: number; cursor?: string };
         }>,
         reply: FastifyReply
     ) {
-        const likes = await this.likeService.findLikesByPost(
-            request.params.postId
+        const limit = request.query.limit ?? 50;
+        const result = await this.likeService.findLikesByPost(
+            request.params.postId, limit, request.query.cursor
         );
 
-        return reply.status(200).send(likes);
+        if (result.nextCursor) { reply.header("X-Next-Cursor", result.nextCursor); }
+        return reply.status(200).send(result.likes);
     }
 }

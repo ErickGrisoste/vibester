@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:mobile/models/feed/feed_item_model.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
+import 'package:mobile/service/api_error.dart';
 
 class FeedPage {
   final List<FeedItemModel> items;
@@ -19,7 +20,7 @@ class FeedService {
     try {
       final response = await ApiClient.dio.get(
         ApiEndpoints.feed(userId),
-        queryParameters: {if (cursor != null) 'cursor': cursor, 'limit': limit},
+        queryParameters: {'cursor': ?cursor, 'limit': limit},
       );
 
       final data = response.data;
@@ -29,8 +30,7 @@ class FeedService {
 
       return FeedPage(items: items, nextCursor: data['nextCursor']);
     } on DioException catch (e) {
-      final mensagem = e.response?.data?['message'] ?? 'Erro ao buscar feed';
-      throw Exception(mensagem);
+      throw Exception(apiErrorMessage(e, 'Erro ao buscar feed'));
     }
   }
 }

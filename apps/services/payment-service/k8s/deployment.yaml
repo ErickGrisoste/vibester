@@ -5,8 +5,15 @@ metadata:
   namespace: default
   labels:
     app: payment-service
+  annotations:
+    prometheus.io/scrape: "false"
 spec:
-  replicas: 1
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: payment-service
@@ -15,6 +22,7 @@ spec:
       labels:
         app: payment-service
     spec:
+      terminationGracePeriodSeconds: 30
       imagePullSecrets:
         - name: ghcr-secret
       containers:
@@ -23,6 +31,20 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
+          env:
+            - name: CORS_ORIGIN
+              value: "https://vibester.app"
+            - name: FETCH_TIMEOUT_MS
+              value: "15000"
+            - name: RATE_LIMIT_MAX
+              value: "60"
+            - name: RATE_LIMIT_CHECKOUT_MAX
+              value: "10"
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: kafka-env
+                  key: KAFKA_BROKERS
           envFrom:
             - secretRef:
                 name: payment-service-secret
@@ -34,12 +56,16 @@ spec:
               cpu: "300m"
               memory: "256Mi"
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
+            failureThreshold: 6
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /health
               port: 8080
             initialDelaySeconds: 20
             periodSeconds: 30
+            failureThreshold: 3

@@ -8,7 +8,6 @@ on:
     paths:
       - "apps/services/**/src/**"
       - "apps/services/scripts/merge-docs.ts"
-      - "apps/services/payment-service/openapi-partial.json"
 
 jobs:
   generate:
@@ -30,7 +29,7 @@ jobs:
           DATABASE_URL: postgresql://u:p@localhost:5432/db
         run: |
           set -e
-          for s in auth-service establishment-service event-service feed-service post-service scrapping-service user-service; do
+          for s in auth-service establishment-service event-service feed-service payment-service post-service scrapping-service user-service; do
             echo "Installing $s..."
             (cd "$s" && npm install)
           done

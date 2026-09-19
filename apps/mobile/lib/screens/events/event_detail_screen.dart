@@ -1,20 +1,48 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
+import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/event/event_service.dart';
-import 'package:mobile/theme/app_motion.dart';
-import 'package:mobile/utils/app_progress_indicator.dart';
+import 'package:mobile/service/share_links.dart';
+import 'package:mobile/theme/app_spacing.dart';
+import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/utils/event_time.dart';
 import 'package:mobile/utils/hero_tags.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
 import 'package:mobile/widgets/cards/users/map_event.dart';
+import 'package:mobile/widgets/common/vibester_image.dart';
+import 'package:mobile/widgets/common/vibester_tag.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/graffiti/sticker_tag.dart';
 import 'package:mobile/widgets/indicators/lineup_indicator.dart';
-import 'package:mobile/widgets/buttons/secundary_button.dart';
-import 'package:mobile/widgets/buttons/tertiary_button.dart';
+import 'package:mobile/widgets/motion/presence_pop.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/motion/vibester_shake.dart';
 import 'package:provider/provider.dart';
-import '../../theme/theme_extensions.dart';
-import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+/// Detalhe do evento.
+///
+/// Reescrita a partir de uma tela que empilhava caixa dentro de caixa (um
+/// `Container` com gradiente dentro de um `Stack` dentro de um `SizedBox`
+/// com altura proporcional, e as informações básicas dentro de um card
+/// arredondado com divisórias internas). A versão nova segue a regra do
+/// briefing — a interface respira, e a informação vive sobre o fundo, não
+/// dentro de molduras:
+///
+/// * **Cartaz em tela cheia** com paralaxe no scroll, e o título saindo de
+///   cima dele. A imagem é a mesma do card de origem, então a transição
+///   `Hero` continua a arte de onde o usuário tocou.
+/// * **Ficha técnica em DM Mono**, em linhas separadas por fio de 1px — sem
+///   card, sem fundo, sem borda arredondada.
+/// * **CTA fixo no rodapé**, na zona do polegar, sempre visível: a decisão de
+///   ir não pode depender de rolar até o fim da página.
+///
+/// Nada aqui inventa dado: "quem vai" mostra `totalConfirmed` como veio da
+/// API, o botão de ingresso só existe quando há `ticketLink`, e o line-up só
+/// aparece quando a API mandou artistas.
 class EventDetailScreen extends StatefulWidget {
   final EventModel eventModel;
 
@@ -26,13 +54,18 @@ class EventDetailScreen extends StatefulWidget {
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
   final EventService _eventService = EventService();
-  late EventModel _event;
+  late EventModel _event = widget.eventModel;
   bool _isTogglingPresence = false;
+
+  /// Gatilhos da reação do botão de presença. Contadores (e não o
+  /// `isFavorite`) para que só a ação do usuário anime — o status carregado
+  /// da API ao abrir a tela troca o estado sem celebrar.
+  int _presencePops = 0;
+  int _presenceShakes = 0;
 
   @override
   void initState() {
     super.initState();
-    _event = widget.eventModel;
     _carregarStatusDePresenca();
   }
 
@@ -51,6 +84,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
+  /// Confirmação otimista: o estado e o contador mudam antes da resposta da
+  /// API e só voltam atrás em erro real — 409 significa que o servidor já
+  /// está no estado pretendido (corrida com outra tela), então não é erro.
   Future<void> _alternarPresenca() async {
     final userId = context.read<UserProvider>().user?.accountId;
     final eventId = _event.id;
@@ -59,6 +95,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final confirmadoAntes = _event.isFavorite;
     setState(() {
       _isTogglingPresence = true;
+      if (confirmadoAntes) {
+        _presenceShakes++;
+      } else {
+        _presencePops++;
+      }
       _event = _event.copyWith(
         isFavorite: !confirmadoAntes,
         totalConfirmed: confirmadoAntes
@@ -75,408 +116,570 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       }
     } catch (e) {
       final is409 = e.toString().contains('409');
-      // 409 significa que o backend já está no estado pra onde tentamos ir
-      // (corrida com outra tela) — mantém a UI como está.
       if (!is409 && mounted) {
         setState(() {
+          // Voltar atrás por erro treme, nunca celebra.
+          _presenceShakes++;
           _event = _event.copyWith(
             isFavorite: confirmadoAntes,
             totalConfirmed: _event.totalConfirmed + (confirmadoAntes ? 1 : -1),
           );
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não deu pra confirmar agora')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isTogglingPresence = false);
     }
   }
 
+  Future<void> _compartilhar() async {
+    final eventId = _event.id;
+    final texto = [
+      _event.titulo,
+      '${_event.fullDateLabel} · ${_event.timeLabel}',
+      if (_event.localizacao.isNotEmpty) _event.localizacao,
+      if (eventId != null)
+        'Olha esse rolê no Vibester: ${ShareLinks.event(eventId)}'
+      else
+        'Visto no Vibester',
+    ].join('\n');
+
+    await SharePlus.instance.share(
+      ShareParams(text: texto, subject: _event.titulo),
+    );
+  }
+
+  Future<void> _abrirIngresso() async {
+    final uri = Uri.tryParse(_event.ticketLink);
+    if (uri == null) return;
+
+    final aberto = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!aberto && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível abrir o link')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final colors = context.colors;
+    final type = context.typography;
+    final hasTicket = _event.ticketLink.isNotEmpty;
+
     return Scaffold(
-      backgroundColor: context.colors.noturno,
-
-      body: ListView(
+      backgroundColor: colors.noturno,
+      body: Stack(
         children: [
-          //Header, imagem e título
-          //===============================================================================
-          SizedBox(
-            height: size.height * 0.41,
+          CustomScrollView(
+            slivers: [
+              _EventHero(event: _event, onShare: _compartilhar),
 
-            child: Stack(
-              children: [
-                //Imagen ocupando todo o espaço desse SizedBox
-                Positioned.fill(
-                  child: Container(
-                    foregroundDecoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          context.colors.noturno.withAlpha(255),
-                        ],
-                      ),
-                    ),
-
-                    //lugar da imagem
-                    child: Hero(
-                      tag: eventImageHeroTag(_event),
-                      child: CachedNetworkImage(
-                        imageUrl: _event.imageUrl,
-                        fit: BoxFit.cover,
-                        fadeInDuration: AppMotion.imageFade,
-                        fadeOutDuration: AppMotion.imageFade,
-                        placeholder: (_, _) =>
-                            const Center(child: AppProgressIndicator()),
-                        errorWidget: (_, _, _) => const Icon(Icons.error),
-                      ),
-                    ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screen,
+                    AppSpacing.xl,
+                    AppSpacing.screen,
+                    0,
                   ),
-                ),
-
-                //Botão de voltar
-                Positioned(
-                  top: 20,
-                  left: 16,
-                  child: CircleAvatar(
-                    backgroundColor: context.colors.darkGrey.withOpacity(0.8),
-                    child: IconButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      icon: Icon(
-                        Icons.arrow_back_ios_new,
-                        color: context.colors.ambar,
-                      ),
-                    ),
-                  ),
-                ),
-
-                //Botão de Compartilhar
-                Positioned(
-                  top: 20,
-                  right: 16,
-                  child: CircleAvatar(
-                    backgroundColor: context.colors.darkGrey.withOpacity(0.8),
-                    child: IconButton(
-                      onPressed: () {
-                        //Ação de compartilhar
-                      },
-                      icon: Icon(
-                        Icons.share,
-                        color: context.colors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-
-                //Titulo do evento e Tipo de evento
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 2,
-
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
+                      StaggeredEntrance(
+                        index: 0,
+                        child: _FactSheet(event: _event),
+                      ),
 
-                          decoration: BoxDecoration(
-                            color: context.colors.darkGrey.withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(
-                              color: context.colors.ambar,
-                              width: 1.5,
-                            ),
-                          ),
+                      if (_event.totalConfirmed > 0)
+                        StaggeredEntrance(
+                          index: 1,
+                          child: _Confirmed(count: _event.totalConfirmed),
+                        ),
 
-                          child: Text(
-                            _event.categoria,
-                            style: context.typography.labelMedium.copyWith(
-                              color: context.colors.ambar,
-                              fontSize: 16,
-                              letterSpacing: 4,
-
-                              //possivel sombra (teste)
-                              shadows: [
-                                Shadow(
-                                  color: context.colors.brasa,
-                                  blurRadius: 5,
-                                ),
+                      if (_event.artistas.isNotEmpty ||
+                          (_event.lineUp?.isNotEmpty ?? false))
+                        StaggeredEntrance(
+                          index: 2,
+                          child: _Block(
+                            label: 'LINE-UP',
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (_event.artistas.isNotEmpty)
+                                  Text(
+                                    _event.artistas,
+                                    style: type.headlineSmall.copyWith(
+                                      color: colors.textPrimary,
+                                    ),
+                                  ),
+                                if (_event.lineUp?.isNotEmpty ?? false) ...[
+                                  const SizedBox(height: AppSpacing.md),
+                                  LineupIndicator(lineup: _event.lineUp),
+                                ],
                               ],
                             ),
                           ),
                         ),
-                      ),
 
-                      Container(
-                        width: double.infinity,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            _event.titulo,
-                            style: context.typography.displayLarge.copyWith(
-                              color: Colors.white,
-                              fontSize: 41,
-
-                              //possivel sombra (teste)
-                              shadows: [
-                                Shadow(color: Colors.white, blurRadius: 4),
-                              ],
+                      if (_event.informacoes.isNotEmpty)
+                        StaggeredEntrance(
+                          index: 3,
+                          child: _Block(
+                            label: 'O QUE ROLA ?',
+                            child: Text(
+                              _event.informacoes,
+                              style: type.bodyLarge.copyWith(
+                                color: colors.textSecondary,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
 
-          //===============================================================================
-          const SizedBox(height: 3),
-
-          //Infos basicas e botões de "Vou ir" e "Garantir ingresso"
-          //===============================================================================
-          StaggeredEntrance(
-            index: 0,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-
-              child: Column(
-                children: [
-                  const SizedBox(height: 5),
-
-                  //Caixa com infos basicas sobre o evento (trocar infos fixas por variaveis posteriormente)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-
-                    decoration: BoxDecoration(
-                      color: context.colors.navy,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'DATA & HORA',
-                                style: context.typography.labelSmall.copyWith(
-                                  color: context.colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                DateFormat(
-                                  "EEE dd MMM  HH:mm",
-                                  "pt_BR",
-                                ).format(_event.dataDoEvento),
-                                style: context.typography.titleSmall.copyWith(
-                                  color: context.colors.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Linha divisória
-                        Container(
-                          width: 1,
-                          height: 40,
-                          color: context.colors.border,
-                        ),
-
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 20),
+                      if (_event.localizacao.isNotEmpty)
+                        StaggeredEntrance(
+                          index: 4,
+                          child: _Block(
+                            label: 'ONDE É ?',
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'LOCAL',
-                                  style: context.typography.labelSmall.copyWith(
-                                    color: context.colors.grey,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
                                   _event.localizacao,
-                                  style: context.typography.titleSmall.copyWith(
-                                    color: context.colors.textPrimary,
+                                  style: type.headlineSmall.copyWith(
+                                    color: colors.textPrimary,
                                   ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
+                                const SizedBox(height: AppSpacing.md),
+                                ClipRRect(
+                                  borderRadius: AppRadius.mdAll,
+                                  child: MapEvent(endereco: _event.localizacao),
+                                ),
+                                if (_event.placeId != null) ...[
+                                  const SizedBox(height: AppSpacing.md),
+                                  VibesterButton(
+                                    label: 'Ver o estabelecimento',
+                                    icon: Icons.storefront_outlined,
+                                    variant: VibesterButtonVariant.outline,
+                                    compact: true,
+                                    onPressed: () => Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.placeDetail,
+                                      arguments: _event.placeId,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
                         ),
-                      ],
-                    ),
+
+                      if (_event.organizador.isNotEmpty)
+                        _Block(
+                          label: 'QUEM FAZ ?',
+                          child: Text(
+                            _event.organizador,
+                            style: type.bodyLarge.copyWith(
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-
-                  //Espaçamento entre itens
-                  const SizedBox(height: 16),
-
-                  Column(
-                    //Criar efeitp de confirmados e add o coração de curtida
-                  ),
-
-                  //Espaçamento entre itens
-                  const SizedBox(height: 16),
-
-                  //Botão de "VOU IR" (add função posteriormente)
-                  TertiaryButton(
-                    label: "VOU IR",
-                    state: _event.isFavorite
-                        ? ButtonState.success
-                        : ButtonState.idle,
-                    onPressed: _alternarPresenca,
-                  ),
-
-                  //Espaçamento entre itens
-                  const SizedBox(height: 16),
-
-                  //Botão de "GARANTIR INGRESSO" (add função posteriormente)
-                  SecundaryButton(
-                    label: "GARANTIR INGRESSO",
-                    icon: Icons.local_activity,
-                    onPressed: () {},
-                  ),
-                ],
+                ),
               ),
-            ),
+
+              // Espaço para a barra de ação fixa não cobrir o último bloco.
+              const SliverPadding(padding: EdgeInsets.only(bottom: 140)),
+            ],
           ),
 
-          //===============================================================================
-          const SizedBox(height: 20),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _ActionBar(
+              event: _event,
+              busy: _isTogglingPresence,
+              pops: _presencePops,
+              shakes: _presenceShakes,
+              onPresence: _alternarPresenca,
+              onTicket: hasTicket ? _abrirIngresso : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-          //Line-up com artistas (Criar uma linha com os icones de perfil dos artistas envolvidos)
-          //===============================================================================
-          StaggeredEntrance(
-            index: 1,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
+// -----------------------------------------------------------------------
+// Cartaz
+// -----------------------------------------------------------------------
+
+/// Cabeçalho em cartaz com paralaxe: a imagem sobe a metade da velocidade do
+/// scroll, então a página parece deslizar *sobre* o cartaz — o mesmo efeito
+/// de virar uma folha colada por cima de outra.
+class _EventHero extends StatelessWidget {
+  final EventModel event;
+  final VoidCallback onShare;
+
+  const _EventHero({required this.event, required this.onShare});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final type = context.typography;
+    final height = MediaQuery.of(context).size.height * 0.52;
+
+    return SliverAppBar(
+      pinned: false,
+      floating: false,
+      expandedHeight: height,
+      backgroundColor: colors.noturno,
+      surfaceTintColor: Colors.transparent,
+      automaticallyImplyLeading: false,
+      stretch: true,
+      flexibleSpace: FlexibleSpaceBar(
+        stretchModes: const [StretchMode.zoomBackground],
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Hero(
+              tag: eventImageHeroTag(event),
+              child: VibesterImage(
+                source: event.imageUrl,
+                alignment: Alignment.topCenter,
+                placeholderIcon: Icons.local_activity_outlined,
+                fullResolution: true,
+              ),
+            ),
+            const Grain(opacity: 0.07, density: 0.45),
+            DecoratedBox(
+              decoration: BoxDecoration(gradient: colors.photoScrim),
+            ),
+
+            Positioned(
+              left: AppSpacing.screen,
+              right: AppSpacing.screen,
+              bottom: AppSpacing.xl,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Line-up",
-                      style: context.typography.headlineMedium.copyWith(
-                        color: context.colors.textPrimary,
-                        fontSize: 20,
-                      ),
-                    ),
+                  Row(
+                    children: [
+                      if (event.isHappeningNow)
+                        const StickerTag.live()
+                      else if (event.categoria.isNotEmpty)
+                        VibesterTag(event.categoria, tone: TagTone.brand),
+                    ],
                   ),
-
-                  //Lista de line-ups
-                  const SizedBox(height: 10),
-                  LineupIndicator(lineup: _event.lineUp),
-                  const SizedBox(height: 10),
-
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Sobre o Evento",
-                      style: context.typography.headlineMedium.copyWith(
-                        color: context.colors.textPrimary,
-                        fontSize: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Informações importantes",
-                      style: context.typography.labelMedium.copyWith(
-                        color: context.colors.textPrimary,
-                      ),
-                    ),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    event.titulo,
+                    style: type.displayLarge.copyWith(color: Colors.white),
                   ),
                 ],
               ),
             ),
+
+            // Ações flutuantes com o padding do topo respeitado.
+            Positioned(
+              top: MediaQuery.of(context).padding.top + AppSpacing.sm,
+              left: AppSpacing.lg,
+              right: AppSpacing.lg,
+              child: Row(
+                children: [
+                  _GlassAction(
+                    icon: Icons.arrow_back_rounded,
+                    label: 'Voltar',
+                    onTap: () => Navigator.maybePop(context),
+                  ),
+                  const Spacer(),
+                  _GlassAction(
+                    icon: Icons.ios_share_rounded,
+                    label: 'Compartilhar',
+                    onTap: onShare,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Botão sobre foto. Fundo escuro sólido em vez de `BackdropFilter`: blur em
+/// cima de imagem grande custa uma passada de GPU por frame durante o scroll,
+/// e o ganho visual aqui seria zero.
+class _GlassAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _GlassAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: VibesterPressable(
+        onTap: onTap,
+        borderRadius: AppRadius.pillAll,
+        child: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: context.colors.scrim.withValues(alpha: 0.55),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
           ),
+          child: Icon(icon, size: 20, color: Colors.white),
+        ),
+      ),
+    );
+  }
+}
 
-          //===============================================================================
-          const SizedBox(height: 20),
+// -----------------------------------------------------------------------
+// Conteúdo
+// -----------------------------------------------------------------------
 
-          //Sobre o evento (Caixa de descrições ajustavel ao tamanho da descrição)
-          //===============================================================================
-          StaggeredEntrance(
-            index: 2,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                _event.informacoes,
-                textAlign: TextAlign.left,
-                style: context.typography.bodyMedium.copyWith(
-                  color: context.colors.textPrimary,
+/// Ficha técnica: linhas de rótulo/valor separadas por fio. É a peça mais
+/// "sistema" da tela, então é toda em DM Mono do lado do rótulo e em Outfit
+/// do lado do valor — a mesma divisão de vozes do resto do produto.
+class _FactSheet extends StatelessWidget {
+  final EventModel event;
+
+  const _FactSheet({required this.event});
+
+  @override
+  Widget build(BuildContext context) {
+    final countdown = event.countdownLabel;
+
+    return Column(
+      children: [
+        _FactRow(
+          label: 'QUANDO',
+          value: event.fullDateLabel.toUpperCase(),
+          trailing: countdown,
+        ),
+        _FactRow(label: 'HORA', value: event.timeLabel.toUpperCase()),
+        if (event.localizacao.isNotEmpty)
+          _FactRow(label: 'ONDE', value: event.localizacao.toUpperCase()),
+      ],
+    );
+  }
+}
+
+class _FactRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? trailing;
+
+  const _FactRow({required this.label, required this.value, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md + 2),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.hairline)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 78,
+            child: Text(
+              label,
+              style: context.typography.monoMicro.copyWith(
+                color: colors.textDisabled,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: context.typography.titleMedium.copyWith(
+                color: colors.textPrimary,
+              ),
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: AppSpacing.sm),
+            VibesterTag(trailing!, tone: TagTone.live),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Prova social real: o número vem de `totalConfirmed`, da API. Sem avatares
+/// inventados e sem "muita gente vai" — se o backend não sabe quem são, a
+/// tela não finge saber.
+class _Confirmed extends StatelessWidget {
+  final int count;
+
+  const _Confirmed({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xl),
+      child: Row(
+        children: [
+          Text(
+            count.toString().padLeft(2, '0'),
+            style: context.typography.monoDisplay.copyWith(color: colors.ambar),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text(
+              count == 1
+                  ? 'pessoa confirmou presença'
+                  : 'pessoas confirmaram presença',
+              style: context.typography.bodyMedium.copyWith(
+                color: colors.textMuted,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bloco de conteúdo com rótulo mono. Sem card: só o rótulo, o respiro e o
+/// texto.
+class _Block extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _Block({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xxl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: context.typography.monoEyebrow.copyWith(
+              color: context.colors.ambar,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+/// Barra de ação fixa no rodapé. Uma ação principal (confirmar presença) e,
+/// quando existe link, uma secundária ao lado — nunca dois botões do mesmo
+/// peso disputando o polegar.
+class _ActionBar extends StatelessWidget {
+  final EventModel event;
+  final bool busy;
+  final int pops;
+  final int shakes;
+  final VoidCallback onPresence;
+  final VoidCallback? onTicket;
+
+  const _ActionBar({
+    required this.event,
+    required this.busy,
+    required this.pops,
+    required this.shakes,
+    required this.onPresence,
+    this.onTicket,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final confirmed = event.isFavorite;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.screen,
+        AppSpacing.md,
+        AppSpacing.screen,
+        MediaQuery.of(context).padding.bottom + AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: colors.noturno,
+        border: Border(top: BorderSide(color: colors.hairline)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            // Confirmar celebra como a curtida; desconfirmar (ou voltar atrás
+            // por erro) mantém a tremida.
+            child: VibesterShake(
+              trigger: shakes,
+              child: PresencePop(
+                trigger: pops,
+                child: VibesterButton(
+                  shakeOnStateChange: false,
+                  label: 'Vou nessa',
+                  successLabel: 'Presença confirmada',
+                  icon: Icons.bolt_rounded,
+                  variant: confirmed
+                      ? VibesterButtonVariant.outline
+                      : VibesterButtonVariant.accent,
+                  state: busy
+                      ? VibesterButtonState.loading
+                      : confirmed
+                      ? VibesterButtonState.success
+                      : VibesterButtonState.idle,
+                  onPressed: onPresence,
                 ),
               ),
             ),
           ),
-
-          //===============================================================================
-          const SizedBox(height: 30),
-
-          //Localização e link pro maps
-          //===============================================================================
-          StaggeredEntrance(
-            index: 3,
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      "Localização",
-                      style: context.typography.headlineMedium.copyWith(
-                        color: context.colors.textPrimary,
-                        fontSize: 20,
-                      ),
-                    ),
+          if (onTicket != null) ...[
+            const SizedBox(width: AppSpacing.md),
+            Semantics(
+              button: true,
+              label: 'Garantir ingresso',
+              child: VibesterPressable(
+                onTap: onTicket,
+                borderRadius: AppRadius.pillAll,
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.ambar,
+                    shape: BoxShape.circle,
                   ),
-
-                  const SizedBox(height: 10),
-
-                  MapEvent(endereco: _event.localizacao),
-
-                  const SizedBox(height: 8),
-
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      _event.localizacao,
-                      style: context.typography.bodyMedium.copyWith(
-                        color: context.colors.textPrimary,
-                      ),
-                    ),
+                  child: Icon(
+                    Icons.confirmation_number_outlined,
+                    color: colors.onAmbar,
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-          //===============================================================================
-          SizedBox(height: 40),
+          ],
         ],
       ),
     );

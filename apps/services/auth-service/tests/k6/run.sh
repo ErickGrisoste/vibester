@@ -42,6 +42,7 @@ case "${SCENARIO}" in
   performance)  run_test performance ;;
   stress)       run_test stress ;;
   breakpoint)   run_test breakpoint ;;
+  verify-email) run_test verify-email ;;
   all)
     run_test performance
     echo "Aguardando 30s para o serviço estabilizar..."
@@ -50,9 +51,12 @@ case "${SCENARIO}" in
     echo "Aguardando 60s para o serviço estabilizar..."
     sleep 60
     run_test breakpoint
+    echo "Aguardando 60s para o serviço estabilizar..."
+    sleep 60
+    run_test verify-email
     ;;
   *)
-    echo "Uso: $0 [performance|stress|breakpoint|all]"
+    echo "Uso: $0 [performance|stress|breakpoint|verify-email|all]"
     echo ""
     echo "Variáveis de ambiente opcionais:"
     echo "  BASE_URL      URL do auth-service  (default: http://cotaup.com.br:3001)"

@@ -37,7 +37,7 @@ function fullCreatePayload(overrides: Record<string, unknown> = {}) {
     userUsername: "test-user",
     userProfilePicture: "https://example.com/avatar.jpg",
     userVerified: false,
-    imageUrls: ["https://example.com/img.jpg"],
+    imageUrls: [`https://test.r2.dev/posts/${USER_ID}/img.jpg`],
     caption: "Test post",
     establishmentId: ESTAB_ID,
     establishmentName: "Test Bar",
@@ -71,8 +71,17 @@ describe("post-service — HTTP Integration (Cassandra + Redis reais)", () => {
   });
 
   describe("GET /health", () => {
-    it("retorna 200 com Redis e Cassandra reais saudáveis", async () => {
+    it("retorna 200 sempre (liveness — não checa dependências)", async () => {
       const res = await app.inject({ method: "GET", url: "/health" });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toEqual({ status: "ok" });
+    });
+  });
+
+  describe("GET /ready", () => {
+    it("retorna 200 com Redis e Cassandra reais saudáveis", async () => {
+      const res = await app.inject({ method: "GET", url: "/ready" });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.payload);
@@ -208,7 +217,7 @@ describe("post-service — HTTP Integration (Cassandra + Redis reais)", () => {
       const patchRes = await app.inject({
         method: "PATCH",
         url: `/posts/${created.postId}`,
-        payload: { caption: "legenda atualizada" },
+        payload: { userId: USER_ID, caption: "legenda atualizada" },
       });
       expect(patchRes.statusCode).toBe(200);
 
@@ -226,7 +235,11 @@ describe("post-service — HTTP Integration (Cassandra + Redis reais)", () => {
       const createRes = await app.inject({ method: "POST", url: "/posts", payload: fullCreatePayload() });
       const created = JSON.parse(createRes.payload);
 
-      const res = await app.inject({ method: "DELETE", url: `/posts/${created.postId}` });
+      const res = await app.inject({
+        method: "DELETE",
+        url: `/posts/${created.postId}`,
+        payload: { userId: USER_ID },
+      });
       expect(res.statusCode).toBe(204);
 
       const client = getCassandraClient();
@@ -238,8 +251,24 @@ describe("post-service — HTTP Integration (Cassandra + Redis reais)", () => {
       expect(JSON.parse(listRes.payload)).toHaveLength(0);
     });
 
+    it("retorna 403 quando userId não é o dono do post", async () => {
+      const createRes = await app.inject({ method: "POST", url: "/posts", payload: fullCreatePayload() });
+      const created = JSON.parse(createRes.payload);
+
+      const res = await app.inject({
+        method: "DELETE",
+        url: `/posts/${created.postId}`,
+        payload: { userId: "f1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5" },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
     it("retorna 404 ao deletar post inexistente", async () => {
-      const res = await app.inject({ method: "DELETE", url: "/posts/b1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5" });
+      const res = await app.inject({
+        method: "DELETE",
+        url: "/posts/b1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5",
+        payload: { userId: USER_ID },
+      });
       expect(res.statusCode).toBe(404);
     });
   });

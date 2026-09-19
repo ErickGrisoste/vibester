@@ -1,9 +1,10 @@
-import { randomUUID } from "crypto";
 import { LikeRepository } from "../repository/like.repository";
 import { PostRepository } from "../repository/post.repository";
-import { PostLike } from "../types/like.types";
-import { producer } from "../kafka/producer";
+import { PaginatedLikes, PostLike } from "../types/like.types";
+import { publishEvent, POSTS_TOPIC } from "../kafka/events";
 import { HttpError } from "../errors/http.error";
+import { decodeLikeByPostCursor, decodeLikeCursor } from "../utils/cursor";
+import { likesTotal } from "../metrics/registry";
 
 export class LikeService {
     constructor(private readonly likeRepository: LikeRepository, private readonly postRepository: PostRepository) {}
@@ -25,50 +26,37 @@ export class LikeService {
             likedAt: new Date()
         };
 
-        const total_likes = post.totalLikes + 1;
+        // A checagem acima (findLikeByPostAndUser) é só o caminho feliz — sob
+        // concorrência, duas chamadas podem passar por ela antes de qualquer
+        // escrita acontecer. createLikeByPost usa IF NOT EXISTS e é quem
+        // realmente decide: só uma das duas chamadas concorrentes recebe
+        // `true` aqui, evitando incrementar o counter duas vezes para o mesmo
+        // like.
+        const created = await this.likeRepository.createLikeByPost(like);
+        if (!created) { throw new HttpError("Post already liked", 409); }
 
         await Promise.all([
-            this.likeRepository.createLikeByPost(like),
             this.likeRepository.createLikeByUser(like),
-            this.postRepository.updateTotalLikesById(total_likes, postId),
-            this.postRepository.updateTotalLikesByUser(post.userId, post.createdAt, total_likes, postId)
+            this.postRepository.incrementLikes(postId),
         ]);
 
-        if (post.establishmentId) {
-            await this.postRepository.updateTotalLikesByEstablishment(post.establishmentId, post.createdAt,
-                 total_likes, post.postId);
-        }
+        const { totalLikes, totalComments } = await this.postRepository.getCounters(postId);
+        await this.postRepository.updateTotalLikesInAllViews(post, totalLikes);
+        likesTotal.inc({ action: "liked" });
 
         await Promise.all([
-            producer.send({
-                topic: 'post.liked',
-                messages: [{
-                    key: postId,
-                    value: JSON.stringify({
-                        postId,
-                        postOwnerId: post.userId,
-                        likedByUserId: userId,
-                        createdAt: like.likedAt.toISOString(),
-                    }),
-                }],
+            publishEvent('post.liked', postId, 'post.liked', {
+                postId,
+                postOwnerId: post.userId,
+                likedByUserId: userId,
+                createdAt: like.likedAt.toISOString(),
             }),
-            producer.send({
-                topic: 'posts',
-                messages: [{
-                    key: postId,
-                    value: JSON.stringify({
-                        eventId: randomUUID(),
-                        eventType: 'post.stats.updated',
-                        occurredAt: new Date().toISOString(),
-                        data: {
-                            authorId: post.userId,
-                            postId,
-                            createdAt: post.createdAt.toISOString(),
-                            totalLikes: total_likes,
-                            totalComments: post.totalComments,
-                        },
-                    }),
-                }],
+            publishEvent(POSTS_TOPIC, postId, 'post.stats.updated', {
+                authorId: post.userId,
+                postId,
+                createdAt: post.createdAt.toISOString(),
+                totalLikes,
+                totalComments,
             }),
         ]);
 
@@ -84,62 +72,43 @@ export class LikeService {
 
         if (!existingLike) { throw new HttpError("Like not found", 404); }
 
-        if (post.totalLikes <= 0) {
-            throw new HttpError("Inconsistent like count", 400);
-        }
-
-        const totalLikes = post.totalLikes - 1;
+        // Mesma corrida do likePost, na direção oposta: deleteLikeByPost usa
+        // IF EXISTS e é quem decide de fato — só uma das duas chamadas
+        // concorrentes de unlike recebe `true`, evitando decrementar o
+        // counter duas vezes (e deixá-lo negativo) para o mesmo unlike.
+        const deleted = await this.likeRepository.deleteLikeByPost(postId, userId);
+        if (!deleted) { throw new HttpError("Like not found", 404); }
 
         await Promise.all([
-            this.likeRepository.deleteLikeByPost(postId, userId),
             this.likeRepository.deleteLikeByUser(userId, existingLike.likedAt, postId),
-            this.postRepository.updateTotalLikesById(totalLikes, postId),
-            this.postRepository.updateTotalLikesByUser(post.userId, post.createdAt, totalLikes, postId)
+            this.postRepository.decrementLikes(postId),
         ]);
 
-        if (post.establishmentId){
-            await this.postRepository.updateTotalLikesByEstablishment(post.establishmentId, post.createdAt,
-                 totalLikes, post.postId);
-        }
+        const { totalLikes, totalComments } = await this.postRepository.getCounters(postId);
+        await this.postRepository.updateTotalLikesInAllViews(post, totalLikes);
+        likesTotal.inc({ action: "unliked" });
 
         await Promise.all([
-            producer.send({
-                topic: 'post.unliked',
-                messages: [{
-                    key: postId,
-                    value: JSON.stringify({
-                        postId,
-                        userId,
-                        createdAt: existingLike.likedAt.toISOString(),
-                    }),
-                }],
+            publishEvent('post.unliked', postId, 'post.unliked', {
+                postId,
+                userId,
+                createdAt: existingLike.likedAt.toISOString(),
             }),
-            producer.send({
-                topic: 'posts',
-                messages: [{
-                    key: postId,
-                    value: JSON.stringify({
-                        eventId: randomUUID(),
-                        eventType: 'post.stats.updated',
-                        occurredAt: new Date().toISOString(),
-                        data: {
-                            authorId: post.userId,
-                            postId,
-                            createdAt: post.createdAt.toISOString(),
-                            totalLikes: totalLikes,
-                            totalComments: post.totalComments,
-                        },
-                    }),
-                }],
+            publishEvent(POSTS_TOPIC, postId, 'post.stats.updated', {
+                authorId: post.userId,
+                postId,
+                createdAt: post.createdAt.toISOString(),
+                totalLikes,
+                totalComments,
             }),
         ]);
     }
 
-    async findLikesByUser(userId: string, limit = 50): Promise<PostLike[]> {
-        return this.likeRepository.findLikesByUser(userId, limit);
+    async findLikesByUser(userId: string, limit = 50, rawCursor?: string): Promise<PaginatedLikes> {
+        return this.likeRepository.findLikesByUser(userId, limit, decodeLikeCursor(rawCursor));
     }
 
-    async findLikesByPost(postId: string, limit = 50): Promise<PostLike[]> {
-        return this.likeRepository.findLikesByPost(postId, limit);
+    async findLikesByPost(postId: string, limit = 50, rawCursor?: string): Promise<PaginatedLikes> {
+        return this.likeRepository.findLikesByPost(postId, limit, decodeLikeByPostCursor(rawCursor));
     }
 }
