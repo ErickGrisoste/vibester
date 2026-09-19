@@ -61,6 +61,11 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
   bool _isFollowing = false;
   bool _loadingFollow = false;
 
+  /// Quantidade de posts que a grade de fato carregou. Enquanto a grade não
+  /// responde (ou está oculta por bloqueio) fica `null` e a tela usa o
+  /// `totalPosts` que veio do perfil.
+  int? _gridCount;
+
   /// Situação de bloqueio lida do backend ao abrir. O lado "eu bloqueei" também
   /// é refletido pelo [BlockProvider], que muda na hora ao bloquear.
   BlockStatus _blockStatus = BlockStatus.none;
@@ -311,6 +316,7 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
                 SliverToBoxAdapter(
                   child: _OtherIdentity(
                     user: user,
+                    postsCount: _gridCount ?? user.totalPosts,
                     isFollowing: _isFollowing,
                     loading: _loadingFollow,
                     pops: _followPops,
@@ -345,11 +351,24 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
                         AppSpacing.screen,
                         AppSpacing.sm,
                       ),
-                      child: Text(
-                        'PUBLICAÇÕES',
-                        style: context.typography.monoEyebrow.copyWith(
-                          color: colors.ambar,
-                        ),
+                      child: Row(
+                        children: [
+                          Text(
+                            'PUBLICAÇÕES',
+                            style: context.typography.monoEyebrow.copyWith(
+                              color: colors.ambar,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            (_gridCount ?? user.totalPosts)
+                                .toString()
+                                .padLeft(2, '0'),
+                            style: context.typography.monoSmall.copyWith(
+                              color: colors.textDisabled,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -357,6 +376,11 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
                     key: _highlightsKey,
                     accountId: widget.accountId,
                     asSliver: true,
+                    onCountChanged: (count) {
+                      if (mounted && count != _gridCount) {
+                        setState(() => _gridCount = count);
+                      }
+                    },
                   ),
                 ],
               ],
@@ -403,6 +427,7 @@ class _BackButton extends StatelessWidget {
 
 class _OtherIdentity extends StatelessWidget {
   final UserModel user;
+  final int postsCount;
   final bool isFollowing;
   final bool loading;
   final int pops;
@@ -419,6 +444,7 @@ class _OtherIdentity extends StatelessWidget {
 
   const _OtherIdentity({
     required this.user,
+    required this.postsCount,
     required this.isFollowing,
     required this.loading,
     required this.pops,
@@ -570,7 +596,7 @@ class _OtherIdentity extends StatelessWidget {
                 Row(
                   children: [
                     for (final (i, cell) in <(int, String)>[
-                      (user.totalPosts, 'POSTS'),
+                      (postsCount, 'POSTS'),
                       (user.seguidores, 'SEGUIDORES'),
                       (user.seguindo, 'SEGUINDO'),
                     ].indexed) ...[
