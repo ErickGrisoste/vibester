@@ -1,107 +1,254 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/models/safety/report_reason.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/posts/post_service.dart';
+import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/feed/delete_post_action.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
 import 'package:mobile/widgets/media/post_media_carousel.dart';
 import 'package:mobile/widgets/motion/double_tap_like.dart';
 import 'package:mobile/widgets/motion/like_heart.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/navigation/navbar_tokens.dart';
 import 'package:mobile/widgets/safety/report_sheet.dart';
 import 'package:mobile/widgets/safety/safety_actions.dart';
 import 'package:provider/provider.dart';
 
-/// Publicação em tela cheia.
-///
-/// A foto assume a tela inteira, com as ações e a legenda por cima — a mesma
-/// leitura do cartaz de evento, aplicada ao conteúdo social. A mídia é o
-/// `PostMediaCarousel`, o mesmo do feed: fotos e vídeos na ordem do post, com
-/// indicador em traços e contador "2/4".
-class PostDetailScreen extends StatefulWidget {
-  final HighlightModel highlight;
+/// Argumentos da rota [AppRoutes.postDetail].
+class PostDetailArgs {
+  /// Todos os posts da grade, na mesma ordem em que ela os mostra.
+  final List<HighlightModel> posts;
 
-  const PostDetailScreen({super.key, required this.highlight});
+  /// Posição, em [posts], do post que foi tocado na grade.
+  final int initialIndex;
+
+  /// Avisa a grade que um post foi excluído aqui, para ela tirá-lo sem
+  /// refazer a busca.
+  final ValueChanged<String>? onDeleted;
+
+  const PostDetailArgs({
+    required this.posts,
+    required this.initialIndex,
+    this.onDeleted,
+  });
+}
+
+/// Feed dos posts de um perfil (ou de um lugar), aberto a partir da grade.
+///
+/// Cada post mantém o formato do detalhe de antes — mídia 4:5, curtida,
+/// legenda e data —, só que empilhados na ordem da grade. A tela abre já no
+/// post tocado e dá pra rolar para cima (os anteriores) ou para baixo (os
+/// seguintes).
+///
+/// Abrir no post certo usa o `center` do `CustomScrollView`: os posts a
+/// partir do tocado ficam numa lista que cresce para baixo, e os anteriores
+/// numa lista que cresce para cima a partir dele. O deslocamento zero é o
+/// topo do post tocado, então ele aparece exatamente no lugar, sem precisar
+/// medir a altura de nada — as legendas têm tamanhos diferentes e qualquer
+/// conta por altura erraria.
+class PostDetailScreen extends StatefulWidget {
+  final List<HighlightModel> posts;
+  final int initialIndex;
+  final ValueChanged<String>? onDeleted;
+
+  const PostDetailScreen({
+    super.key,
+    required this.posts,
+    this.initialIndex = 0,
+    this.onDeleted,
+  });
+
+  PostDetailScreen.fromArgs(PostDetailArgs args, {Key? key})
+    : this(
+        key: key,
+        posts: args.posts,
+        initialIndex: args.initialIndex,
+        onDeleted: args.onDeleted,
+      );
 
   @override
   State<PostDetailScreen> createState() => _PostDetailScreenState();
 }
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
+  /// Mesma altura do cabeçalho do feed.
+  static const double _headerHeight = 56;
+
   final PostService _postService = PostService();
-  late HighlightModel _highlight;
-  bool _isTogglingLike = false;
-  bool _isDeleting = false;
+  final _centerKey = UniqueKey();
+
+  /// Começa em `-_headerHeight`: o post tocado nasce logo abaixo do
+  /// cabeçalho, e não escondido atrás dele.
+  final _scrollController = ScrollController(
+    initialScrollOffset: -_headerHeight,
+  );
+
+  /// Cópia local dos posts. Curtida e exclusão mexem aqui, e não em cada
+  /// item: um post que sai da tela é desmontado pela lista, e o estado dele
+  /// se perderia na volta.
+  late List<HighlightModel> _posts;
+
+  /// Índice, em [_posts], do primeiro post da lista de baixo — o que foi
+  /// tocado na grade.
+  late int _centerIndex;
+
+  final Set<String> _togglingLikes = {};
+  final Set<String> _deleting = {};
+
+  bool _headerVisible = true;
 
   @override
   void initState() {
     super.initState();
-    _highlight = widget.highlight;
+    _posts = List.of(widget.posts);
+    _centerIndex = widget.initialIndex.clamp(0, math.max(0, _posts.length - 1));
   }
 
-  Future<void> _alternarCurtida() async {
-    final userId = context.read<UserProvider>().user?.accountId;
-    if (userId == null || _isTogglingLike) return;
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
-    final curtiaAntes = _highlight.curtidoPeloUsuario;
+  // -------------------------------------------------------------------
+  // Cabeçalho
+  // -------------------------------------------------------------------
+
+  /// Mesmo gesto do cabeçalho do feed: some ao descer, volta ao subir, e no
+  /// começo da lista fica sempre à vista.
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (notification is! ScrollUpdateNotification) return false;
+    if (notification.metrics.axis != Axis.vertical) return false;
+    // Só o scroll da lista; o carrossel de mídia dentro do post não conta.
+    if (notification.depth != 0) return false;
+
+    final metrics = notification.metrics;
+    if (metrics.pixels <= metrics.minScrollExtent + _headerHeight) {
+      _setHeaderVisible(true);
+      return false;
+    }
+
+    final delta = notification.scrollDelta ?? 0;
+    if (delta > 3) {
+      _setHeaderVisible(false);
+    } else if (delta < -3) {
+      _setHeaderVisible(true);
+    }
+    return false;
+  }
+
+  void _setHeaderVisible(bool visible) {
+    if (_headerVisible == visible || !mounted) return;
+    setState(() => _headerVisible = visible);
+  }
+
+  // -------------------------------------------------------------------
+  // Ações de cada post
+  // -------------------------------------------------------------------
+
+  void _replace(String postId, HighlightModel Function(HighlightModel) edit) {
+    final index = _posts.indexWhere((p) => p.postId == postId);
+    if (index == -1) return;
+    _posts[index] = edit(_posts[index]);
+  }
+
+  Future<void> _alternarCurtida(String postId) async {
+    final userId = context.read<UserProvider>().user?.accountId;
+    if (userId == null || _togglingLikes.contains(postId)) return;
+
+    final index = _posts.indexWhere((p) => p.postId == postId);
+    if (index == -1) return;
+    final curtiaAntes = _posts[index].curtidoPeloUsuario;
+
     setState(() {
-      _isTogglingLike = true;
-      _highlight = _highlight.copyWith(
-        curtidoPeloUsuario: !curtiaAntes,
-        totalCurtidas: curtiaAntes
-            ? _highlight.totalCurtidas - 1
-            : _highlight.totalCurtidas + 1,
+      _togglingLikes.add(postId);
+      _replace(
+        postId,
+        (p) => p.copyWith(
+          curtidoPeloUsuario: !curtiaAntes,
+          totalCurtidas: curtiaAntes
+              ? math.max(0, p.totalCurtidas - 1)
+              : p.totalCurtidas + 1,
+        ),
       );
     });
 
     try {
       if (curtiaAntes) {
-        await _postService.unlikePost(
-          postId: _highlight.postId,
-          userId: userId,
-        );
+        await _postService.unlikePost(postId: postId, userId: userId);
       } else {
-        await _postService.likePost(postId: _highlight.postId, userId: userId);
+        await _postService.likePost(postId: postId, userId: userId);
       }
     } catch (e) {
       final is409 =
           e.toString().contains('409') ||
           e.toString().contains('already liked') ||
           e.toString().contains('already unliked');
-      // 409 significa que o backend já está no estado pra onde tentamos ir
-      // (ex: curtida duplicada por uma corrida com outra tela) — mantém a UI.
       if (!is409 && mounted) {
-        setState(() {
-          _highlight = _highlight.copyWith(
-            curtidoPeloUsuario: curtiaAntes,
-            totalCurtidas: _highlight.totalCurtidas + (curtiaAntes ? 1 : -1),
-          );
-        });
+        debugPrint('Curtida falhou para o post $postId: $e');
+        // Desfaz pelo id, não pela posição: um post pode ter sido excluído
+        // enquanto a requisição andava.
+        setState(
+          () => _replace(
+            postId,
+            (p) => p.copyWith(
+              curtidoPeloUsuario: curtiaAntes,
+              totalCurtidas: math.max(
+                0,
+                p.totalCurtidas + (curtiaAntes ? 1 : -1),
+              ),
+            ),
+          ),
+        );
       }
     } finally {
-      if (mounted) setState(() => _isTogglingLike = false);
+      if (mounted) {
+        setState(() => _togglingLikes.remove(postId));
+      } else {
+        _togglingLikes.remove(postId);
+      }
     }
   }
 
-  /// Ao excluir, volta para a grade com `true` para ela tirar o post.
-  Future<void> _excluir() async {
-    setState(() => _isDeleting = true);
-    final excluido = await confirmAndDeletePost(
-      context,
-      postId: _highlight.postId,
-    );
+  Future<void> _excluir(String postId) async {
+    if (_deleting.contains(postId)) return;
+    setState(() => _deleting.add(postId));
+
+    final excluido = await confirmAndDeletePost(context, postId: postId);
     if (!mounted) return;
-    if (excluido) {
-      Navigator.pop(context, true);
-    } else {
-      setState(() => _isDeleting = false);
+
+    if (!excluido) {
+      setState(() => _deleting.remove(postId));
+      return;
     }
+
+    widget.onDeleted?.call(postId);
+
+    // Sem post nenhum não há o que mostrar: volta pra grade.
+    if (_posts.length <= 1) {
+      Navigator.pop(context);
+      return;
+    }
+
+    setState(() {
+      final index = _posts.indexWhere((p) => p.postId == postId);
+      if (index != -1) {
+        _posts.removeAt(index);
+        // Post acima do tocado: a lista de cima encolhe e o tocado continua
+        // sendo o primeiro da lista de baixo.
+        if (index < _centerIndex) _centerIndex--;
+      }
+      _deleting.remove(postId);
+    });
   }
 
-  Future<void> _abrirOpcoes() async {
+  Future<void> _abrirOpcoes(HighlightModel post) async {
     final action = await showSafetyActionsSheet(
       context,
       actions: const [SafetyAction.reportPost, SafetyAction.block],
@@ -113,15 +260,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         await showReportSheet(
           context,
           targetType: ReportTargetType.post,
-          targetId: _highlight.postId,
-          targetOwnerId: _highlight.userId,
+          targetId: post.postId,
+          targetOwnerId: post.userId,
         );
       case SafetyAction.block:
         final bloqueado = await confirmAndBlockUser(
           context,
-          accountId: _highlight.userId,
+          accountId: post.userId,
           displayName: '',
         );
+        // Os posts desta tela são do perfil bloqueado: não há o que ficar
+        // vendo aqui.
         if (bloqueado && mounted) Navigator.pop(context);
       case SafetyAction.reportProfile:
       case SafetyAction.unblock:
@@ -129,135 +278,288 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  String _formatarData(String isoDate) {
-    if (isoDate.isEmpty) return '';
-    try {
-      final data = DateTime.parse(isoDate);
-      return DateFormat("d 'de' MMMM 'de' y", 'pt_BR').format(data);
-    } catch (_) {
-      return '';
-    }
+  // -------------------------------------------------------------------
+  // Tela
+  // -------------------------------------------------------------------
+
+  Widget _buildPost(HighlightModel post, String? viewerId) {
+    final isOwn = viewerId != null && post.userId == viewerId;
+
+    return _PostItem(
+      key: ValueKey(post.postId),
+      post: post,
+      isOwn: isOwn,
+      canReport: !isOwn && viewerId != null && post.userId.isNotEmpty,
+      deleting: _deleting.contains(post.postId),
+      onLike: () => _alternarCurtida(post.postId),
+      onDelete: () => _excluir(post.postId),
+      onOptions: () => _abrirOpcoes(post),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final type = context.typography;
-    final highlight = _highlight;
-    final dataFormatada = _formatarData(highlight.criadoEm);
     final viewerId = context.select<UserProvider, String?>(
       (p) => p.user?.accountId,
     );
-    final isOwn = viewerId != null && highlight.userId == viewerId;
+
+    // "Meus Posts" só quando todos são da conta logada; na grade de outro
+    // perfil ou de um lugar, "Posts".
+    final meus =
+        viewerId != null &&
+        widget.posts.isNotEmpty &&
+        widget.posts.every((p) => p.userId == viewerId);
+
+    final antes = _centerIndex;
+    final depois = _posts.length - _centerIndex;
 
     return Scaffold(
       backgroundColor: colors.noturno,
-      body: Stack(
-        children: [
-          ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              AspectRatio(
-                aspectRatio: 4 / 5,
-                child: DoubleTapLike(
-                  // Toque duplo só curte, nunca descurte.
-                  onLike: () {
-                    if (!_highlight.curtidoPeloUsuario) _alternarCurtida();
-                  },
-                  child: PostMediaCarousel(media: highlight.midias),
-                ),
-              ),
+      body: SafeArea(
+        bottom: false,
+        child: Stack(
+          children: [
+            NotificationListener<ScrollNotification>(
+              onNotification: _onScrollNotification,
+              child: CustomScrollView(
+                controller: _scrollController,
+                center: _centerKey,
+                slivers: [
+                  // Posts anteriores ao tocado. Esta lista cresce para cima a
+                  // partir do centro: o item 0 é o post logo acima do tocado.
+                  // O último item é o espaço do cabeçalho, no topo de tudo.
+                  SliverList.builder(
+                    itemCount: antes + 1,
+                    itemBuilder: (context, i) {
+                      if (i == antes) {
+                        return const SizedBox(height: _headerHeight);
+                      }
+                      return _buildPost(_posts[antes - 1 - i], viewerId);
+                    },
+                  ),
 
-              Padding(
-                padding: const EdgeInsets.all(AppSpacing.screen),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        _Action(
-                          icon: LikeHeart(
-                            liked: highlight.curtidoPeloUsuario,
-                            inactiveColor: colors.textSecondary,
-                            size: 22,
-                          ),
-                          value: highlight.totalCurtidas,
-                          active: highlight.curtidoPeloUsuario,
-                          semanticLabel: highlight.curtidoPeloUsuario
-                              ? 'Descurtir'
-                              : 'Curtir',
-                          onTap: _alternarCurtida,
-                        ),
-                        // O contador de comentários saiu: o app ainda não
-                        // mostra nem publica comentários, e um número sem
-                        // ação parece funcionalidade quebrada.
-                      ],
+                  // Do post tocado em diante.
+                  SliverList.builder(
+                    key: _centerKey,
+                    itemCount: depois,
+                    itemBuilder: (context, i) =>
+                        _buildPost(_posts[_centerIndex + i], viewerId),
+                  ),
+
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height:
+                          MediaQuery.paddingOf(context).bottom + AppSpacing.xl,
                     ),
-
-                    if (highlight.legenda.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.lg),
-                      Text(
-                        highlight.legenda,
-                        style: type.bodyLarge.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ],
-
-                    if (dataFormatada.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        dataFormatada.toUpperCase(),
-                        style: type.monoMicro.copyWith(
-                          color: colors.textDisabled,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          // Voltar flutuando sobre a foto, com o padding do topo respeitado.
-          Positioned(
-            top: MediaQuery.of(context).padding.top + AppSpacing.sm,
-            left: AppSpacing.lg,
-            child: _FloatingButton(
-              icon: Icons.arrow_back_rounded,
-              label: 'Voltar',
-              onTap: () => Navigator.maybePop(context),
-            ),
-          ),
-
-          // Dono exclui; quem vê o post de outra pessoa denuncia ou bloqueia.
-          if (isOwn)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + AppSpacing.sm,
-              right: AppSpacing.lg,
-              child: _FloatingButton(
-                icon: Icons.delete_outline_rounded,
-                label: 'Excluir publicação',
-                onTap: _isDeleting ? null : _excluir,
-              ),
-            )
-          else if (viewerId != null && highlight.userId.isNotEmpty)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + AppSpacing.sm,
-              right: AppSpacing.lg,
-              child: _FloatingButton(
-                icon: Icons.more_horiz_rounded,
-                label: 'Opções da publicação',
-                onTap: _abrirOpcoes,
+                  ),
+                ],
               ),
             ),
-        ],
+
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _PostsHeader(
+                visible: _headerVisible,
+                height: _headerHeight,
+                title: meus ? 'Meus Posts' : 'Posts',
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Botão circular sobre a foto (voltar, excluir), com alvo de 44px.
+/// Cabeçalho com o voltar e o título, no lugar do voltar flutuante que cada
+/// post tinha.
+///
+/// Mesma coreografia do cabeçalho do feed (e do dock): desliza para cima e
+/// apaga ao descer, volta ao subir. O `ClipRect` faz ele sumir por trás da
+/// barra de status em vez de desenhar por cima dela.
+class _PostsHeader extends StatelessWidget {
+  final bool visible;
+  final double height;
+  final String title;
+
+  const _PostsHeader({
+    required this.visible,
+    required this.height,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final duration = context.adaptiveMotion(NavbarTokens.hide);
+
+    return ClipRect(
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : const Offset(0, -1),
+        duration: duration,
+        curve: AppMotion.standard,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: duration,
+          curve: AppMotion.standard,
+          child: IgnorePointer(
+            ignoring: !visible,
+            child: Container(
+              height: height,
+              color: colors.noturno,
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: VibesterBackButton(),
+                  ),
+                  Text(
+                    title,
+                    style: context.typography.titleMedium.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Um post do feed do perfil: exatamente o bloco que o detalhe mostrava —
+/// mídia 4:5 com duplo toque para curtir, curtidas, legenda e data —, sem o
+/// voltar, que agora é um só, no cabeçalho.
+///
+/// Sem estado próprio: curtida e exclusão vivem na tela, que sobrevive ao
+/// item sair e voltar da área visível.
+class _PostItem extends StatelessWidget {
+  final HighlightModel post;
+  final bool isOwn;
+  final bool canReport;
+  final bool deleting;
+  final VoidCallback onLike;
+  final VoidCallback onDelete;
+  final VoidCallback onOptions;
+
+  const _PostItem({
+    super.key,
+    required this.post,
+    required this.isOwn,
+    required this.canReport,
+    required this.deleting,
+    required this.onLike,
+    required this.onDelete,
+    required this.onOptions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final type = context.typography;
+    final dataFormatada = _formatarData(post.criadoEm);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Stack(
+          children: [
+            AspectRatio(
+              aspectRatio: 4 / 5,
+              child: DoubleTapLike(
+                onLike: () {
+                  if (!post.curtidoPeloUsuario) onLike();
+                },
+                child: PostMediaCarousel(media: post.midias),
+              ),
+            ),
+            // A lixeira do dono fica na linha do coração; aqui em cima só o
+            // menu de opções dos posts de outras pessoas.
+            if (canReport)
+              Positioned(
+                top: AppSpacing.sm,
+                right: AppSpacing.lg,
+                child: _FloatingButton(
+                  icon: Icons.more_horiz_rounded,
+                  label: 'Opções da publicação',
+                  onTap: onOptions,
+                ),
+              ),
+          ],
+        ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screen,
+            AppSpacing.xs,
+            AppSpacing.screen,
+            AppSpacing.huge,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _Action(
+                    icon: LikeHeart(
+                      liked: post.curtidoPeloUsuario,
+                      inactiveColor: colors.textSecondary,
+                      size: 22,
+                    ),
+                    value: post.totalCurtidas,
+                    active: post.curtidoPeloUsuario,
+                    semanticLabel: post.curtidoPeloUsuario
+                        ? 'Descurtir'
+                        : 'Curtir',
+                    onTap: onLike,
+                  ),
+                  if (isOwn) ...[
+                    const Spacer(),
+                    _DeleteButton(onTap: deleting ? null : onDelete),
+                  ],
+                ],
+              ),
+
+              if (post.legenda.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  post.legenda,
+                  style: type.bodyLarge.copyWith(color: colors.textPrimary),
+                ),
+              ],
+
+              if (dataFormatada.isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  dataFormatada.toUpperCase(),
+                  style: type.monoMicro.copyWith(color: colors.textDisabled),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _formatarData(String isoDate) {
+  if (isoDate.isEmpty) return '';
+  try {
+    final data = DateTime.parse(isoDate);
+    return DateFormat("d 'de' MMMM 'de' y", 'pt_BR').format(data);
+  } catch (_) {
+    return '';
+  }
+}
+
 class _FloatingButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -329,6 +631,40 @@ class _Action extends StatelessWidget {
                 style: context.typography.mono.copyWith(color: color),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Lixeira na linha do coração, só nos posts do próprio usuário: o ícone
+/// sozinho, em vermelho, sem contorno. A área de toque continua com 44px,
+/// igual à do coração, mesmo com o ícone menor.
+class _DeleteButton extends StatelessWidget {
+  final VoidCallback? onTap;
+
+  const _DeleteButton({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Excluir publicação',
+      excludeSemantics: true,
+      child: VibesterPressable(
+        onTap: onTap,
+        borderRadius: AppRadius.pillAll,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            Icons.delete_outline_rounded,
+            size: 22,
+            // Apagado enquanto a exclusão está em andamento.
+            color: context.colors.error.withValues(
+              alpha: onTap == null ? 0.4 : 1,
+            ),
           ),
         ),
       ),

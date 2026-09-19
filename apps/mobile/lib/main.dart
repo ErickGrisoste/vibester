@@ -10,7 +10,6 @@ import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/service/event/event_service.dart';
 import 'package:mobile/service/user/user_service.dart';
-import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/providers/events/events_list_provider.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
@@ -513,9 +512,9 @@ class _MyAppState extends State<MyApp> {
                   settings,
                 );
               case AppRoutes.postDetail:
-                final highlight = settings.arguments as HighlightModel;
+                final args = settings.arguments as PostDetailArgs;
                 return vibesterDetailRoute(
-                  PostDetailScreen(highlight: highlight),
+                  PostDetailScreen.fromArgs(args),
                   settings,
                 );
 

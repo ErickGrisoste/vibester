@@ -79,6 +79,16 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
 
   Future<void> refresh() => _buscarHighlights();
 
+  /// Post excluído no feed aberto a partir da grade.
+  void _removerDaGrade(String postId) {
+    if (!mounted) return;
+    setState(
+      () => _highlights = _highlights
+          .where((h) => h.postId != postId)
+          .toList(),
+    );
+  }
+
   Future<void> _buscarHighlights() async {
     setState(() {
       _isLoading = true;
@@ -156,16 +166,12 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
         gridDelegate: _gridDelegate,
         itemCount: _highlights.length,
         itemBuilder: (context, index) {
-          final highlight = _highlights[index];
           return StaggeredEntrance(
             index: index,
             child: HighlightsCard(
-              highlight: highlight,
-              onDeleted: () => setState(
-                () => _highlights = _highlights
-                    .where((h) => h.postId != highlight.postId)
-                    .toList(),
-              ),
+              posts: _highlights,
+              index: index,
+              onDeleted: _removerDaGrade,
             ),
           );
         },

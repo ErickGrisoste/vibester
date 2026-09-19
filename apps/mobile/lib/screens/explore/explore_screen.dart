@@ -9,6 +9,7 @@ import 'package:mobile/providers/events/events_list_provider.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/user/user_service.dart';
+import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/event_time.dart';
@@ -48,11 +49,14 @@ class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
 
   @override
-  State<ExploreScreen> createState() => _ExploreScreenState();
+  State<ExploreScreen> createState() => ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> {
+class ExploreScreenState extends State<ExploreScreen> {
   final _controller = TextEditingController();
+
+  /// Rolagem do modo descoberta, para o reset voltar ao topo.
+  final _discoveryScroll = ScrollController();
   final _userService = UserService();
 
   Timer? _debounce;
@@ -87,6 +91,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void dispose() {
     _debounce?.cancel();
     _controller.dispose();
+    _discoveryScroll.dispose();
     super.dispose();
   }
 
@@ -114,18 +119,47 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Future<void> _findUsers(String query) async {
     try {
       final results = await _userService.searchUsers(query);
-      if (!mounted) return;
+      // Resposta de um termo que já não está na tela (a pessoa apagou,
+      // trocou ou resetou a busca no meio do caminho): descarta.
+      if (!mounted || query != _query) return;
       setState(() {
         _users = results;
         _loadingUsers = false;
         _usersError = null;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || query != _query) return;
       setState(() {
         _loadingUsers = false;
         _usersError = 'Não foi possível buscar pessoas agora';
       });
+    }
+  }
+
+  /// Chamado pela casca da Home quando o usuário toca em BUSCA estando nela:
+  /// limpa o termo, fecha o teclado e devolve a tela à descoberta, no topo.
+  void resetTab() {
+    _debounce?.cancel();
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    final hadQuery = _query.isNotEmpty;
+    _controller.clear();
+    setState(() {
+      _query = '';
+      _tab = _ResultTab.places;
+      _users = [];
+      _loadingUsers = false;
+      _usersError = null;
+    });
+
+    // Com termo digitado a descoberta nem está montada: ela volta já no
+    // topo. Sem termo, a lista está na tela e sobe animada.
+    if (!hadQuery && _discoveryScroll.hasClients) {
+      _discoveryScroll.animateTo(
+        0,
+        duration: AppMotion.slow,
+        curve: AppMotion.standard,
+      );
     }
   }
 
@@ -236,6 +270,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ..sort((a, b) => b.nivelMovimento.compareTo(a.nivelMovimento));
 
     return ListView(
+      controller: _discoveryScroll,
       padding: const EdgeInsets.only(bottom: AppSpacing.dockGap),
       children: [
         if (ultimasPesquisas.isNotEmpty) ...[
@@ -368,7 +403,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
             'termo mais curto, ou busca pela categoria.',
         icon: Icons.search_off_rounded,
         illustration: Theme.of(context).brightness == Brightness.light
-            ? 'assets/img/mascote/lupa_azul.png'
+            ? 'assets/img/mascote/lupa.png'
             : 'assets/img/mascote/lupa.png',
       );
     }
