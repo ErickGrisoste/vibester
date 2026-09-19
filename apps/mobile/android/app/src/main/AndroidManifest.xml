@@ -1,15 +1,48 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
   <uses-permission android:name="android.permission.INTERNET"/>
+  <!-- Câmera do app (pacote camera): foto e vídeo. O microfone só é pedido
+       ao entrar no modo vídeo; negado, o vídeo grava sem som. -->
   <uses-permission android:name="android.permission.CAMERA"/>
-  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+  <!-- Sem isto, CAMERA faz o Play esconder o app de aparelho sem câmera. O
+       app trata a ausência (AppCamera → "Sem câmera" → galeria). -->
+  <uses-feature android:name="android.hardware.camera" android:required="false"/>
+  <!-- O camera_android_camerax também declara `camera.any` (obrigatória) e
+       escrita em armazenamento. A feature vira opcional pelo mesmo motivo
+       acima. -->
+  <uses-feature
+      android:name="android.hardware.camera.any"
+      android:required="false"
+      tools:replace="android:required"/>
+  <!-- Cópia das capturas para o álbum "Vibester" da galeria (pacote gal).
+       Foto e vídeo continuam gravando no cache do app; esta permissão é só
+       para a cópia, e só em Android 10 ou anterior — do 11 em diante o
+       MediaStore dispensa permissão. O camera_android_camerax declara a
+       mesma linha com 28, daí o `tools:replace`. -->
+  <uses-permission
+      android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+      android:maxSdkVersion="29"
+      tools:replace="android:maxSdkVersion"/>
+  <!-- A galeria usa o Photo Picker do sistema (obrigatório no Android 13+),
+       que não exige permissão: READ_MEDIA_IMAGES saiu. A leitura de
+       armazenamento fica só para Android 12 ou anterior. -->
+  <uses-permission
+      android:name="android.permission.READ_EXTERNAL_STORAGE"
+      android:maxSdkVersion="32"/>
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
    
+    <!-- Backup automático desligado: a sessão fica no flutter_secure_storage,
+         cifrada com chave do Keystore do aparelho; restaurada em outro
+         aparelho, a chave não existe e a leitura quebra. -->
     <application
-        android:label="mobile"
+        android:label="Vibester"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -36,8 +69,15 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="vibester" android:host="profile"/>
+                <data android:scheme="vibester" android:host="event"/>
+                <data android:scheme="vibester" android:host="place"/>
             </intent-filter>
         </activity>
+        <!-- Recorte da foto de perfil (image_cropper → uCrop). -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -58,6 +98,18 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
+        </intent>
+
+        <!-- Ajustes → Ajuda e contato (mailto:contato@vibester.com.br). -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+
+        <!-- Termos/Privacidade abrem em Custom Tabs (LaunchMode.inAppBrowserView);
+             sem esta consulta o url_launcher não enxerga o navegador compatível. -->
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
     </queries>
 </manifest>

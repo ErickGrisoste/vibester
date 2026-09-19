@@ -4,6 +4,7 @@ import { CommentRepository } from "../../repository/comment.repository";
 import { PostRepository } from "../../repository/post.repository";
 import { Post, MediaType } from "../../types/post.types";
 import { Comment, CreateCommentInput, UpdateCommentInput } from "../../types/comment.type";
+import { encodeCommentCursor } from "../../utils/cursor";
 
 vi.mock("../../kafka/producer", () => ({
   producer: { send: vi.fn().mockResolvedValue(undefined) },
@@ -14,13 +15,13 @@ function createMockCommentRepo() {
     createCommentById: vi.fn().mockResolvedValue(undefined),
     createCommentByPost: vi.fn().mockResolvedValue(undefined),
     createCommentByUser: vi.fn().mockResolvedValue(undefined),
-    findByPost: vi.fn().mockResolvedValue([]),
-    findByUser: vi.fn().mockResolvedValue([]),
+    findByPost: vi.fn().mockResolvedValue({ comments: [], nextCursor: null }),
+    findByUser: vi.fn().mockResolvedValue({ comments: [], nextCursor: null }),
     findById: vi.fn().mockResolvedValue(null),
     updateCommentById: vi.fn().mockResolvedValue(undefined),
     updateCommentByPost: vi.fn().mockResolvedValue(undefined),
     updateCommentByUser: vi.fn().mockResolvedValue(undefined),
-    softDeleteCommentById: vi.fn().mockResolvedValue(undefined),
+    softDeleteCommentById: vi.fn().mockResolvedValue(true),
     softDeleteCommentByPost: vi.fn().mockResolvedValue(undefined),
     softDeleteCommentByUser: vi.fn().mockResolvedValue(undefined),
   } as unknown as CommentRepository;
@@ -29,9 +30,10 @@ function createMockCommentRepo() {
 function createMockPostRepo() {
   return {
     findById: vi.fn().mockResolvedValue(null),
-    updateTotalCommentsById: vi.fn().mockResolvedValue(undefined),
-    updateTotalCommentsByUser: vi.fn().mockResolvedValue(undefined),
-    updateTotalCommentsByEstablishment: vi.fn().mockResolvedValue(undefined),
+    incrementComments: vi.fn().mockResolvedValue(undefined),
+    decrementComments: vi.fn().mockResolvedValue(undefined),
+    getCounters: vi.fn().mockResolvedValue({ totalLikes: 0, totalComments: 0 }),
+    updateTotalCommentsInAllViews: vi.fn().mockResolvedValue(undefined),
   } as unknown as PostRepository;
 }
 
@@ -65,9 +67,10 @@ describe("CommentService", () => {
   // ======= create =======
 
   describe("create", () => {
-    it("should create a comment and increment totalComments", async () => {
-      const post = makePost({ totalComments: 2 });
+    it("should create a comment, increment the atomic counter and propagate the fresh total", async () => {
+      const post = makePost();
       (postRepo.findById as any).mockResolvedValue(post);
+      (postRepo.getCounters as any).mockResolvedValue({ totalLikes: 0, totalComments: 3 });
 
       const input: CreateCommentInput = { postId: "post-1", userId: "user-2", content: "Cool!" };
       const result = await svc.create(input);
@@ -81,19 +84,19 @@ describe("CommentService", () => {
       expect(commentRepo.createCommentById).toHaveBeenCalledOnce();
       expect(commentRepo.createCommentByPost).toHaveBeenCalledOnce();
       expect(commentRepo.createCommentByUser).toHaveBeenCalledOnce();
-      expect(postRepo.updateTotalCommentsById).toHaveBeenCalledWith(3, "post-1");
-      expect(postRepo.updateTotalCommentsByEstablishment).not.toHaveBeenCalled();
+      expect(postRepo.incrementComments).toHaveBeenCalledWith("post-1");
+      expect(postRepo.getCounters).toHaveBeenCalledWith("post-1");
+      expect(postRepo.updateTotalCommentsInAllViews).toHaveBeenCalledWith(post, 3);
     });
 
-    it("should update establishment comments when post has establishmentId", async () => {
-      const post = makePost({ totalComments: 0, establishmentId: "est-1" });
+    it("should propagate the fresh total to the establishment view when the post has one", async () => {
+      const post = makePost({ establishmentId: "est-1" });
       (postRepo.findById as any).mockResolvedValue(post);
+      (postRepo.getCounters as any).mockResolvedValue({ totalLikes: 0, totalComments: 1 });
 
       await svc.create({ postId: "post-1", userId: "user-2", content: "Hey" });
 
-      expect(postRepo.updateTotalCommentsByEstablishment).toHaveBeenCalledWith(
-        "est-1", post.createdAt, 1, "post-1"
-      );
+      expect(postRepo.updateTotalCommentsInAllViews).toHaveBeenCalledWith(post, 1);
     });
 
     it("should throw when post is not found", async () => {
@@ -113,18 +116,40 @@ describe("CommentService", () => {
   // ======= find operations =======
 
   describe("findByPost", () => {
-    it("should delegate to repository", async () => {
-      const comments = [makeComment()];
-      (commentRepo.findByPost as any).mockResolvedValue(comments);
-      expect(await svc.findByPost("post-1")).toEqual(comments);
+    it("should delegate to repository with default limit and no cursor", async () => {
+      const page = { comments: [makeComment()], nextCursor: null };
+      (commentRepo.findByPost as any).mockResolvedValue(page);
+
+      expect(await svc.findByPost("post-1")).toEqual(page);
+      expect(commentRepo.findByPost).toHaveBeenCalledWith("post-1", 50, undefined);
+    });
+
+    it("should decode the raw cursor before delegating to repository", async () => {
+      const createdAt = new Date("2026-01-01");
+      const rawCursor = encodeCommentCursor({ createdAt, commentId: "cmt-1" });
+
+      await svc.findByPost("post-1", 10, rawCursor);
+
+      expect(commentRepo.findByPost).toHaveBeenCalledWith("post-1", 10, { createdAt, commentId: "cmt-1" });
     });
   });
 
   describe("findByUser", () => {
-    it("should delegate to repository", async () => {
-      const comments = [makeComment()];
-      (commentRepo.findByUser as any).mockResolvedValue(comments);
-      expect(await svc.findByUser("user-2")).toEqual(comments);
+    it("should delegate to repository with default limit and no cursor", async () => {
+      const page = { comments: [makeComment()], nextCursor: null };
+      (commentRepo.findByUser as any).mockResolvedValue(page);
+
+      expect(await svc.findByUser("user-2")).toEqual(page);
+      expect(commentRepo.findByUser).toHaveBeenCalledWith("user-2", 50, undefined);
+    });
+
+    it("should decode the raw cursor before delegating to repository", async () => {
+      const createdAt = new Date("2026-01-01");
+      const rawCursor = encodeCommentCursor({ createdAt, commentId: "cmt-1" });
+
+      await svc.findByUser("user-2", 10, rawCursor);
+
+      expect(commentRepo.findByUser).toHaveBeenCalledWith("user-2", 10, { createdAt, commentId: "cmt-1" });
     });
   });
 
@@ -183,32 +208,32 @@ describe("CommentService", () => {
   // ======= softDelete =======
 
   describe("softDelete", () => {
-    it("should soft-delete a comment and decrement totalComments", async () => {
+    it("should soft-delete a comment, decrement the atomic counter and propagate the fresh total", async () => {
       const comment = makeComment();
-      const post = makePost({ totalComments: 3 });
+      const post = makePost();
       (commentRepo.findById as any).mockResolvedValue(comment);
       (postRepo.findById as any).mockResolvedValue(post);
+      (postRepo.getCounters as any).mockResolvedValue({ totalLikes: 0, totalComments: 2 });
 
       await svc.softDelete("cmt-1", "user-2");
 
       expect(commentRepo.softDeleteCommentById).toHaveBeenCalledWith("cmt-1");
       expect(commentRepo.softDeleteCommentByPost).toHaveBeenCalledOnce();
       expect(commentRepo.softDeleteCommentByUser).toHaveBeenCalledOnce();
-      expect(postRepo.updateTotalCommentsById).toHaveBeenCalledWith(2, "post-1");
-      expect(postRepo.updateTotalCommentsByEstablishment).not.toHaveBeenCalled();
+      expect(postRepo.decrementComments).toHaveBeenCalledWith(comment.postId);
+      expect(postRepo.updateTotalCommentsInAllViews).toHaveBeenCalledWith(post, 2);
     });
 
-    it("should update establishment on delete when post has establishmentId", async () => {
+    it("should propagate the fresh total to the establishment view when the post has one", async () => {
       const comment = makeComment();
-      const post = makePost({ totalComments: 1, establishmentId: "est-1" });
+      const post = makePost({ establishmentId: "est-1" });
       (commentRepo.findById as any).mockResolvedValue(comment);
       (postRepo.findById as any).mockResolvedValue(post);
+      (postRepo.getCounters as any).mockResolvedValue({ totalLikes: 0, totalComments: 0 });
 
       await svc.softDelete("cmt-1", "user-2");
 
-      expect(postRepo.updateTotalCommentsByEstablishment).toHaveBeenCalledWith(
-        "est-1", post.createdAt, 0, post.postId
-      );
+      expect(postRepo.updateTotalCommentsInAllViews).toHaveBeenCalledWith(post, 0);
     });
 
     it("should throw when comment not found", async () => {
@@ -233,13 +258,32 @@ describe("CommentService", () => {
       (commentRepo.findById as any).mockResolvedValue(makeComment());
       (postRepo.findById as any).mockResolvedValue(makePost({ isDeleted: true }));
       await expect(svc.softDelete("cmt-1", "user-2")).rejects.toThrow("Post deleted");
+      expect(postRepo.decrementComments).not.toHaveBeenCalled();
     });
 
-    it("should throw HttpError 400 when totalComments is zero (inconsistent state)", async () => {
+    it("should still decrement the atomic counter even if the post row is missing", async () => {
+      // post_counters é independente de posts_by_id existir — o counter não
+      // deve ficar "preso" caso a linha denormalizada do post já não exista.
       (commentRepo.findById as any).mockResolvedValue(makeComment());
-      (postRepo.findById as any).mockResolvedValue(makePost({ totalComments: 0 }));
+      (postRepo.findById as any).mockResolvedValue(null);
 
-      await expect(svc.softDelete("cmt-1", "user-2")).rejects.toThrow("Inconsistent comment count");
+      await svc.softDelete("cmt-1", "user-2");
+
+      expect(postRepo.decrementComments).toHaveBeenCalledWith("post-1");
+      expect(postRepo.updateTotalCommentsInAllViews).not.toHaveBeenCalled();
+    });
+
+    it("should throw 409 when softDeleteCommentById loses the race (IF is_deleted = false not applied)", async () => {
+      // findById ainda viu o comentário como não deletado (corrida), mas o
+      // UPDATE condicional chega depois de outra requisição concorrente já
+      // ter marcado is_deleted — softDeleteCommentById devolve false.
+      (commentRepo.findById as any).mockResolvedValue(makeComment());
+      (postRepo.findById as any).mockResolvedValue(makePost());
+      (commentRepo.softDeleteCommentById as any).mockResolvedValue(false);
+
+      await expect(svc.softDelete("cmt-1", "user-2")).rejects.toThrow("Comment already deleted");
+      expect(commentRepo.softDeleteCommentByPost).not.toHaveBeenCalled();
+      expect(postRepo.decrementComments).not.toHaveBeenCalled();
     });
   });
 });

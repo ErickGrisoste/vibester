@@ -83,3 +83,8 @@ export interface PaginatedPosts {
   posts: Post[];
   nextCursor: string | null;
 }
+
+export interface PostCounters {
+  totalLikes: number;
+  totalComments: number;
+}

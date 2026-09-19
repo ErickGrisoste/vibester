@@ -76,7 +76,13 @@ const services: ServiceConfig[] = [
   {
     name: 'payment-service',
     prefix: '/payment',
-    staticSpecFile: 'openapi-partial.json',
+    env: {
+      JWT_SECRET: 'ci-secret',
+      DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
+      ABACATEPAY_API_KEY: 'ci-dummy',
+      ABACATEPAY_WEBHOOK_SECRET: 'ci-dummy',
+      KAFKA_BROKERS: 'localhost:9092',
+    },
   },
 ];
 

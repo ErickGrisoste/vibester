@@ -33,7 +33,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // Fim do onboarding: descarta esta rota para que a home fique sendo a
   // unica da pilha, igual ao fluxo de login.
   Future<void> _finish() async {
-    await AuthStorageService.concluirOnboarding();
+    await AuthStorageService.concluirCadastro();
     if (!mounted) return;
 
     Navigator.pushNamedAndRemoveUntil(

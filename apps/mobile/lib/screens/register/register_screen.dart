@@ -3,10 +3,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/user/user_service.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/utils/date_picker_field.dart';
-import 'package:mobile/widgets/buttons/primary_button.dart';
+import 'package:mobile/utils/age.dart';
+import 'package:mobile/utils/username_input_formatter.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/common/terms_consent_field.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/graffiti/spray_glow.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/text-field/date_picker_field.dart';
+import 'package:mobile/widgets/text-field/primary_text_field.dart';
 
+/// Criar conta.
+///
+/// Mesmo contrato de antes (`name`, `username`, `email`, `password`,
+/// `bornAt`), mas o formulário pede só o nome de usuário: o nome de exibição
+/// é definido no passo seguinte do cadastro (edição de perfil), e pedir os
+/// dois aqui fazia a pessoa digitar o nome duas vezes.
+///
+/// Por isso o valor do campo único vai nos dois: `username` com o `@` na
+/// frente, colocado pelo app, e `name` sem ele — um nome provisório até a
+/// pessoa escrever o dela no perfil.
+///
+/// A prévia do `@usuario` aparece enquanto a pessoa digita, para ela não
+/// descobrir o próprio username só depois de a conta existir.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -15,24 +37,23 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final TextEditingController _nomeController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _senhaController = TextEditingController();
-  DateTime? _dataNascimento;
-
   final _formKey = GlobalKey<FormState>();
   final _userService = UserService();
+
+  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _senhaController = TextEditingController();
+  DateTime? _dataNascimento;
+
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _nomeController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _senhaController.dispose();
     super.dispose();
   }
-
-  String? _erroApi;
 
   String _formatarBornAt(DateTime data) {
     final ano = data.year.toString().padLeft(4, '0');
@@ -41,16 +62,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return '$ano-$mes-$dia';
   }
 
+  /// O que a pessoa digitou, limpo: sem espaços. É o que vai como `name`.
+  String get _usernameLimpo =>
+      _usernameController.text.trim().replaceAll(' ', '');
+
+  /// O mesmo valor com o `@` que o app coloca. É o que vai como `username`.
+  String get _usernamePreview => '@$_usernameLimpo';
+
   Future<void> _criarConta() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_dataNascimento == null) return;
 
     setState(() => _isLoading = true);
 
-    final nomeDigitado = _nomeController.text.trim();
-    final usernameFormatado = '@${nomeDigitado.replaceAll(' ', '')}';
+    // Campo único: `name` vai sem o @ e `username` com ele.
+    final nomeDigitado = _usernameLimpo;
+    final usernameFormatado = _usernamePreview;
     final email = _emailController.text.trim();
     final senha = _senhaController.text;
-    final bornAtFormatado = _formatarBornAt(_dataNascimento!);
 
     try {
       await _userService.register(
@@ -58,10 +87,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         username: usernameFormatado,
         email: email,
         password: senha,
-        bornAt: bornAtFormatado,
+        bornAt: _formatarBornAt(_dataNascimento!),
       );
 
-      if (!mounted) return;
       if (!mounted) return;
       Navigator.pushNamed(
         context,
@@ -69,367 +97,199 @@ class _RegisterScreenState extends State<RegisterScreen> {
         arguments: {'email': email, 'senha': senha},
       );
     } catch (e) {
-      _erroApi = e.toString();
-      debugPrint(_erroApi);
+      debugPrint('Falha no cadastro: $e');
 
       if (!mounted) return;
+      setState(() => _isLoading = false);
+      // A mensagem já vem tratada pelo UserService (apiErrorMessage): email em
+      // uso, idade mínima e sem conexão pedem ações diferentes.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Não foi possível criar a conta. Tente novamente.'),
-        ),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final username = _usernameController.text.trim();
+
     return Scaffold(
-      backgroundColor: context.colors.darkGrey,
+      backgroundColor: colors.noturno,
       body: Stack(
         children: [
-          Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              child: Column(
+          Positioned(
+            left: -130,
+            top: -70,
+            child: SprayGlow(color: colors.brasa, size: 300, intensity: 0.16),
+          ),
+          const Positioned.fill(child: Grain(opacity: 0.04, density: 0.4)),
+
+          SafeArea(
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
                 children: [
-                  Center(
-                    child: SizedBox(
-                      width: 130,
-                      height: 265,
-                      child: Image.asset('assets/img/mascote/mascote.png'),
-                    ),
+                  const ScreenHeader(
+                    title: 'Cria sua\nconta',
+                    eyebrow: 'LEVA UM MINUTO',
                   ),
 
-                  Text(
-                    'Criar conta',
-                    style: context.typography.displayLarge.copyWith(
-                      color: context.colors.textPrimary,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.screen,
                     ),
-                  ),
-
-                  Text(
-                    'Preencha seus dados para começar',
-                    style: context.typography.bodyMedium.copyWith(
-                      color: context.colors.grey,
-                    ),
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 280, bottom: 10),
-                        child: Text(
-                          'USUÁRIO',
-                          style: context.typography.labelSmall.copyWith(
-                            color: context.colors.grey,
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(
-                        width: 350,
-                        child: TextFormField(
-                          controller: _nomeController,
-
-                          textInputAction: TextInputAction.next,
-                          style: context.typography.bodyLarge.copyWith(
-                            color: context.colors.textPrimary,
-                          ),
-                          cursorColor: context.colors.ambar,
-
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        PrimaryTextField(
+                          controller: _usernameController,
+                          label: 'Nome de usuário',
+                          icon: Icons.person_outline_rounded,
                           inputFormatters: [
-                            LengthLimitingTextInputFormatter(50),
-                            FilteringTextInputFormatter.deny(RegExp('@')),
+                            LengthLimitingTextInputFormatter(60),
+                            // O @ é do app, não da pessoa: a tecla nem entra
+                            // (colado no meio de um texto, também some).
+                            FilteringTextInputFormatter.deny('@'),
+                            const UsernameInputFormatter(),
                           ],
-
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: context.colors.darkGrey,
-                            prefixIcon: const Icon(Icons.person),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            errorStyle: context.typography.bodySmall.copyWith(
-                              color: context.colors.error,
-                              fontSize: 12,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.border,
-                                width: 1.3,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.ambar,
-                                width: 1.3,
-                              ),
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.error,
-                                width: 1.3,
-                              ),
-                            ),
-                            focusedErrorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.error,
-                                width: 1.3,
-                              ),
-                            ),
-                          ),
-
+                          onChanged: (_) => setState(() {}),
                           validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Informe seu nome de usuário!';
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Informe seu nome de usuário';
                             }
                             if (value.contains('@')) {
-                              return 'O nome de usuario não pode conter "@"!';
+                              return 'O nome de usuário não pode conter "@"';
                             }
-
+                            if (UsernameInputFormatter.normalize(value) !=
+                                value) {
+                              return 'Use só letras minúsculas e sem acento';
+                            }
                             return null;
                           },
                         ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 280, bottom: 10),
-                        child: Text(
-                          'E-MAIL',
-                          style: context.typography.labelSmall.copyWith(
-                            color: context.colors.grey,
+                        // Prévia do @ que vai ser gravado (sem espaços), para
+                        // a pessoa não descobrir o próprio username só depois.
+                        if (username.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.sm),
+                            child: Text(
+                              'SEU USUÁRIO VAI SER  $_usernamePreview',
+                              style: context.typography.monoMicro.copyWith(
+                                color: colors.ambar,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
 
-                      SizedBox(
-                        width: 350,
-                        child: TextFormField(
+                        const SizedBox(height: AppSpacing.lg),
+                        PrimaryTextField(
                           controller: _emailController,
-
-                          textInputAction: TextInputAction.next,
-                          style: context.typography.bodyLarge.copyWith(
-                            color: context.colors.textPrimary,
-                          ),
-                          cursorColor: context.colors.ambar,
-
+                          label: 'E-mail',
+                          icon: Icons.mail_outline_rounded,
+                          keyboardType: TextInputType.emailAddress,
+                          // Formato conferido ao sair do campo, sem esperar
+                          // o toque em "Criar conta".
+                          validateOnBlur: true,
                           inputFormatters: [
                             LengthLimitingTextInputFormatter(320),
                           ],
-
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: context.colors.darkGrey,
-                            prefixIcon: const Icon(Icons.email_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            errorStyle: context.typography.bodySmall.copyWith(
-                              color: context.colors.error,
-                              fontSize: 12,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.border,
-                                width: 1.3,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.ambar,
-                                width: 1.3,
-                              ),
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.error,
-                                width: 1.3,
-                              ),
-                            ),
-                            focusedErrorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.error,
-                                width: 1.3,
-                              ),
-                            ),
-                          ),
-
                           validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Informe seu email!';
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Informe seu e-mail';
                             }
-                            if (!EmailValidator.validate(value)) {
-                              return 'Informe um email válido!';
+                            if (!EmailValidator.validate(value.trim())) {
+                              return 'Esse e-mail não parece válido';
                             }
                             return null;
                           },
                         ),
-                      ),
-                    ],
-                  ),
 
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 211, bottom: 10),
-                    child: Column(
-                      children: [
-                        Text(
-                          'DATA DE NASCIMENTO',
-                          style: context.typography.labelSmall.copyWith(
-                            color: context.colors.grey,
+                        const SizedBox(height: AppSpacing.lg),
+                        DatePickerField(
+                          labelText: 'Data de nascimento',
+                          initialDate: _dataNascimento,
+                          onDateSelected: (data) =>
+                              setState(() => _dataNascimento = data),
+                          validator: (value) {
+                            if (value == null) {
+                              return 'Informe sua data de nascimento';
+                            }
+                            if (!hasMinimumAge(value)) {
+                              return 'O Vibester é só para maiores de '
+                                  '$minimumAgeYears anos';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        const SizedBox(height: AppSpacing.lg),
+                        PrimaryTextField(
+                          controller: _senhaController,
+                          label: 'Senha',
+                          hint: 'Mínimo de 8 caracteres',
+                          icon: Icons.lock_outline_rounded,
+                          obscure: true,
+                          textInputAction: TextInputAction.done,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(64),
+                          ],
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Escolhe uma senha';
+                            }
+                            if (value.length < 8) {
+                              return 'A senha precisa de pelo menos 8 caracteres';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        const SizedBox(height: AppSpacing.lg),
+                        TermsConsentField(),
+
+                        const SizedBox(height: AppSpacing.xl),
+                        VibesterButton(
+                          label: 'Criar conta',
+                          state: _isLoading
+                              ? VibesterButtonState.loading
+                              : VibesterButtonState.idle,
+                          onPressed: _criarConta,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        Center(
+                          child: VibesterPressable(
+                            borderRadius: AppRadius.pillAll,
+                            onTap: () => Navigator.pushReplacementNamed(
+                              context,
+                              AppRoutes.login,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              child: Text.rich(
+                                TextSpan(
+                                  style: context.typography.bodyMedium.copyWith(
+                                    color: colors.textMuted,
+                                  ),
+                                  children: [
+                                    const TextSpan(text: 'Já tem conta? '),
+                                    TextSpan(
+                                      text: 'Entrar',
+                                      style: TextStyle(
+                                        color: colors.ambar,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  DatePickerField(
-                    labelText: 'Data de Nascimento',
-                    height: 60,
-
-                    onDateSelected: (data) {
-                      _dataNascimento = data;
-                    },
-
-                    validator: (value) {
-                      if (value == null) {
-                        return 'Informe sua data de nascimento!';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(right: 290, bottom: 10),
-                        child: Text(
-                          'SENHA',
-                          style: context.typography.labelSmall.copyWith(
-                            color: context.colors.grey,
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(
-                        width: 350,
-                        child: TextFormField(
-                          controller: _senhaController,
-
-                          obscureText: true,
-                          textInputAction: TextInputAction.done,
-                          style: context.typography.bodyLarge.copyWith(
-                            color: context.colors.textPrimary,
-                          ),
-                          cursorColor: context.colors.ambar,
-
-                          inputFormatters: [
-                            LengthLimitingTextInputFormatter(20),
-                          ],
-
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: context.colors.darkGrey,
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            errorStyle: context.typography.bodySmall.copyWith(
-                              color: context.colors.error,
-                              fontSize: 12,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.border,
-                                width: 1.3,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.ambar,
-                                width: 1.3,
-                              ),
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.error,
-                                width: 1.3,
-                              ),
-                            ),
-                            focusedErrorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(
-                                color: context.colors.error,
-                                width: 1.3,
-                              ),
-                            ),
-                          ),
-
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Informe uma senha!';
-                            }
-                            if (value.length < 8) {
-                              return 'A senha deve ter pelo menos 8 caracteres!';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 50),
-
-                  SizedBox(
-                    width: 350,
-                    height: 50,
-                    child: PrimaryButton(
-                      label: _isLoading ? 'Criando conta...' : 'Entrar',
-                      onPressed: _isLoading ? () {} : _criarConta,
-                    ),
-                  ),
                 ],
-              ),
-            ),
-          ),
-
-          //Botão de voltar
-          Positioned(
-            top: 20,
-            left: 16,
-            child: SafeArea(
-              child: CircleAvatar(
-                backgroundColor: context.colors.darkGrey.withOpacity(0.8),
-                child: IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: Icon(
-                    Icons.arrow_back_ios_new,
-                    color: context.colors.ambar,
-                  ),
-                ),
               ),
             ),
           ),

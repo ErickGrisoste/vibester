@@ -4,6 +4,7 @@ import { LikeRepository } from "../../repository/like.repository";
 import { PostRepository } from "../../repository/post.repository";
 import { Post, MediaType } from "../../types/post.types";
 import { PostLike } from "../../types/like.types";
+import { encodeLikeByPostCursor, encodeLikeCursor } from "../../utils/cursor";
 
 vi.mock("../../kafka/producer", () => ({
   producer: { send: vi.fn().mockResolvedValue(undefined) },
@@ -11,12 +12,12 @@ vi.mock("../../kafka/producer", () => ({
 
 function createMockLikeRepo() {
   return {
-    createLikeByPost: vi.fn().mockResolvedValue(undefined),
+    createLikeByPost: vi.fn().mockResolvedValue(true),
     createLikeByUser: vi.fn().mockResolvedValue(undefined),
     findLikeByPostAndUser: vi.fn().mockResolvedValue(null),
-    findLikesByPost: vi.fn().mockResolvedValue([]),
-    findLikesByUser: vi.fn().mockResolvedValue([]),
-    deleteLikeByPost: vi.fn().mockResolvedValue(undefined),
+    findLikesByPost: vi.fn().mockResolvedValue({ likes: [], nextCursor: null }),
+    findLikesByUser: vi.fn().mockResolvedValue({ likes: [], nextCursor: null }),
+    deleteLikeByPost: vi.fn().mockResolvedValue(true),
     deleteLikeByUser: vi.fn().mockResolvedValue(undefined),
   } as unknown as LikeRepository;
 }
@@ -24,9 +25,10 @@ function createMockLikeRepo() {
 function createMockPostRepo() {
   return {
     findById: vi.fn().mockResolvedValue(null),
-    updateTotalLikesById: vi.fn().mockResolvedValue(undefined),
-    updateTotalLikesByUser: vi.fn().mockResolvedValue(undefined),
-    updateTotalLikesByEstablishment: vi.fn().mockResolvedValue(undefined),
+    incrementLikes: vi.fn().mockResolvedValue(undefined),
+    decrementLikes: vi.fn().mockResolvedValue(undefined),
+    getCounters: vi.fn().mockResolvedValue({ totalLikes: 0, totalComments: 0 }),
+    updateTotalLikesInAllViews: vi.fn().mockResolvedValue(undefined),
   } as unknown as PostRepository;
 }
 
@@ -54,9 +56,10 @@ describe("LikeService", () => {
   });
 
   describe("likePost", () => {
-    it("should create a like successfully", async () => {
-      const post = makePost({ totalLikes: 3 });
+    it("should create a like, increment the atomic counter and propagate the fresh total", async () => {
+      const post = makePost();
       (postRepo.findById as any).mockResolvedValue(post);
+      (postRepo.getCounters as any).mockResolvedValue({ totalLikes: 4, totalComments: 2 });
 
       const result = await svc.likePost("post-1", "user-2");
 
@@ -65,19 +68,19 @@ describe("LikeService", () => {
       expect(result.likedAt).toBeInstanceOf(Date);
       expect(likeRepo.createLikeByPost).toHaveBeenCalledOnce();
       expect(likeRepo.createLikeByUser).toHaveBeenCalledOnce();
-      expect(postRepo.updateTotalLikesById).toHaveBeenCalledWith(4, "post-1");
-      expect(postRepo.updateTotalLikesByEstablishment).not.toHaveBeenCalled();
+      expect(postRepo.incrementLikes).toHaveBeenCalledWith("post-1");
+      expect(postRepo.getCounters).toHaveBeenCalledWith("post-1");
+      expect(postRepo.updateTotalLikesInAllViews).toHaveBeenCalledWith(post, 4);
     });
 
-    it("should update establishment likes when post has establishmentId", async () => {
-      const post = makePost({ totalLikes: 0, establishmentId: "est-1" });
+    it("should propagate the fresh total to the establishment view when the post has one", async () => {
+      const post = makePost({ establishmentId: "est-1" });
       (postRepo.findById as any).mockResolvedValue(post);
+      (postRepo.getCounters as any).mockResolvedValue({ totalLikes: 1, totalComments: 0 });
 
       await svc.likePost("post-1", "user-2");
 
-      expect(postRepo.updateTotalLikesByEstablishment).toHaveBeenCalledWith(
-        "est-1", post.createdAt, 1, post.postId
-      );
+      expect(postRepo.updateTotalLikesInAllViews).toHaveBeenCalledWith(post, 1);
     });
 
     it("should throw when post is not found", async () => {
@@ -93,34 +96,48 @@ describe("LikeService", () => {
       (postRepo.findById as any).mockResolvedValue(makePost());
       (likeRepo.findLikeByPostAndUser as any).mockResolvedValue(makeLike());
       await expect(svc.likePost("post-1", "user-2")).rejects.toThrow("Post already liked");
+      expect(postRepo.incrementLikes).not.toHaveBeenCalled();
+    });
+
+    it("should throw 409 when createLikeByPost loses the race (IF NOT EXISTS not applied)", async () => {
+      // findLikeByPostAndUser não viu o like ainda (corrida), mas o INSERT
+      // condicional chega depois de outra requisição concorrente já ter
+      // criado a linha — createLikeByPost devolve false.
+      (postRepo.findById as any).mockResolvedValue(makePost());
+      (likeRepo.findLikeByPostAndUser as any).mockResolvedValue(null);
+      (likeRepo.createLikeByPost as any).mockResolvedValue(false);
+
+      await expect(svc.likePost("post-1", "user-2")).rejects.toThrow("Post already liked");
+      expect(likeRepo.createLikeByUser).not.toHaveBeenCalled();
+      expect(postRepo.incrementLikes).not.toHaveBeenCalled();
     });
   });
 
   describe("unlikePost", () => {
-    it("should remove a like successfully", async () => {
-      const post = makePost({ totalLikes: 3 });
+    it("should remove a like, decrement the atomic counter and propagate the fresh total", async () => {
+      const post = makePost();
       const like = makeLike();
       (postRepo.findById as any).mockResolvedValue(post);
       (likeRepo.findLikeByPostAndUser as any).mockResolvedValue(like);
+      (postRepo.getCounters as any).mockResolvedValue({ totalLikes: 2, totalComments: 2 });
 
       await svc.unlikePost("post-1", "user-2");
 
       expect(likeRepo.deleteLikeByPost).toHaveBeenCalledWith("post-1", "user-2");
       expect(likeRepo.deleteLikeByUser).toHaveBeenCalledWith("user-2", like.likedAt, "post-1");
-      expect(postRepo.updateTotalLikesById).toHaveBeenCalledWith(2, "post-1");
-      expect(postRepo.updateTotalLikesByEstablishment).not.toHaveBeenCalled();
+      expect(postRepo.decrementLikes).toHaveBeenCalledWith("post-1");
+      expect(postRepo.updateTotalLikesInAllViews).toHaveBeenCalledWith(post, 2);
     });
 
-    it("should update establishment on unlike when post has establishmentId", async () => {
-      const post = makePost({ totalLikes: 1, establishmentId: "est-1" });
+    it("should propagate the fresh total to the establishment view when the post has one", async () => {
+      const post = makePost({ establishmentId: "est-1" });
       (postRepo.findById as any).mockResolvedValue(post);
       (likeRepo.findLikeByPostAndUser as any).mockResolvedValue(makeLike());
+      (postRepo.getCounters as any).mockResolvedValue({ totalLikes: 0, totalComments: 0 });
 
       await svc.unlikePost("post-1", "user-2");
 
-      expect(postRepo.updateTotalLikesByEstablishment).toHaveBeenCalledWith(
-        "est-1", post.createdAt, 0, post.postId
-      );
+      expect(postRepo.updateTotalLikesInAllViews).toHaveBeenCalledWith(post, 0);
     });
 
     it("should throw when post not found", async () => {
@@ -130,28 +147,57 @@ describe("LikeService", () => {
     it("should throw when like does not exist", async () => {
       (postRepo.findById as any).mockResolvedValue(makePost());
       await expect(svc.unlikePost("post-1", "u")).rejects.toThrow("Like not found");
+      expect(postRepo.decrementLikes).not.toHaveBeenCalled();
     });
 
-    it("should throw HttpError 400 when totalLikes is zero (inconsistent state)", async () => {
-      (postRepo.findById as any).mockResolvedValue(makePost({ totalLikes: 0 }));
+    it("should throw 404 when deleteLikeByPost loses the race (IF EXISTS not applied)", async () => {
+      // findLikeByPostAndUser ainda viu o like (corrida), mas o DELETE
+      // condicional chega depois de outra requisição concorrente já ter
+      // removido a linha — deleteLikeByPost devolve false.
+      (postRepo.findById as any).mockResolvedValue(makePost());
       (likeRepo.findLikeByPostAndUser as any).mockResolvedValue(makeLike());
-      await expect(svc.unlikePost("post-1", "user-2")).rejects.toThrow("Inconsistent like count");
+      (likeRepo.deleteLikeByPost as any).mockResolvedValue(false);
+
+      await expect(svc.unlikePost("post-1", "user-2")).rejects.toThrow("Like not found");
+      expect(likeRepo.deleteLikeByUser).not.toHaveBeenCalled();
+      expect(postRepo.decrementLikes).not.toHaveBeenCalled();
     });
   });
 
   describe("findLikesByUser", () => {
-    it("should delegate to repository", async () => {
-      const likes = [makeLike()];
-      (likeRepo.findLikesByUser as any).mockResolvedValue(likes);
-      expect(await svc.findLikesByUser("user-2")).toEqual(likes);
+    it("should delegate to repository with default limit and no cursor", async () => {
+      const page = { likes: [makeLike()], nextCursor: null };
+      (likeRepo.findLikesByUser as any).mockResolvedValue(page);
+
+      expect(await svc.findLikesByUser("user-2")).toEqual(page);
+      expect(likeRepo.findLikesByUser).toHaveBeenCalledWith("user-2", 50, undefined);
+    });
+
+    it("should decode the raw cursor before delegating to repository", async () => {
+      const likedAt = new Date("2026-01-01");
+      const rawCursor = encodeLikeCursor({ likedAt, postId: "post-1" });
+
+      await svc.findLikesByUser("user-2", 10, rawCursor);
+
+      expect(likeRepo.findLikesByUser).toHaveBeenCalledWith("user-2", 10, { likedAt, postId: "post-1" });
     });
   });
 
   describe("findLikesByPost", () => {
-    it("should delegate to repository", async () => {
-      const likes = [makeLike()];
-      (likeRepo.findLikesByPost as any).mockResolvedValue(likes);
-      expect(await svc.findLikesByPost("post-1")).toEqual(likes);
+    it("should delegate to repository with default limit and no cursor", async () => {
+      const page = { likes: [makeLike()], nextCursor: null };
+      (likeRepo.findLikesByPost as any).mockResolvedValue(page);
+
+      expect(await svc.findLikesByPost("post-1")).toEqual(page);
+      expect(likeRepo.findLikesByPost).toHaveBeenCalledWith("post-1", 50, undefined);
+    });
+
+    it("should decode the raw cursor before delegating to repository", async () => {
+      const rawCursor = encodeLikeByPostCursor({ userId: "user-9" });
+
+      await svc.findLikesByPost("post-1", 10, rawCursor);
+
+      expect(likeRepo.findLikesByPost).toHaveBeenCalledWith("post-1", 10, { userId: "user-9" });
     });
   });
 });

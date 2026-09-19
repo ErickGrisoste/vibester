@@ -145,6 +145,17 @@ describe('post-service — Likes Integration', () => {
       expect(body).toHaveLength(1);
       expect(body[0]).toHaveProperty('userId', LIKER_ID);
     });
+
+    it('retorna o header X-Next-Cursor quando a página está cheia', async () => {
+      mockExecute.mockResolvedValueOnce({
+        rows: [{ post_id: POST_ID, user_id: LIKER_ID, liked_at: new Date() }],
+      });
+
+      const res = await app.inject({ method: 'GET', url: `/posts/${POST_ID}/likes?limit=1` });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['x-next-cursor']).toBeDefined();
+    });
   });
 
   describe('GET /users/:userId/likes', () => {
@@ -159,6 +170,17 @@ describe('post-service — Likes Integration', () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.payload);
       expect(body).toHaveLength(1);
+    });
+
+    it('retorna o header X-Next-Cursor quando a página está cheia', async () => {
+      mockExecute.mockResolvedValueOnce({
+        rows: [{ post_id: POST_ID, user_id: USER_ID, liked_at: new Date() }],
+      });
+
+      const res = await app.inject({ method: 'GET', url: `/users/${USER_ID}/likes?limit=1` });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['x-next-cursor']).toBeDefined();
     });
   });
 });

@@ -9,9 +9,11 @@
 
 O `auth-service` é responsável exclusivamente por:
 
-- registro de contas (fluxo com verificação de email por código);
+- registro de contas (fluxo com verificação de email por código), com idade mínima de 18 anos;
 - verificação de email e criação definitiva da conta (`Access`);
-- login e emissão de token JWT.
+- login e emissão de token JWT;
+- redefinição de senha por código (`/password/forgot`, `/password/reset`);
+- exclusão da conta pelo titular (`DELETE /account`, evento `user.deleted`) e suspensão pela moderação (`/admin/accounts/:accountId/(un)suspend`).
 
 Ele **não** possui dados de perfil do usuário (nome público, avatar, bio etc.) — isso é responsabilidade do `user-service` (`PROFILE_SERVICE_URL`). O auth-service apenas guarda credenciais (`accountId`, `username`, `email`, `passwordHash`) na tabela `accesses`.
 
@@ -127,3 +129,12 @@ Todo valor de configuração novo deve passar por `src/config/env.ts` (nunca ler
 - `Dockerfile`: build multi-stage simples (`npm install --ignore-scripts` → `prisma generate` → `tsc` → `npm prune --omit=dev`); start roda `prisma migrate deploy` antes do `npm start` — qualquer migration nova precisa ser compatível com deploy automático sem intervenção manual.
 - `k8s/`: `deployment.yaml` (probes em `/health`, recursos limitados, `RollingUpdate` com `maxUnavailable: 1`), `hpa.yaml` (min 2 / max 6 réplicas, CPU 60% / memória 75%), `pdb.yaml`, `service.yaml`. Qualquer nova env var sensível deve ir via secret, nunca em texto plano no manifest.
 - Métricas Prometheus estão desabilitadas (`prometheus.io/scrape: "false"`) — se for adicionar observabilidade, isso precisa ser revisitado explicitamente, não assumido como já ativo.
+
+---
+
+## Senha, exclusão e suspensão de conta (requisitos da App Store)
+
+- **Idade mínima**: `RegisterService` recusa com 400 (`reason: underage`) quem ainda não fez 18 anos (`hasMinimumAge`, em UTC). O app aplica a mesma regra antes de enviar.
+- **Esqueci a senha** — `POST /password/forgot { email }` responde **sempre** 202 com a mesma mensagem (sem enumeração). Com conta, grava `pwreset:{email}` no Redis (HMAC do código, `PASSWORD_RESET_TTL_SECONDS`, padrão 600s), com cooldown de 60s entre envios, e publica `auth.password.reset { email, name, code, expiresInMinutes }` (email pelo notification-service). `POST /password/reset { email, code, password(min 8) }`: 404 sem pendência, 422 código errado, 429 após `MAX_CODE_ATTEMPTS`; sucesso troca o hash, consome o código e zera o contador de falhas de login. O HMAC do código vive em `services/verification-code.ts`, compartilhado com a verificação de cadastro.
+- **Excluir conta** — `DELETE /account { password }` com `Authorization: Bearer`. O `accountId` vem **só** do JWT (`utils/request-auth.ts`). Senha errada = 401 "Senha incorreta". Ordem: publica `user.deleted { userId, accountId, occurredAt }` (key = accountId) **antes** de apagar o `Access`; se o publish falha nada é apagado, se o delete falha a repetição republica (consumidores são idempotentes). Consumidores: user-service (perfil, follows, bloqueios, denúncias), post-service (posts, curtidas, comentários, mídia no R2), notification-service (notificações). **Check-ins do event-service não são apagados** (o serviço não tem Kafka) — ficam com o `userId` de uma conta que não existe mais.
+- **Suspensão (moderação)** — `POST /admin/accounts/:accountId/suspend` e `/unsuspend` com header `x-admin-key` = `ADMIN_API_KEY` (secret `auth-admin-secret`, opcional; **sem a variável as rotas respondem 404**). Grava `Access.suspendedAt`; o login recusa com 403 **depois** de conferir a senha (antes disso revelaria que a conta existe). Token já emitido vence sozinho em `JWT_EXPIRES_IN`.

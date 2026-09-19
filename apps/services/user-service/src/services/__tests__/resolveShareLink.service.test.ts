@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ResolveShareLinkService } from "../resolveShareLink.service";
+import { profileSelect } from "../../prisma/profile.select";
 
 const { mockRedisGet } = vi.hoisted(() => ({ mockRedisGet: vi.fn() }));
 
@@ -32,7 +33,7 @@ describe("ResolveShareLinkService", () => {
     const result = await service.resolve(TOKEN);
 
     expect(mockRedisGet).toHaveBeenCalledWith(`share:token:${TOKEN}`);
-    expect(mockFindUnique).toHaveBeenCalledWith({ where: { userID: ACCOUNT_ID } });
+    expect(mockFindUnique).toHaveBeenCalledWith({ where: { userID: ACCOUNT_ID }, select: profileSelect });
     expect(result).toMatchObject({ userID: ACCOUNT_ID, name: "Fulano" });
   });
 

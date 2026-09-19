@@ -89,7 +89,7 @@ export class PostController {
     async updateCaption(
         request: FastifyRequest<{
             Params: { postId: string };
-            Body: { caption: string };
+            Body: { caption: string; userId: string };
         }>,
         reply: FastifyReply
     ) {
@@ -98,7 +98,7 @@ export class PostController {
 
         const updateInput: UpdatePostInput = { postId, caption };
 
-        const post = await this.postService.updateCaption(updateInput);
+        const post = await this.postService.updateCaption(updateInput, request.body.userId);
 
         return reply.status(200).send(post);
     }
@@ -106,11 +106,12 @@ export class PostController {
     async softDelete(
         request: FastifyRequest<{
             Params: { postId: string; };
+            Body: { userId: string };
         }>,
         reply: FastifyReply
     ) {
         const { postId } = postIdParamsSchema.parse(request.params);
-        await this.postService.softDelete(postId);
+        await this.postService.softDelete(postId, request.body.userId);
 
         return reply.status(204).send();
     }

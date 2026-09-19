@@ -1,10 +1,18 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/models/notification/notification_model.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/relative_time.dart';
+import 'package:mobile/widgets/common/vibester_image.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
 
+/// Linha de notificação.
+///
+/// Deixou de ser um `Card` com borda e margem própria: numa lista de vinte
+/// itens, vinte caixas empilhadas viram uma parede. Aqui é uma linha separada
+/// por fio, e o "não lida" é marcado por uma barra em `brasa` na lateral —
+/// posição fixa, alinhada com o avatar, em vez de um ponto que empurrava todo
+/// o conteúdo para o lado quando aparecia.
 class NotificationCard extends StatelessWidget {
   final NotificationModel notification;
   final VoidCallback? onTap;
@@ -36,124 +44,99 @@ class NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasAvatar = notification.atorAvatarUrl?.isNotEmpty ?? false;
+    final colors = context.colors;
+    final type = context.typography;
+
     final hasThumbnail =
         (notification.tipo == 'like' || notification.tipo == 'comment') &&
         (notification.postImagemUrl?.isNotEmpty ?? false);
 
-    return InkWell(
+    return VibesterPressable(
       onTap: onTap,
-      child: Card(
-        color: notification.lida
-            ? context.colors.navy
-            : context.colors.navy.withOpacity(0.6),
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: context.colors.grey.withAlpha(80), width: 1),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.screen,
+          vertical: AppSpacing.md,
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (!notification.lida)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: context.colors.brasa,
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: colors.hairline)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Barra de "não lida": ocupa espaço sempre, então a lista não
+            // desloca quando as notificações são marcadas como vistas.
+            Container(
+              width: AppStroke.marker,
+              height: 40,
+              decoration: BoxDecoration(
+                color: notification.lida ? Colors.transparent : colors.brasa,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+
+            ClipOval(
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: VibesterImage(
+                  source: notification.atorAvatarUrl ?? '',
+                  placeholderIcon: Icons.person_outline_rounded,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      style: type.bodyMedium.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: _nomeAtor,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        if (notification.outrosCount > 0)
+                          TextSpan(text: ' e mais ${notification.outrosCount}'),
+                        TextSpan(text: ' $_acao'),
+                      ],
                     ),
                   ),
-                ),
+                  const SizedBox(height: 3),
+                  Text(
+                    formatRelativeTime(notification.criadoEm).toUpperCase(),
+                    style: type.monoMicro.copyWith(color: colors.textDisabled),
+                  ),
+                ],
+              ),
+            ),
 
+            if (hasThumbnail) ...[
+              const SizedBox(width: AppSpacing.md),
               ClipRRect(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: AppRadius.stickerAll,
                 child: SizedBox(
-                  height: 48,
-                  width: 48,
-                  child: hasAvatar
-                      ? CachedNetworkImage(
-                          imageUrl: notification.atorAvatarUrl!,
-                          fit: BoxFit.cover,
-                          memCacheWidth: 120,
-                          fadeInDuration: AppMotion.imageFade,
-                          fadeOutDuration: AppMotion.imageFade,
-                          errorWidget: (_, _, _) => _fallbackAvatar(context),
-                        )
-                      : _fallbackAvatar(context),
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: RichText(
-                  text: TextSpan(
-                    style: context.typography.bodyMedium.copyWith(
-                      color: context.colors.textPrimary,
-                    ),
-                    children: [
-                      TextSpan(
-                        text: _nomeAtor,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      if (notification.outrosCount > 0)
-                        TextSpan(text: ' e mais ${notification.outrosCount}'),
-                      TextSpan(text: ' $_acao'),
-                      TextSpan(
-                        text:
-                            '  ·  ${formatRelativeTime(notification.criadoEm)}',
-                        style: context.typography.bodySmall.copyWith(
-                          color: context.colors.textDisabled,
-                          fontSize: 12,
-                          fontWeight: FontWeight.normal,
-                        ),
-                      ),
-                    ],
+                  width: 44,
+                  height: 44,
+                  child: VibesterImage(
+                    source: notification.postImagemUrl!,
+                    placeholderIcon: Icons.photo_outlined,
                   ),
                 ),
               ),
-
-              if (hasThumbnail) ...[
-                const SizedBox(width: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SizedBox(
-                    height: 44,
-                    width: 44,
-                    child: CachedNetworkImage(
-                      imageUrl: notification.postImagemUrl!,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 120,
-                      fadeInDuration: AppMotion.imageFade,
-                      fadeOutDuration: AppMotion.imageFade,
-                      errorWidget: (_, _, _) => Container(
-                        color: context.colors.darkGrey,
-                        child: Icon(
-                          Icons.broken_image_outlined,
-                          color: context.colors.textDisabled,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ],
-          ),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _fallbackAvatar(BuildContext context) {
-    return Container(
-      color: context.colors.darkGrey,
-      child: Icon(Icons.person, color: context.colors.textDisabled),
     );
   }
 }

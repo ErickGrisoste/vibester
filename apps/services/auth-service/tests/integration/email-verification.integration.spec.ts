@@ -118,4 +118,31 @@ describe('Email verification integration', () => {
 
     expect(res.statusCode).toBe(400);
   });
+  it('POST /verify-email returns 429 and discards the pending registration after too many wrong codes', async () => {
+    redisMock.get.mockResolvedValueOnce(JSON.stringify({ ...pendingData, attempts: 4 }));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/verify-email',
+      payload: { email: 'u@example.com', code: '000000' },
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(JSON.parse(res.payload).error).toBe('Muitas tentativas inválidas. Solicite um novo código.');
+    expect(redisMock.del).toHaveBeenCalledWith('pending:reg:u@example.com');
+  });
+
+  it('POST /verify-email keeps the pending registration alive below the attempt limit', async () => {
+    redisMock.get.mockResolvedValueOnce(JSON.stringify(pendingData));
+    redisMock.ttl.mockResolvedValueOnce(300);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/verify-email',
+      payload: { email: 'u@example.com', code: '000000' },
+    });
+
+    expect(res.statusCode).toBe(422);
+    expect(redisMock.del).not.toHaveBeenCalled();
+  });
 });

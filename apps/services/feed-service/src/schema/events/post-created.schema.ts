@@ -51,6 +51,15 @@ const eventSchema = baseSchema.extend({
     totalConfirmed: z.number().default(0),
 });
 
+/**
+ * Só estabelecimentos criam eventos (regra de produto) — não existe distinção
+ * de tipo de autor para eventos, então `EVENT` é o único `itemType` de evento
+ * aceito aqui. `distributeEventToFollowers` (`src/services/feed.service.ts`)
+ * sempre busca seguidores em `followers_by_establishment` para este tipo, sem
+ * precisar de um switch. Se um dia usuários comuns puderem criar eventos,
+ * volte a introduzir uma distinção explícita (ex. `authorType`) em vez de
+ * assumir de novo que `authorId` sempre aponta pra um estabelecimento.
+ */
 export const feedItemSchema = z.discriminatedUnion("itemType", [
 
     baseSchema.extend({
@@ -67,14 +76,6 @@ export const feedItemSchema = z.discriminatedUnion("itemType", [
 
     eventSchema.extend({
         itemType: z.literal(FeedItemType.EVENT),
-    }),
-
-    eventSchema.extend({
-        itemType: z.literal(FeedItemType.EVENT_USER),
-    }),
-
-    eventSchema.extend({
-        itemType: z.literal(FeedItemType.EVENT_ESTABLISHMENT),
     }),
 
 ]);

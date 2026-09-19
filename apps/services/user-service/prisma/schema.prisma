@@ -36,3 +36,60 @@ model UserFollow {
   @@index([followingId])
 }
 
+// blockerId bloqueou blockedId. Bloquear desfaz o follow nas duas direções e
+// impede seguir de novo enquanto o bloqueio existir.
+model UserBlock {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId, createdAt])
+  @@index([blockedId])
+}
+
+enum ReportTargetType {
+  USER
+  POST
+}
+
+enum ReportReason {
+  SPAM
+  NUDITY
+  VIOLENCE
+  HARASSMENT
+  HATE
+  ILLEGAL
+  IMPERSONATION
+  UNDERAGE
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  ACTIONED
+  DISMISSED
+}
+
+// Denúncia de perfil ou publicação (App Store Guideline 1.2). Cada denúncia
+// nova publica `content.reported`, que o notification-service leva à caixa da
+// moderação. Uma pessoa denuncia o mesmo alvo uma vez só.
+model ContentReport {
+  id            String           @id @default(uuid())
+  reporterId    String
+  targetType    ReportTargetType
+  targetId      String
+  // Dono do alvo: o próprio perfil em USER, o autor do post em POST.
+  targetOwnerId String?
+  reason        ReportReason
+  details       String?
+  status        ReportStatus     @default(OPEN)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([reporterId, targetType, targetId])
+  @@index([status, createdAt])
+  @@index([targetOwnerId])
+}
+

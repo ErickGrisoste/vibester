@@ -8,7 +8,6 @@ class AppRoutes {
   static const favoritesPlaces = '/favorites-places';
   static const placeDetail = '/place-detail';
   static const hotPlaces = '/hot-places';
-  static const placeReviews = '/place-reviews';
 
   //HOME
   static const home = '/home';
@@ -30,15 +29,28 @@ class AppRoutes {
   static const search = '/search';
 
   //SETTINGS
-  static const accountManagementSettings = '/account-management-settings';
   static const settings = '/settings';
   static const personalInformationSettings = '/personal-information-settings';
+  static const blockedAccounts = '/blocked-accounts';
+  static const deleteAccount = '/delete-account';
 
   //USER
   static const profile = '/profile';
   static const profileEditing = '/profile-edit';
   static const userInterests = '/user-interests';
+
+  // Mesma tela dos interesses, dentro do cadastro. Existe como nome próprio
+  // porque `initialRoute` do MaterialApp é só uma string e não carrega
+  // `arguments`: retomando o cadastro pelo boot, a tela chegaria como edição
+  // avulsa e daria `pop` numa pilha vazia.
+  static const userInterestsSetup = '/user-interests-setup';
   static const otherProfile = '/other-profile';
+
+  //NOTIFICATIONS
+  static const notifications = '/notifications';
+
+  //SAVED
+  static const saved = '/saved';
 
   //FEED
   static const feed = '/feed';

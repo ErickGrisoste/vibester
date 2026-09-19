@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/service/api_client.dart';
@@ -42,6 +44,14 @@ class UserProvider extends ChangeNotifier {
         _user!.cidade = valor;
         break;
     }
+    notifyListeners();
+  }
+
+  /// Ajuste local do contador do perfil depois de publicar ou excluir, sem
+  /// refazer a busca do perfil inteiro.
+  void ajustarTotalPosts(int delta) {
+    if (_user == null) return;
+    _user!.totalPosts = max(0, _user!.totalPosts + delta);
     notifyListeners();
   }
 

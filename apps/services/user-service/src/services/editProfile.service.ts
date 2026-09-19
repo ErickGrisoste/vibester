@@ -2,12 +2,14 @@ import prismaClient from "../prisma/index.js";
 import { UpdateAvatarInput, UpdateBioInput, UpdateProfileInfoInput } from "../types/profile.types.js";
 import { producer } from "../kafka/producer.js";
 import { redis } from "../config/redis.js";
+import { profileSelect } from "../prisma/profile.select.js";
 
 export class EditProfileService {
     async updateProfileInfo(input: UpdateProfileInfoInput) {
         const profile = await prismaClient.userProfile.update({
             where: { userID: input.accountId },
             data: { name: input.name, username: input.username },
+            select: profileSelect,
         });
         await redis.del(`user:profile:${profile.userID}`).catch(() => {});
         return profile;
@@ -16,7 +18,8 @@ export class EditProfileService {
     async updateBio(input: UpdateBioInput) {
         const profile = await prismaClient.userProfile.update({
             where: { userID: input.accountId },
-            data: { bio: input.bio }
+            data: { bio: input.bio },
+            select: profileSelect,
         });
         await redis.del(`user:profile:${profile.userID}`).catch(() => {});
         return profile;
@@ -25,7 +28,8 @@ export class EditProfileService {
     async updateAvatar(input: UpdateAvatarInput) {
         const profile = await prismaClient.userProfile.update({
             where: { userID: input.accountId },
-            data: { avatarUrl: input.avatarUrl }
+            data: { avatarUrl: input.avatarUrl },
+            select: profileSelect,
         });
         await redis.del(`user:profile:${profile.userID}`).catch(() => {});
         return profile;
@@ -39,10 +43,12 @@ export class EditProfileService {
                 tx.userProfile.update({
                     where: { userID: followingId },
                     data: { followers: { increment: 1 } },
+                    select: profileSelect,
                 }),
                 tx.userProfile.update({
                     where: { userID: followerId },
                     data: { following: { increment: 1 } },
+                    select: profileSelect,
                 }),
             ]);
 
@@ -74,10 +80,12 @@ export class EditProfileService {
                 tx.userProfile.update({
                     where: { userID: followingId },
                     data: { followers: { decrement: 1 } },
+                    select: profileSelect,
                 }),
                 tx.userProfile.update({
                     where: { userID: followerId },
                     data: { following: { decrement: 1 } },
+                    select: profileSelect,
                 }),
             ]);
 

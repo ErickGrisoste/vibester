@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
+import 'package:mobile/service/api_error.dart';
 
 class CloseToYouService {
   // Busca estabelecimentos próximos
@@ -20,10 +21,9 @@ class CloseToYouService {
       final List data = response.data;
       return data.map((json) => PlaceModel.fromJson(json)).toList();
     } on DioException catch (e) {
-      final mensagem =
-          e.response?.data?['message'] ??
-          'Erro ao buscar estabelecimentos próximos';
-      throw Exception(mensagem);
+      throw Exception(
+        apiErrorMessage(e, 'Erro ao buscar estabelecimentos próximos'),
+      );
     }
   }
 }
