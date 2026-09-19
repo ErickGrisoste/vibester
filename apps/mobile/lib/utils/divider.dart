@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/theme/theme_extensions.dart';
 
+/// Fio de separação.
+///
+/// Usa `context.colors.hairline` (derivado da paleta) em vez do
+/// `Colors.white24` fixo de antes, que ficava invisível no tema claro.
 class MyDivider extends StatelessWidget {
   final double width;
   final double height;
@@ -11,7 +16,7 @@ class MyDivider extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      color: Colors.white24.withAlpha(50),
+      color: context.colors.hairline,
     );
   }
 }

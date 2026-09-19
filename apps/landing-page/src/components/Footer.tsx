@@ -181,7 +181,25 @@ export default function Footer() {
             © {new Date().getFullYear()} Vibester. Todos os direitos
             reservados.
           </p>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <a
+              href="/termos"
+              className="text-muted/50 text-xs hover:text-fire transition-colors duration-300"
+            >
+              Termos
+            </a>
+            <a
+              href="/privacidade"
+              className="text-muted/50 text-xs hover:text-fire transition-colors duration-300"
+            >
+              Privacidade
+            </a>
+            <a
+              href="/suporte"
+              className="text-muted/50 text-xs hover:text-fire transition-colors duration-300"
+            >
+              Suporte
+            </a>
             <a
               href="https://instagram.com/vibester.app"
               target="_blank"

@@ -22,6 +22,25 @@ spec:
     spec:
       imagePullSecrets:
         - name: ghcr-secret
+      # Aplica as migrations pendentes antes de qualquer pod novo subir. Sem
+      # isso o Prisma Client passa a consultar colunas que ainda não existem no
+      # banco e toda query de perfil quebra. O Prisma usa advisory lock no
+      # Postgres, então réplicas subindo em paralelo serializam com segurança.
+      initContainers:
+        - name: migrate
+          image: ghcr.io/victormarchidev/vibester-user-service:latest
+          imagePullPolicy: Always
+          command: ["npx", "prisma", "migrate", "deploy"]
+          envFrom:
+            - secretRef:
+                name: user-service-secret
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "384Mi"
       containers:
         - name: user-service
           image: ghcr.io/victormarchidev/vibester-user-service:latest

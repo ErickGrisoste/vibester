@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 
 // Diferente do auth-service/user-service, a rota GET /feed/:userId (FeedController →
-// FeedService → repositórios Cassandra) nunca chama Kafka — este serviço só produz efeitos
+// FeedReadService → repositórios Cassandra) nunca chama Kafka — este serviço só produz efeitos
 // colaterais de Kafka através do KafkaConsumer (que não é exercitado por esta suíte HTTP).
 // Não há producer/consumer para mockar aqui.
 import { getCassandraClient } from "../../src/config/cassandra";

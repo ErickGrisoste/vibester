@@ -1,4 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { profileSelect } from '../../src/prisma/profile.select';
 
 const { mockCreate } = vi.hoisted(() => ({ mockCreate: vi.fn() }));
 
@@ -40,7 +41,7 @@ describe('user-service — Kafka Consumer: user.registered', () => {
     const kafkaPayload = { accountId: userID };
     await service.createProfile({ accountId: kafkaPayload.accountId });
 
-    expect(mockCreate).toHaveBeenCalledWith({ data: { userID } });
+    expect(mockCreate).toHaveBeenCalledWith({ data: { userID }, select: profileSelect });
   });
 
   it('processa múltiplos eventos user.registered em sequência', async () => {
@@ -55,8 +56,8 @@ describe('user-service — Kafka Consumer: user.registered', () => {
     }
 
     expect(mockCreate).toHaveBeenCalledTimes(2);
-    expect(mockCreate).toHaveBeenNthCalledWith(1, { data: { userID: ids[0] } });
-    expect(mockCreate).toHaveBeenNthCalledWith(2, { data: { userID: ids[1] } });
+    expect(mockCreate).toHaveBeenNthCalledWith(1, { data: { userID: ids[0] }, select: profileSelect });
+    expect(mockCreate).toHaveBeenNthCalledWith(2, { data: { userID: ids[1] }, select: profileSelect });
   });
 
   it('propaga erro quando o banco falha', async () => {

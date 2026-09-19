@@ -11,6 +11,8 @@ vi.mock('../../src/config/env', () => ({
     kafkaBrokers: 'localhost:9092',
     rateLimitFollowMax: 60,
     rateLimitShareMax: 30,
+    rateLimitBlockMax: 30,
+    rateLimitReportMax: 20,
     webBaseUrl: 'https://vibester.com.br',
     shareLinkTtlSeconds: 86400,
   },

@@ -1,9 +1,25 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:provider/provider.dart';
 import 'package:mobile/models/interaction/interaction_event_model.dart';
 import 'package:mobile/service/interaction/interaction_service.dart';
 import 'package:uuid/uuid.dart';
+
+/// O tracker da árvore, ou `null` se não houver nenhum acima deste contexto.
+///
+/// Telemetria não pode derrubar tela. Uma árvore sem o provider — teste de
+/// widget que monta a tela isolada, preview, a tela reaproveitada fora do app —
+/// renderiza exatamente igual, só não mede. Com `context.read` direto, esquecer
+/// o provider em qualquer um desses lugares vira tela branca em vez de um dado
+/// a menos, e esse é o troco errado.
+InteractionTracker? maybeInteractionTracker(BuildContext context) {
+  try {
+    return context.read<InteractionTracker>();
+  } on ProviderNotFoundException {
+    return null;
+  }
+}
 
 /// Um item rastreado na tela: o mínimo que o tracker precisa para descrever um
 /// evento sem consultar mais nada.

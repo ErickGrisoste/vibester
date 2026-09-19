@@ -6,10 +6,24 @@ import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/service/user/user_service.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/buttons/primary_button.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/graffiti/spray_glow.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/text-field/primary_text_field.dart';
 import 'package:provider/provider.dart';
 
+/// Entrar.
+///
+/// A lógica de autenticação é a mesma de antes, incluindo a ordem que importa:
+/// `ApiClient.token` é setado **antes** do `getProfile`, senão a chamada sai
+/// sem o header `Authorization`. O que mudou é a forma: os campos vinham com
+/// largura fixa de 350px e rótulos posicionados por `EdgeInsets.only(right:
+/// 290)` — um empurrão em pixels que só acerta o alinhamento no aparelho onde
+/// foi medido. Agora tudo é fluido e os rótulos pertencem ao campo.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -21,9 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _userService = UserService();
 
-  final TextEditingController _emailOuUsuarioController =
-      TextEditingController();
-  final TextEditingController _senhaController = TextEditingController();
+  final _emailOuUsuarioController = TextEditingController();
+  final _senhaController = TextEditingController();
 
   bool _isLoading = false;
 
@@ -51,261 +64,202 @@ class _LoginScreenState extends State<LoginScreen> {
       final token = loginResponse['token'];
       final accountId = loginResponse['accountId'];
 
-      // Token precisa estar setado ANTES do getProfile, porque é esse
+      // Token precisa estar setado ANTES do getProfile, porque é o
       // interceptor que anexa o header Authorization na chamada.
       ApiClient.token = token;
 
-      // Busca os dados completos do perfil usando o accountId (não o id de
-      // login/auth), que é o que a API usa pra indexar o profile.
-      final profileResponse = await _userService.getProfile(accountId);
-      final usuarioLogado = UserModel.fromProfileJson(
-        profileResponse,
-        accountId: accountId,
-        token: token,
-      );
+      // A credencial já foi aceita e o token é válido a partir daqui. Uma
+      // falha ao carregar o perfil não pode derrubar o login: entramos com os
+      // dados mínimos da resposta de login e o perfil é recarregado depois.
+      UserModel usuarioLogado;
+      try {
+        // Busca os dados completos do perfil usando o accountId (não o id de
+        // login/auth), que é o que a API usa pra indexar o profile.
+        final profileResponse = await _userService.getProfile(accountId);
+        usuarioLogado = UserModel.fromProfileJson(
+          profileResponse,
+          accountId: accountId,
+          token: token,
+        );
+      } catch (e) {
+        debugPrint('Login OK, mas falhou ao carregar o perfil: $e');
+        usuarioLogado = UserModel.fromLoginJson(loginResponse);
+      }
 
       await AuthStorageService.saveSession(usuarioLogado);
 
       if (!mounted) return;
       context.read<UserProvider>().setUser(usuarioLogado);
 
-      // Limpa toda a pilha do fluxo de login: a home passa a ser a unica
-      // rota, entao o botao voltar do Android nao retorna para o login.
+      // Limpa toda a pilha do fluxo de login: a home passa a ser a única
+      // rota, então o botão voltar do Android não retorna para o login.
       Navigator.pushNamedAndRemoveUntil(
         context,
         AppRoutes.home,
         (route) => false,
       );
     } catch (e) {
-      debugPrint(e.toString());
+      // Mensagem tratada na tela; o detalhe da exceção só no log local.
+      debugPrint('Falha no login: $e');
+
+      // Se o login passou mas o perfil falhou, não fica meia sessão: o token
+      // já estava no ApiClient para o getProfile.
+      ApiClient.token = null;
 
       if (!mounted) return;
+      setState(() => _isLoading = false);
+      // Os services só lançam Exception com a mensagem já tratada
+      // (apiErrorMessage) — é ela que diz se foi senha errada ou servidor.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Não foi possível entrar. Verifique seus dados.'),
+        SnackBar(
+          content: Text(
+            e is Exception
+                ? e.toString().replaceFirst('Exception: ', '')
+                : 'Não foi possível entrar. Confere seus dados.',
+          ),
         ),
       );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+
     return Scaffold(
-      backgroundColor: context.colors.darkGrey,
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              Center(
-                child: SizedBox(
-                  width: 130,
-                  height: 300,
-                  child: Image.asset('assets/img/mascote/mascote.png'),
-                ),
-              ),
-
-              Text(
-                'Entrar com e-mail',
-                style: context.typography.displayLarge.copyWith(
-                  color: context.colors.textPrimary,
-                ),
-              ),
-              Text(
-                'Digite suas credenciais de acesso',
-                style: context.typography.bodyMedium.copyWith(
-                  color: context.colors.grey,
-                ),
-              ),
-
-              SizedBox(height: 30),
-
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 220, bottom: 10),
-                    child: Text(
-                      'E-MAIL OU USUÁRIO',
-                      style: context.typography.labelSmall.copyWith(
-                        color: context.colors.grey,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 350,
-                    child: TextFormField(
-                      controller: _emailOuUsuarioController,
-                      textInputAction: TextInputAction.next,
-                      style: context.typography.bodyLarge.copyWith(
-                        color: context.colors.textPrimary,
-                      ),
-                      cursorColor: context.colors.ambar,
-                      inputFormatters: [LengthLimitingTextInputFormatter(320)],
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: context.colors.darkGrey,
-                        prefixIcon: const Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        errorStyle: context.typography.bodySmall.copyWith(
-                          color: context.colors.error,
-                          fontSize: 12,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide(
-                            color: context.colors.border,
-                            width: 1.3,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide(
-                            color: context.colors.ambar,
-                            width: 1.3,
-                          ),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide(
-                            color: context.colors.error,
-                            width: 1.3,
-                          ),
-                        ),
-                        focusedErrorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide(
-                            color: context.colors.error,
-                            width: 1.3,
-                          ),
-                        ),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Informe seu nome de usuário ou email!';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-
-              SizedBox(height: 12),
-
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 290, bottom: 10),
-                    child: Text(
-                      'SENHA',
-                      style: context.typography.labelSmall.copyWith(
-                        color: context.colors.grey,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 350,
-                    child: TextFormField(
-                      controller: _senhaController,
-                      obscureText: true,
-                      textInputAction: TextInputAction.done,
-                      style: context.typography.bodyLarge.copyWith(
-                        color: context.colors.textPrimary,
-                      ),
-                      cursorColor: context.colors.ambar,
-                      inputFormatters: [LengthLimitingTextInputFormatter(20)],
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: context.colors.darkGrey,
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        errorStyle: context.typography.bodySmall.copyWith(
-                          color: context.colors.error,
-                          fontSize: 12,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide(
-                            color: context.colors.border,
-                            width: 1.3,
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide(
-                            color: context.colors.ambar,
-                            width: 1.3,
-                          ),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide(
-                            color: context.colors.error,
-                            width: 1.3,
-                          ),
-                        ),
-                        focusedErrorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          borderSide: BorderSide(
-                            color: context.colors.error,
-                            width: 1.3,
-                          ),
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Informe sua senha!';
-                        }
-                        if (value.length < 8) {
-                          return 'A senha deve ter pelo menos 8 caracteres!';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-
-              Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 50),
-                    child: SizedBox(
-                      width: 350,
-                      height: 50,
-                      child: PrimaryButton(
-                        label: _isLoading ? 'Entrando...' : 'Entrar',
-                        onPressed: _isLoading ? () {} : _entrar,
-                      ),
-                    ),
-                  ),
-
-                  Padding(
-                    padding: const EdgeInsets.only(top: 90),
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.pushNamed(context, AppRoutes.recoverPassword);
-                      },
-                      child: Text(
-                        'Esqueci minha senha',
-                        style: context.typography.titleSmall.copyWith(
-                          color: context.colors.error,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+      backgroundColor: colors.noturno,
+      body: Stack(
+        children: [
+          Positioned(
+            right: -120,
+            top: -80,
+            child: SprayGlow(color: colors.ambar, size: 300, intensity: 0.18),
           ),
-        ),
+          const Positioned.fill(child: Grain(opacity: 0.04, density: 0.4)),
+
+          SafeArea(
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+                children: [
+                  const ScreenHeader(
+                    title: 'Bem-vindo\nde volta',
+                    eyebrow: 'ENTRAR',
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.screen,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        PrimaryTextField(
+                          controller: _emailOuUsuarioController,
+                          label: 'E-mail ou usuário',
+                          icon: Icons.alternate_email_rounded,
+                          keyboardType: TextInputType.emailAddress,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(320),
+                          ],
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? 'Informe seu e-mail ou usuário'
+                              : null,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        PrimaryTextField(
+                          controller: _senhaController,
+                          label: 'Senha',
+                          icon: Icons.lock_outline_rounded,
+                          obscure: true,
+                          textInputAction: TextInputAction.done,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(64),
+                          ],
+                          onSubmitted: (_) => _entrar(),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Informe sua senha';
+                            }
+                            if (value.length < 8) {
+                              return 'A senha tem pelo menos 8 caracteres';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: VibesterPressable(
+                            borderRadius: AppRadius.pillAll,
+                            onTap: () => Navigator.pushNamed(
+                              context,
+                              AppRoutes.recoverPassword,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.md,
+                              ),
+                              child: Text(
+                                'ESQUECI MINHA SENHA',
+                                style: context.typography.monoMicro.copyWith(
+                                  color: colors.textMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: AppSpacing.lg),
+                        VibesterButton(
+                          label: 'Entrar',
+                          state: _isLoading
+                              ? VibesterButtonState.loading
+                              : VibesterButtonState.idle,
+                          onPressed: _entrar,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        Center(
+                          child: VibesterPressable(
+                            borderRadius: AppRadius.pillAll,
+                            onTap: () => Navigator.pushReplacementNamed(
+                              context,
+                              AppRoutes.register,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              child: Text.rich(
+                                TextSpan(
+                                  style: context.typography.bodyMedium.copyWith(
+                                    color: colors.textMuted,
+                                  ),
+                                  children: [
+                                    const TextSpan(
+                                      text: 'Ainda não tem conta? ',
+                                    ),
+                                    TextSpan(
+                                      text: 'Criar agora',
+                                      style: TextStyle(
+                                        color: colors.ambar,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

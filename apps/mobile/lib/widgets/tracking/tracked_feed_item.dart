@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/service/interaction/interaction_tracker.dart';
-import 'package:provider/provider.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 /// Envolve um item de lista e reporta ao [InteractionTracker] quanto tempo ele
@@ -29,7 +28,7 @@ class _TrackedFeedItemState extends State<TrackedFeedItem> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _tracker = context.read<InteractionTracker>();
+    _tracker = maybeInteractionTracker(context);
   }
 
   @override

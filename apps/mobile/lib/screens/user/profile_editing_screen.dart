@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mobile/models/media/media_item.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/service/auth_storage_service.dart';
 import 'package:mobile/service/user/user_service.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/buttons/vibester_button.dart';
 import 'package:mobile/widgets/cards/users/editing_avatar.dart';
-import 'package:mobile/widgets/buttons/primary_button.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/text-field/primary_text_field.dart';
 import 'package:provider/provider.dart';
 
 class ProfileEditingScreen extends StatefulWidget {
@@ -29,6 +35,45 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
     _nomeController.dispose();
     _bioController.dispose();
     super.dispose();
+  }
+
+  /// Sobe a foto escolhida assim que ela é escolhida — o passo seguinte do
+  /// cadastro não depende dela, então não faz sentido segurar o upload até o
+  /// "Continuar". Devolve se subiu, para o avatar voltar à foto anterior
+  /// quando não sobe.
+  Future<bool> _salvarAvatar(MediaItem image) async {
+    final user = context.read<UserProvider>().user;
+    final accountId = user?.accountId ?? '';
+    if (accountId.isEmpty) return false;
+
+    try {
+      final response = await _userService.updateAvatar(
+        accountId: accountId,
+        image: image,
+      );
+      if (!mounted) return true;
+      context.read<UserProvider>().setUser(
+        UserModel.fromProfileJson(
+          response,
+          accountId: accountId,
+          token: user?.token,
+        ),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Falha ao enviar avatar: $e');
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e is Exception
+                ? e.toString().replaceFirst('Exception: ', '')
+                : 'Não foi possível enviar a foto agora',
+          ),
+        ),
+      );
+      return false;
+    }
   }
 
   Future<void> _salvarPerfil() async {
@@ -74,7 +119,17 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
       if (!mounted) return;
       context.read<UserProvider>().setUser(usuarioAtualizado);
 
-      Navigator.pushNamed(context, AppRoutes.userInterests);
+      // Próxima etapa gravada antes de navegar (ver AuthStorageService).
+      await AuthStorageService.marcarEtapa(EtapaCadastro.interesses);
+      if (!mounted) return;
+
+      // Rota de cadastro dos interesses, não a de edição: descarta a pilha e
+      // abre a tela sem seta de voltar.
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.userInterestsSetup,
+        (route) => false,
+      );
     } catch (e) {
       debugPrint(e.toString());
 
@@ -93,178 +148,92 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final user = context.watch<UserProvider>().user;
+
     return Scaffold(
-      backgroundColor: context.colors.darkGrey,
-      appBar: AppBar(
-        title: Text('Informações pessoais'),
-        backgroundColor: context.colors.darkGrey,
-        foregroundColor: context.colors.textPrimary,
-        titleTextStyle: context.typography.titleLarge.copyWith(fontSize: 20),
-      ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              Center(heightFactor: 2, child: EditableAvatar()),
-              SizedBox(height: 25),
-
-              Padding(
-                padding: const EdgeInsets.only(right: 290, bottom: 10),
-                child: Text(
-                  'NOME',
-                  style: context.typography.labelSmall.copyWith(
-                    color: context.colors.grey,
+      backgroundColor: colors.noturno,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: Grain(opacity: 0.04, density: 0.4)),
+          SafeArea(
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+                children: [
+                  const ScreenHeader(
+                    title: 'Monta seu\nperfil',
+                    eyebrow: 'COMO VÃO TE VER',
+                    showBack: false,
                   ),
-                ),
+                  Center(
+                    child: EditableAvatar(
+                      radius: 56,
+                      imageUrl: (user?.fotoPerfil.isNotEmpty ?? false)
+                          ? user!.fotoPerfil
+                          : null,
+                      onImageChanged: _salvarAvatar,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Center(
+                    child: Text(
+                      'ESCOLHE UMA FOTO',
+                      style: context.typography.monoMicro.copyWith(
+                        color: colors.textDisabled,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.xxl),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.screen,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        PrimaryTextField(
+                          controller: _nomeController,
+                          label: 'Nome completo',
+                          icon: Icons.person_outline_rounded,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(30),
+                          ],
+                          validator: (value) =>
+                              value == null || value.trim().isEmpty
+                              ? 'Informe um nome'
+                              : null,
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        PrimaryTextField(
+                          controller: _bioController,
+                          label: 'Bio',
+                          hint: 'Uma linha sobre você',
+                          icon: Icons.notes_rounded,
+                          maxLines: 3,
+                          textInputAction: TextInputAction.newline,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(150),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        VibesterButton(
+                          label: 'Continuar',
+                          state: _isLoading
+                              ? VibesterButtonState.loading
+                              : VibesterButtonState.idle,
+                          onPressed: _salvarPerfil,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-
-              SizedBox(
-                width: 350,
-                height: 60,
-                child: TextFormField(
-                  controller: _nomeController,
-
-                  textInputAction: TextInputAction.next,
-                  style: context.typography.bodyLarge.copyWith(
-                    color: context.colors.textPrimary,
-                  ),
-                  cursorColor: context.colors.ambar,
-
-                  inputFormatters: [LengthLimitingTextInputFormatter(50)],
-
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFF141414),
-                    prefixIcon: const Icon(Icons.person),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    errorStyle: context.typography.bodySmall.copyWith(
-                      color: context.colors.error,
-                      fontSize: 12,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(
-                        color: context.colors.border,
-                        width: 1.3,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(
-                        color: context.colors.ambar,
-                        width: 1.3,
-                      ),
-                    ),
-                    errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(
-                        color: context.colors.error,
-                        width: 1.3,
-                      ),
-                    ),
-                    focusedErrorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(
-                        color: context.colors.error,
-                        width: 1.3,
-                      ),
-                    ),
-                  ),
-
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Informe seu nome!';
-                    }
-                    return null;
-                  },
-                ),
-              ),
-
-              SizedBox(height: 30),
-
-              Padding(
-                padding: const EdgeInsets.only(right: 300, bottom: 10),
-                child: Text(
-                  'BIO',
-                  style: context.typography.labelSmall.copyWith(
-                    color: context.colors.grey,
-                  ),
-                ),
-              ),
-
-              SizedBox(
-                width: 350,
-                height: 150,
-                child: TextFormField(
-                  controller: _bioController,
-
-                  maxLines: null,
-                  expands: true,
-                  textInputAction: TextInputAction.done,
-                  style: context.typography.bodyLarge.copyWith(
-                    color: context.colors.textPrimary,
-                  ),
-                  cursorColor: context.colors.ambar,
-
-                  inputFormatters: [LengthLimitingTextInputFormatter(150)],
-
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFF141414),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    errorStyle: context.typography.bodySmall.copyWith(
-                      color: context.colors.error,
-                      fontSize: 12,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(
-                        color: context.colors.border,
-                        width: 1.3,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(
-                        color: context.colors.ambar,
-                        width: 1.3,
-                      ),
-                    ),
-                    errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(
-                        color: context.colors.error,
-                        width: 1.3,
-                      ),
-                    ),
-                    focusedErrorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: BorderSide(
-                        color: context.colors.error,
-                        width: 1.3,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 25),
-
-              Padding(
-                padding: const EdgeInsets.only(top: 100),
-                child: PrimaryButton(
-                  label: _isLoading ? 'Salvando...' : 'Cadastrar',
-                  onPressed: _isLoading ? () {} : _salvarPerfil,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

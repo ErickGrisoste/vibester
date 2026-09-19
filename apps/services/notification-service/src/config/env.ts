@@ -21,6 +21,8 @@ export const env = {
   smtpEmail: process.env.SMTP_EMAIL ?? "",
   smtpPassword: process.env.SMTP_PASSWORD ?? "",
   smtpFromName: process.env.SMTP_FROM_NAME ?? "Vibester",
+  // Caixa que recebe cada denúncia (evento content.reported).
+  moderationEmail: process.env.MODERATION_EMAIL ?? "contato@vibester.com.br",
 
   userServiceUrl: process.env.USER_SERVICE_URL ?? "http://localhost:3003",
   postServiceUrl: process.env.POST_SERVICE_URL ?? "http://localhost:3000",
