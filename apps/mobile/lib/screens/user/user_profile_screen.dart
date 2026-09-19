@@ -5,6 +5,7 @@ import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/screens/highlights/property_highlights_screen.dart';
 import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/utils/username.dart';
+import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
@@ -38,6 +39,39 @@ class UserProfileScreen extends StatefulWidget {
 class UserProfileScreenState extends State<UserProfileScreen> {
   final UserService _userService = UserService();
   final GlobalKey<PropertyHighlightsScreenState> _highlightsKey = GlobalKey();
+  final _scrollController = ScrollController();
+  final _refreshKey = GlobalKey<RefreshIndicatorState>();
+
+  /// Impede dois resets empilhados por toques seguidos no botão.
+  bool _resetting = false;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Chamado pela casca da Home quando o usuário toca em VOCÊ estando nela:
+  /// sobe até o topo e recarrega perfil e registros, com o giro do refresh
+  /// à vista.
+  Future<void> resetTab() async {
+    if (_resetting) return;
+    _resetting = true;
+
+    try {
+      if (_scrollController.hasClients && _scrollController.offset > 0) {
+        await _scrollController.animateTo(
+          0,
+          duration: AppMotion.slow,
+          curve: AppMotion.standard,
+        );
+      }
+      if (!mounted) return;
+      await _refreshKey.currentState?.show();
+    } finally {
+      _resetting = false;
+    }
+  }
 
   /// Chamado pela casca da Home ao entrar neste destino: as telas do
   /// `IndexedStack` são montadas uma vez só e não se atualizariam sozinhas.
@@ -106,10 +140,12 @@ class UserProfileScreenState extends State<UserProfileScreen> {
     return Scaffold(
       backgroundColor: colors.noturno,
       body: RefreshIndicator(
+        key: _refreshKey,
         color: colors.ambar,
         backgroundColor: colors.surface,
         onRefresh: _onRefresh,
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverToBoxAdapter(child: _ProfileIdentity(user: user)),

@@ -25,7 +25,7 @@ void main() {
   testWidgets('dono vê o botão de excluir e a confirmação', (tester) async {
     await pumpScreen(
       tester,
-      PostDetailScreen(highlight: postDe('account-1')),
+      PostDetailScreen(posts: [postDe('account-1')]),
       user: fakeUser(),
     );
 
@@ -41,7 +41,7 @@ void main() {
   testWidgets('post de outra pessoa não tem botão de excluir', (tester) async {
     await pumpScreen(
       tester,
-      PostDetailScreen(highlight: postDe('outra-conta')),
+      PostDetailScreen(posts: [postDe('outra-conta')]),
       user: fakeUser(),
     );
 

@@ -19,12 +19,16 @@ import 'package:mobile/widgets/text-field/primary_text_field.dart';
 /// Criar conta.
 ///
 /// Mesmo contrato de antes (`name`, `username`, `email`, `password`,
-/// `bornAt`), `name` e `username` vêm de campos separados. O que
-/// mudou é a leitura do formulário: rótulos presos aos campos em vez de
-/// empurrados por padding lateral, um campo por linha com respiro constante,
-/// e a prévia do `@usuario` que vai ser criado aparecendo enquanto a pessoa
-/// digita o nome de usuário — antes ela só descobria o próprio username depois de a
-/// conta existir.
+/// `bornAt`), mas o formulário pede só o nome de usuário: o nome de exibição
+/// é definido no passo seguinte do cadastro (edição de perfil), e pedir os
+/// dois aqui fazia a pessoa digitar o nome duas vezes.
+///
+/// Por isso o valor do campo único vai nos dois: `username` com o `@` na
+/// frente, colocado pelo app, e `name` sem ele — um nome provisório até a
+/// pessoa escrever o dela no perfil.
+///
+/// A prévia do `@usuario` aparece enquanto a pessoa digita, para ela não
+/// descobrir o próprio username só depois de a conta existir.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -36,7 +40,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _userService = UserService();
 
-  final _nomeController = TextEditingController();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
@@ -46,7 +49,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    _nomeController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
     _senhaController.dispose();
@@ -60,8 +62,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return '$ano-$mes-$dia';
   }
 
-  String get _usernamePreview =>
-      '@${_usernameController.text.trim().replaceAll(' ', '')}';
+  /// O que a pessoa digitou, limpo: sem espaços. É o que vai como `name`.
+  String get _usernameLimpo =>
+      _usernameController.text.trim().replaceAll(' ', '');
+
+  /// O mesmo valor com o `@` que o app coloca. É o que vai como `username`.
+  String get _usernamePreview => '@$_usernameLimpo';
 
   Future<void> _criarConta() async {
     if (!_formKey.currentState!.validate()) return;
@@ -69,7 +75,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
-    final nomeDigitado = _nomeController.text.trim();
+    // Campo único: `name` vai sem o @ e `username` com ele.
+    final nomeDigitado = _usernameLimpo;
     final usernameFormatado = _usernamePreview;
     final email = _emailController.text.trim();
     final senha = _senhaController.text;
@@ -137,27 +144,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         PrimaryTextField(
-                          controller: _nomeController,
-                          label: 'Nome',
-                          icon: Icons.badge_outlined,
-                          inputFormatters: [
-                            LengthLimitingTextInputFormatter(60),
-                          ],
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Informe como te chamam';
-                            }
-                            return null;
-                          },
-                        ),
-
-                        const SizedBox(height: AppSpacing.lg),
-                        PrimaryTextField(
                           controller: _usernameController,
                           label: 'Nome de usuário',
                           icon: Icons.person_outline_rounded,
                           inputFormatters: [
                             LengthLimitingTextInputFormatter(60),
+                            // O @ é do app, não da pessoa: a tecla nem entra
+                            // (colado no meio de um texto, também some).
+                            FilteringTextInputFormatter.deny('@'),
                             const UsernameInputFormatter(),
                           ],
                           onChanged: (_) => setState(() {}),
@@ -194,6 +188,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           label: 'E-mail',
                           icon: Icons.mail_outline_rounded,
                           keyboardType: TextInputType.emailAddress,
+                          // Formato conferido ao sair do campo, sem esperar
+                          // o toque em "Criar conta".
+                          validateOnBlur: true,
                           inputFormatters: [
                             LengthLimitingTextInputFormatter(320),
                           ],

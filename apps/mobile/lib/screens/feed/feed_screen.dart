@@ -11,6 +11,7 @@ import 'package:mobile/widgets/cards/feed/publication_card.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
+import 'package:mobile/widgets/navigation/navbar_tokens.dart';
 import 'package:provider/provider.dart';
 
 /// FEED — o que as pessoas estão postando.
@@ -38,6 +39,19 @@ class FeedScreen extends StatefulWidget {
 class FeedScreenState extends State<FeedScreen> {
   final _scrollController = ScrollController();
 
+  /// Altura do cabeçalho com a logo. O conteúdo reserva esse espaço no topo
+  /// do scroll, então com o cabeçalho à vista nada nasce escondido atrás dele.
+  static const double _headerHeight = 50;
+
+  /// Mesmo par de logotipos da tela inicial: `tipografia.png` tem o "STER"
+  /// branco, para o fundo escuro; a versão azul tem o "STER" preto, para o
+  /// claro.
+  static const _logo = 'assets/img/logo/tipografia.png';
+  static const _logoLight = 'assets/img/logo/tipografia_preto.png';
+
+  /// Mesmo gesto do dock: some ao descer, volta ao subir.
+  bool _headerVisible = true;
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +70,7 @@ class FeedScreenState extends State<FeedScreen> {
 
   /// Volta ao topo, onde fica o post recém-publicado.
   void scrollToTop() {
+    _setHeaderVisible(true);
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
       0,
@@ -69,6 +84,35 @@ class FeedScreenState extends State<FeedScreen> {
         _scrollController.position.maxScrollExtent - 400) {
       context.read<PublicationListProvider>().loadMore();
     }
+  }
+
+  /// Esconde o cabeçalho ao descer e devolve ao subir, com o mesmo limiar de
+  /// 3px que a Home usa para o dock — os dois se movem juntos. No topo da
+  /// lista ele fica sempre à vista, senão sobraria um buraco no lugar dele.
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (notification is! ScrollUpdateNotification) return false;
+    if (notification.metrics.axis != Axis.vertical) return false;
+    // Só o scroll do próprio feed; carrossel de mídia dentro do card não conta.
+    if (notification.depth != 0) return false;
+
+    if (notification.metrics.pixels <= _headerHeight) {
+      _setHeaderVisible(true);
+      return false;
+    }
+
+    final delta = notification.scrollDelta ?? 0;
+    if (delta > 3) {
+      _setHeaderVisible(false);
+    } else if (delta < -3) {
+      _setHeaderVisible(true);
+    }
+    // false: a notificação continua subindo até a Home, que controla o dock.
+    return false;
+  }
+
+  void _setHeaderVisible(bool visible) {
+    if (_headerVisible == visible || !mounted) return;
+    setState(() => _headerVisible = visible);
   }
 
   @override
@@ -92,76 +136,158 @@ class FeedScreenState extends State<FeedScreen> {
       backgroundColor: colors.noturno,
       body: SafeArea(
         bottom: false,
-        child: RefreshIndicator(
-          color: colors.ambar,
-          backgroundColor: colors.surface,
-          onRefresh: () async => _load(force: true),
-          child: CustomScrollView(
-            controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              if (provider.isLoading && publications.isEmpty)
-                const SliverToBoxAdapter(child: _FeedSkeleton())
-              else if (provider.erro != null && publications.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: VibesterState.error(
-                    message: provider.erro!,
-                    onAction: () => _load(force: true),
-                  ),
-                )
-              else if (publications.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: VibesterState(
-                    headline: 'Feed vazio',
-                    message:
-                        'Siga gente que sai e o rolê aparece aqui. Ou seja '
-                        'você a começar: publique o seu.',
-                    icon: Icons.photo_camera_outlined,
-                    actionLabel: 'Publicar agora',
-                    onAction: () =>
-                        Navigator.pushNamed(context, AppRoutes.newPublication),
-                  ),
-                )
-              else
-                SliverList.builder(
-                  itemCount: publications.length,
-                  itemBuilder: (context, index) => StaggeredEntrance(
-                    index: index,
-                    child: PublicationCard(
-                      publication: publications[index],
-                      index: index,
+        child: Stack(
+          children: [
+            NotificationListener<ScrollNotification>(
+              onNotification: _onScrollNotification,
+              child: RefreshIndicator(
+                color: colors.ambar,
+                backgroundColor: colors.surface,
+                // O indicador de refresh nasce abaixo do cabeçalho, não
+                // escondido atrás dele.
+                edgeOffset: _headerHeight,
+                onRefresh: () async => _load(force: true),
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // Espaço do cabeçalho: ele flutua por cima do scroll,
+                    // então o primeiro post começa logo abaixo dele e, quando
+                    // o cabeçalho sobe, o conteúdo ocupa o lugar.
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: _headerHeight),
                     ),
-                  ),
+
+                    if (provider.isLoading && publications.isEmpty)
+                      const SliverToBoxAdapter(child: _FeedSkeleton())
+                    else if (provider.erro != null && publications.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: VibesterState.error(
+                          message: provider.erro!,
+                          onAction: () => _load(force: true),
+                        ),
+                      )
+                    else if (publications.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: VibesterState(
+                          headline: 'Feed vazio',
+                          message:
+                              'Siga gente que sai e o rolê aparece aqui. '
+                              'Ou seja você a começar: publique o seu.',
+                          icon: Icons.photo_camera_outlined,
+                          actionLabel: 'Publicar agora',
+                          onAction: () => Navigator.pushNamed(
+                            context,
+                            AppRoutes.newPublication,
+                          ),
+                        ),
+                      )
+                    else
+                      SliverList.builder(
+                        itemCount: publications.length,
+                        itemBuilder: (context, index) => StaggeredEntrance(
+                          index: index,
+                          child: PublicationCard(
+                            publication: publications[index],
+                            index: index,
+                          ),
+                        ),
+                      ),
+
+                    if (provider.isLoadingMore)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppSpacing.screen,
+                            vertical: AppSpacing.lg,
+                          ),
+                          child: VibesterSkeleton(height: 220),
+                        ),
+                      )
+                    else if (provider.erroAoCarregarMais != null &&
+                        publications.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: _FeedMoreError(
+                          message: provider.erroAoCarregarMais!,
+                          onRetry: () => context
+                              .read<PublicationListProvider>()
+                              .loadMore(),
+                        ),
+                      )
+                    else if (publications.isNotEmpty && !provider.hasMore)
+                      const SliverToBoxAdapter(child: _FeedEnd()),
+
+                    const SliverPadding(
+                      padding: EdgeInsets.only(bottom: AppSpacing.dockGap),
+                    ),
+                  ],
                 ),
-
-              if (provider.isLoadingMore)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.screen,
-                      vertical: AppSpacing.lg,
-                    ),
-                    child: VibesterSkeleton(height: 220),
-                  ),
-                )
-              else if (provider.erroAoCarregarMais != null &&
-                  publications.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _FeedMoreError(
-                    message: provider.erroAoCarregarMais!,
-                    onRetry: () =>
-                        context.read<PublicationListProvider>().loadMore(),
-                  ),
-                )
-              else if (publications.isNotEmpty && !provider.hasMore)
-                const SliverToBoxAdapter(child: _FeedEnd()),
-
-              const SliverPadding(
-                padding: EdgeInsets.only(bottom: AppSpacing.dockGap),
               ),
-            ],
+            ),
+
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _FeedHeader(
+                visible: _headerVisible,
+                height: _headerHeight,
+                logo: Theme.of(context).brightness == Brightness.light
+                    ? _logoLight
+                    : _logo,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Cabeçalho do feed: a logo no centro, sobre o mesmo fundo da tela.
+///
+/// Mesma coreografia do dock (`VibesterNavbar`), espelhada: desliza para
+/// cima e apaga ao descer, volta ao subir. O `ClipRect` corta o que passa da
+/// borda da área segura, para ele sumir por trás da barra de status em vez
+/// de desenhar por cima dela.
+class _FeedHeader extends StatelessWidget {
+  final bool visible;
+  final double height;
+  final String logo;
+
+  const _FeedHeader({
+    required this.visible,
+    required this.height,
+    required this.logo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = context.adaptiveMotion(NavbarTokens.hide);
+
+    return ClipRect(
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : const Offset(0, -1),
+        duration: duration,
+        curve: AppMotion.standard,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: duration,
+          curve: AppMotion.standard,
+          child: IgnorePointer(
+            ignoring: !visible,
+            child: Container(
+              height: height,
+              color: context.colors.noturno,
+              alignment: Alignment.center,
+              child: Semantics(
+                label: 'Vibester',
+                image: true,
+                child: Image.asset(logo, height: 22, fit: BoxFit.contain),
+              ),
+            ),
           ),
         ),
       ),

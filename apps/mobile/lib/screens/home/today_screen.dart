@@ -12,6 +12,7 @@ import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/user/interests_storage.dart';
+import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/event_time.dart';
@@ -64,17 +65,62 @@ class TodayScreen extends StatefulWidget {
   const TodayScreen({super.key});
 
   @override
-  State<TodayScreen> createState() => _TodayScreenState();
+  State<TodayScreen> createState() => TodayScreenState();
 }
 
-class _TodayScreenState extends State<TodayScreen> {
+class TodayScreenState extends State<TodayScreen> {
   /// Categoria selecionada na régua de filtros. Nula = tudo.
   String? _category;
+
+  final _scrollController = ScrollController();
+  final _refreshKey = GlobalKey<RefreshIndicatorState>();
+
+  /// Muda a cada reset para a régua de categorias nascer de novo, rolada até
+  /// o começo — senão "Tudo" ficaria selecionado fora da vista.
+  int _railGeneration = 0;
+
+  /// Impede dois resets empilhados por toques seguidos no botão.
+  bool _resetting = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Chamado pela casca da Home quando o usuário toca em HOJE estando nela:
+  /// tira o filtro, sobe até o topo e recarrega tudo.
+  ///
+  /// O recarregamento passa pelo `RefreshIndicator` em vez de chamar `_load`
+  /// direto: assim o giro aparece e a pessoa vê que a tela está atualizando.
+  Future<void> resetTab() async {
+    if (_resetting) return;
+    _resetting = true;
+
+    setState(() {
+      _category = null;
+      _railGeneration++;
+    });
+
+    try {
+      if (_scrollController.hasClients && _scrollController.offset > 0) {
+        await _scrollController.animateTo(
+          0,
+          duration: AppMotion.slow,
+          curve: AppMotion.standard,
+        );
+      }
+      if (!mounted) return;
+      await _refreshKey.currentState?.show();
+    } finally {
+      _resetting = false;
+    }
   }
 
   Future<void> _load({bool force = false}) async {
@@ -153,10 +199,12 @@ class _TodayScreenState extends State<TodayScreen> {
     return Scaffold(
       backgroundColor: colors.noturno,
       body: RefreshIndicator(
+        key: _refreshKey,
         color: colors.ambar,
         backgroundColor: colors.surface,
         onRefresh: () => _load(force: true),
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverToBoxAdapter(
@@ -169,6 +217,7 @@ class _TodayScreenState extends State<TodayScreen> {
                 selected: _category,
                 onSelected: (value) => setState(() => _category = value),
                 background: colors.noturno,
+                generation: _railGeneration,
               ),
             ),
 
@@ -404,7 +453,7 @@ class _Headline extends StatelessWidget {
   /// Não é um arquivo solto: os três tons do fogo são exatamente `brasa`,
   /// `ambar` e a interpolação entre os dois na paleta clara. Trocar aqui é o
   /// que impede o mascote de ser a única coisa quente numa tela fria.
-  static const _assetLight = 'assets/img/mascote/mascote_azul.png';
+  static const _assetLight = 'assets/img/mascote/mascote.png';
 
   /// Abaixo disso o mascote fica irreconhecível — melhor não desenhar.
   static const _minWidth = 64.0;
@@ -580,10 +629,15 @@ class _CategoryRailDelegate extends SliverPersistentHeaderDelegate {
   final ValueChanged<String?> onSelected;
   final Color background;
 
+  /// Trocado a cada reset da tela: vira a chave da régua, que é recriada já
+  /// rolada até o começo.
+  final int generation;
+
   const _CategoryRailDelegate({
     required this.selected,
     required this.onSelected,
     required this.background,
+    required this.generation,
   });
 
   /// Altura declarada da régua. O filho **precisa** preencher exatamente
@@ -606,6 +660,7 @@ class _CategoryRailDelegate extends SliverPersistentHeaderDelegate {
           mainAxisSize: MainAxisSize.min,
           children: [
             VibesterChipRail(
+              key: ValueKey(generation),
               children: [
                 VibesterChip(
                   label: 'Tudo',
@@ -644,7 +699,9 @@ class _CategoryRailDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(_CategoryRailDelegate old) =>
-      old.selected != selected || old.background != background;
+      old.selected != selected ||
+      old.background != background ||
+      old.generation != generation;
 }
 
 // -----------------------------------------------------------------------
