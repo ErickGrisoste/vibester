@@ -93,6 +93,20 @@ spec:
         - name: notification-service
           port: 3005
 
+    # Telemetria do feed (fase 0 do ranking). SEM rate limit de borda de
+    # propósito: o rateLimit do Traefik conta por IP de origem, e uma operadora
+    # inteira atrás de um NAT compartilha o mesmo IP — o teto derrubaria a
+    # telemetria de usuários reais. O limite por usuário já existe dentro do
+    # serviço (RATE_LIMIT_MAX, aplicado na rota autenticada).
+    - match: Host(`api.vibester.com.br`) && PathPrefix(`/interaction`)
+      kind: Rule
+      middlewares:
+        - name: strip-interaction-prefix
+          namespace: default
+      services:
+        - name: interaction-service
+          port: 3007
+
     - match: Host(`api.vibester.com.br`) && PathPrefix(`/docs`)
       kind: Rule
       services:

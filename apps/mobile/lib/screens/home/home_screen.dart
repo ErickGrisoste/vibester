@@ -6,6 +6,7 @@ import 'package:mobile/screens/favorites/user_favorites_screen.dart';
 import 'package:mobile/screens/home/home_tab.dart';
 import 'package:mobile/screens/search/search_screen.dart';
 import 'package:mobile/screens/user/user_profile_screen.dart';
+import 'package:mobile/service/interaction/interaction_tracker.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/navbar/custom_navbar.dart';
@@ -151,6 +152,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   Future.delayed(const Duration(milliseconds: 400), () {
                     if (mounted) setState(() => _isTabSwitching = false);
                   });
+
+                  // O IndexedStack mantém a aba anterior montada: ela deixa
+                  // de ser pintada, o detector de visibilidade dos cards do
+                  // feed congela no último valor, e o post que estava na tela
+                  // continuaria acumulando atenção fora do feed.
+                  final tracker = context.read<InteractionTracker>();
+
+                  if (index == 0) {
+                    tracker.resumeSurface();
+                  } else {
+                    tracker.pauseSurface();
+                  }
 
                   // Refresh leve do badge de notificações a cada troca de aba
                   // (não há infra de push para atualizar em tempo real).

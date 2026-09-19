@@ -24,6 +24,7 @@ Toda a comunicação com o backend passa por um `baseUrl` único (`ApiEndpoints.
 - **`image_picker`** para seleção de foto (avatar, posts), upload direto para o R2 via URL pré-assinada obtida do backend
 - **`cached_network_image`** para exibir imagens de rede com cache em disco/memória — use sempre este widget para imagem remota, nunca `Image.network` puro
 - **`google_fonts`** (fonte Inter) + `ThemeExtension<AppColors>` (`lib/theme/`) para o design system
+- **`visibility_detector`** para saber quanto tempo cada card do feed ficou na tela e **`uuid`** para o `eventId`/`sessionId` da telemetria — ver "Telemetria do feed" abaixo
 - **`email_validator`**, **`intl`** (formatação de data/hora, localizado em `pt_BR`), **`diacritic`**, **`pinput`** (código de verificação), **`font_awesome_flutter`**, **`url_launcher`**
 - Não introduza uma segunda solução de state management (Bloc, Riverpod, GetX) ou um segundo client HTTP — o padrão do projeto é `provider` + `dio`.
 
@@ -46,7 +47,37 @@ lib/
   utils/        helpers sem estado (data_freshness.dart, relative_time.dart, search_state.dart, etc.)
 ```
 
-Não existe pasta `test/` neste projeto hoje — `flutter_test`/`flutter_lints` estão como dev dependency mas não há nenhum teste escrito, e não há workflow de CI (`.github/workflows`) rodando `flutter analyze`/`flutter test` para o mobile. Ao adicionar lógica não-trivial (parsing de model, regra de staleness, cálculo em um provider), considere ser o primeiro a escrever um teste para ela em vez de assumir que "não é o padrão do projeto".
+A pasta `test/` existe mas cobre pouco (hoje `test/providers/theme_provider_test.dart` e `test/service/interaction/interaction_tracker_test.dart`), e **não há workflow de CI** (`.github/workflows`) rodando `flutter analyze`/`flutter test` para o mobile — rode os dois à mão antes de abrir PR. Ao adicionar lógica não-trivial (parsing de model, regra de staleness, cálculo em um provider), escreva o teste junto: não assuma que "não é o padrão do projeto".
+
+### Telemetria do feed
+
+O app é a **única** fonte de impressão, tempo de atenção e descarte rápido — se ele
+não contar, ninguém conta, e esse dado não volta depois. Três peças:
+
+- `service/interaction/interaction_tracker.dart` — a régua do que conta como
+  "visto" e o envio em lote. É onde mora toda a decisão; leia o comentário de
+  classe antes de mexer em qualquer número.
+- `widgets/tracking/tracked_feed_item.dart` — o sensor, um `VisibilityDetector`
+  por card. Não decide nada.
+- `models/interaction/interaction_event_model.dart` — o contrato, espelho de
+  `apps/services/interaction-service/src/types/interaction.types.ts`.
+
+Três regras ao tocar nisso:
+
+1. **O cliente só manda o que só ele sabe.** `LIKE`/`COMMENT`/`FOLLOW` já viram
+   evento Kafka no serviço de origem e a API os **rejeita**.
+2. **Telemetria nunca trava nem insiste.** Falha de envio descarta o lote; não
+   adicione retry nem fila persistente.
+3. **Um campo inválido derruba o lote inteiro**, não só o evento ruim. Por isso
+   `InteractionEvent` corta `position`/`dwellMs` nos tetos do schema e omite
+   campo nulo em vez de enviar `null`.
+
+Uma superfície nova que queira rastreamento precisa avisar o tracker quando sai
+da frente do usuário (`pauseSurface`/`resumeSurface`): o `VisibilityDetector` não
+é notificado quando o widget continua montado mas deixa de ser pintado — é o caso
+do `IndexedStack` da navbar e de qualquer rota empilhada por cima.
+
+---
 
 ### Padrão de uma feature nova
 

@@ -101,6 +101,17 @@ spec:
       - /notification
 
 ---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-interaction-prefix
+  namespace: default
+spec:
+  stripPrefix:
+    prefixes:
+      - /interaction
+
+---
 # Middleware para redirecionar HTTP → HTTPS
 apiVersion: traefik.io/v1alpha1
 kind: Middleware

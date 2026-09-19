@@ -70,6 +70,12 @@ class ApiEndpoints {
   //Feed
   static String feed(String userId) => '$baseUrl/feed/feed/$userId';
 
+  // Interactions — telemetria do feed (impressão, atenção, skip).
+  // Prefixo /interaction: ver a regra do Traefik em
+  // apps/services/k8s/traefik/ingressroute.yaml, que tira o prefixo antes de
+  // repassar ao interaction-service, cuja rota interna é POST /interactions.
+  static String interactions() => '$baseUrl/interaction/interactions';
+
   // Search
   static String searchUsers(String q, {int limit = 10, int page = 1}) =>
       '$baseUrl/user/users/search?q=${Uri.encodeComponent(q)}&limit=$limit&page=$page';

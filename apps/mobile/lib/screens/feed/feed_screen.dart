@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/models/feed/publication_model.dart';
+import 'package:mobile/models/interaction/interaction_event_model.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/routes/route_observer.dart';
+import 'package:mobile/service/interaction/interaction_tracker.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/widgets/cards/feed/publication_card.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
+import 'package:mobile/widgets/tracking/tracked_feed_item.dart';
 import 'package:provider/provider.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -18,8 +22,35 @@ class FeedScreen extends StatefulWidget {
   State<FeedScreen> createState() => _FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
+class _FeedScreenState extends State<FeedScreen> with RouteAware {
   final _scrollController = ScrollController();
+
+  /// Guardado aqui porque `context.read` não pode ser chamado no `dispose`.
+  InteractionTracker? _tracker;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    _tracker = context.read<InteractionTracker>();
+
+    final route = ModalRoute.of(context);
+
+    if (route != null) {
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  /// Uma rota foi empilhada por cima — perfil do autor, detalhe do post.
+  ///
+  /// A partir daqui o `Overlay` para de pintar esta tela e o detector de
+  /// visibilidade dos cards congela no último valor. Sem este aviso, o post
+  /// que estava na tela acumularia atenção durante a visita à outra tela.
+  @override
+  void didPushNext() => _tracker?.pauseSurface();
+
+  @override
+  void didPopNext() => _tracker?.resumeSurface();
 
   @override
   void initState() {
@@ -42,6 +73,7 @@ class _FeedScreenState extends State<FeedScreen> {
 
   @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
@@ -117,9 +149,38 @@ class _FeedScreenState extends State<FeedScreen> {
                       ),
                     );
                   }
+                  final publication = publications[index];
+                  final itemId = publication.id;
+
+                  // Post recém criado, ainda só local: sem id não há o que
+                  // rastrear, e um itemId vazio reprovaria o lote inteiro.
+                  if (itemId == null) {
+                    return StaggeredEntrance(
+                      index: index,
+                      child: PublicationCard(publication: publication),
+                    );
+                  }
+
+                  final trackedItem = TrackedItem(
+                    itemId: itemId,
+                    itemType: InteractionItemType.post,
+                    source: InteractionSource.feed,
+                    position: index,
+                    authorId: publication.authorId,
+                  );
+
                   return StaggeredEntrance(
                     index: index,
-                    child: PublicationCard(publication: publications[index]),
+                    child: TrackedFeedItem(
+                      item: trackedItem,
+                      child: PublicationCard(
+                        publication: publication,
+                        onAuthorTap: () => _tracker?.recordTap(
+                          trackedItem,
+                          InteractionType.profileOpen,
+                        ),
+                      ),
+                    ),
                   );
                 },
               ),

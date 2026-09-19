@@ -16,6 +16,8 @@ import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/routes/route_observer.dart';
+import 'package:mobile/service/interaction/interaction_tracker.dart';
 import 'package:mobile/service/theme/theme_service.dart';
 import 'package:mobile/theme/app_theme.dart';
 import 'package:mobile/theme/vibester_page_route.dart';
@@ -47,6 +49,7 @@ import 'package:mobile/screens/user/user_interests_screen.dart';
 import 'package:mobile/screens/user/user_profile_screen.dart';
 import 'package:mobile/widgets/cards/highlights/post_detail_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 // Builders de transição de rota (fade+slide+scale compostos) vivem em
 // lib/theme/vibester_page_route.dart: vibesterSlideRoute, vibesterFadeRoute,
@@ -69,6 +72,16 @@ void main() async {
   // perfil), fazendo elas "recarregarem" visualmente ao voltar.
   PaintingBinding.instance.imageCache.maximumSize = 300;
   PaintingBinding.instance.imageCache.maximumSizeBytes = 200 << 20; // 200MB
+
+  // Resolução com que o VisibilityDetector reporta mudança de visibilidade.
+  // O padrão de 500ms é grosso demais para a telemetria do feed: o
+  // InteractionTracker separa "piscada de rolagem" (<300ms, descartada) de
+  // "descarte rápido" (<1s, sinal negativo) de "foi visto" (≥1s), e com
+  // meio segundo de granularidade esses três casos se confundem. 100ms custa
+  // mais CPU, e é o preço de o dado de atenção significar alguma coisa.
+  VisibilityDetectorController.instance.updateInterval = const Duration(
+    milliseconds: 100,
+  );
 
   await initializeDateFormatting('pt_BR', null);
   final savedUser = await AuthStorageService.loadSession();
@@ -108,10 +121,23 @@ class _MyAppState extends State<MyApp> {
   final UserService _userService = UserService();
   StreamSubscription<Uri>? _linkSubscription;
 
+  // Vive no State, e não no build: o tracker guarda as impressões abertas e o
+  // buffer de envio, e seria zerado a cada rebuild se fosse criado lá.
+  final InteractionTracker _interactionTracker = InteractionTracker();
+  AppLifecycleListener? _lifecycleListener;
+
   @override
   void initState() {
     super.initState();
     _initDeepLinks();
+
+    // O fim da sessão é a parte mais valiosa do dado — é o que fez a pessoa
+    // sair — e é exatamente o que se perde sem um envio ao ir para segundo
+    // plano, porque o app pode nunca mais voltar.
+    _lifecycleListener = AppLifecycleListener(
+      onPause: _interactionTracker.onAppPaused,
+      onResume: _interactionTracker.onAppResumed,
+    );
   }
 
   Future<void> _initDeepLinks() async {
@@ -166,6 +192,8 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     _linkSubscription?.cancel();
+    _lifecycleListener?.dispose();
+    _interactionTracker.dispose();
     super.dispose();
   }
 
@@ -189,10 +217,13 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider.value(value: userProvider),
         ChangeNotifierProvider.value(value: notificationProvider),
         ChangeNotifierProvider.value(value: themeProvider),
+        // Provider simples, não ChangeNotifier: telemetria nunca redesenha tela.
+        Provider<InteractionTracker>.value(value: _interactionTracker),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) => MaterialApp(
           navigatorKey: _navigatorKey,
+          navigatorObservers: [appRouteObserver],
           debugShowCheckedModeBanner: false,
           //Chama a classe da propriedade de scroll
           scrollBehavior: _NoBounceScrollBehavior(),

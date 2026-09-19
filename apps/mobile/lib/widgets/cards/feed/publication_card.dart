@@ -12,7 +12,17 @@ import 'package:mobile/widgets/indicators/like_indicator.dart';
 class PublicationCard extends StatelessWidget {
   final PublicationModel publication;
 
-  const PublicationCard({super.key, required this.publication});
+  /// Disparado junto com a navegação para o perfil do autor.
+  ///
+  /// O card não fala com a telemetria: quem sabe a posição do item na lista e
+  /// a superfície em que ele apareceu é quem o montou.
+  final VoidCallback? onAuthorTap;
+
+  const PublicationCard({
+    super.key,
+    required this.publication,
+    this.onAuthorTap,
+  });
 
   String _timeAgo(DateTime date) {
     final diff = DateTime.now().difference(date);
@@ -54,11 +64,14 @@ class PublicationCard extends StatelessWidget {
               children: [
                 InkWell(
                   onTap: publication.authorId != null
-                      ? () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.otherProfile,
-                          arguments: publication.authorId,
-                        )
+                      ? () {
+                          onAuthorTap?.call();
+                          Navigator.pushNamed(
+                            context,
+                            AppRoutes.otherProfile,
+                            arguments: publication.authorId,
+                          );
+                        }
                       : null,
                   child: CircleAvatar(
                     radius: 27,
