@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/highlights/highlights_service.dart';
-import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/cards/highlights/highlights_card.dart';
+import 'package:mobile/theme/app_spacing.dart';
+import 'package:mobile/widgets/common/vibester_skeleton.dart';
+import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
 import 'package:provider/provider.dart';
 
@@ -11,12 +13,41 @@ class PropertyHighlightsScreen extends StatefulWidget {
   final String? accountId;
   final String? placeId;
 
-  const PropertyHighlightsScreen({super.key, this.accountId, this.placeId});
+  /// Constrói slivers em vez de uma caixa rolável própria.
+  ///
+  /// Necessário no perfil: lá a grade fica dentro do `CustomScrollView` da
+  /// página, e um `GridView` com scroll próprio ali dentro criaria duas áreas
+  /// roláveis empilhadas — o dedo rolaria a grade e o cabeçalho do perfil
+  /// nunca sairia da tela. Como sliver, tudo rola junto, e a construção
+  /// continua preguiçosa (só as células visíveis são criadas).
+  final bool asSliver;
+
+  /// Avisa quantos posts a grade tem sempre que a lista muda (carregou,
+  /// recarregou ou um post foi excluído). É o que alimenta o contador do
+  /// perfil: cada quadrado da grade conta como um.
+  final ValueChanged<int>? onCountChanged;
+
+  const PropertyHighlightsScreen({
+    super.key,
+    this.accountId,
+    this.placeId,
+    this.asSliver = false,
+    this.onCountChanged,
+  });
 
   @override
   State<PropertyHighlightsScreen> createState() =>
       PropertyHighlightsScreenState();
 }
+
+/// Grade de fotos. Duas colunas em telas normais e três a partir de 600px de
+/// largura, para o tablet não exibir seis fotos gigantes por tela.
+const _gridDelegate = SliverGridDelegateWithMaxCrossAxisExtent(
+  maxCrossAxisExtent: 240,
+  childAspectRatio: 0.85,
+  crossAxisSpacing: AppSpacing.sm,
+  mainAxisSpacing: AppSpacing.sm,
+);
 
 class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
     with AutomaticKeepAliveClientMixin<PropertyHighlightsScreen> {
@@ -54,6 +85,17 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
 
   Future<void> refresh() => _buscarHighlights();
 
+  /// Post excluído no feed aberto a partir da grade.
+  void _removerDaGrade(String postId) {
+    if (!mounted) return;
+    setState(
+      () => _highlights = _highlights
+          .where((h) => h.postId != postId)
+          .toList(),
+    );
+    widget.onCountChanged?.call(_highlights.length);
+  }
+
   Future<void> _buscarHighlights() async {
     setState(() {
       _isLoading = true;
@@ -80,17 +122,22 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
         highlights = [];
       }
 
+      if (!mounted) return;
       setState(() {
         _highlights = highlights;
       });
+      widget.onCountChanged?.call(highlights.length);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _erro = 'Não foi possível carregar as fotos';
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -99,117 +146,76 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
     super.build(context);
 
     if (_isLoading) {
-      return Center(
-        child: CircularProgressIndicator(color: context.colors.ambar),
+      // Esqueleto na forma do grid: a página não muda de altura quando as
+      // fotos chegam.
+      return _wrapGrid(
+        SliverGrid.builder(
+          gridDelegate: _gridDelegate,
+          itemCount: 6,
+          itemBuilder: (_, _) => const VibesterSkeleton(),
+        ),
       );
     }
 
     if (_erro != null) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.wifi_off,
-                      color: context.colors.textDisabled,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _erro!,
-                      style: context.typography.bodyLarge.copyWith(
-                        color: context.colors.textDisabled,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: _buscarHighlights,
-                      child: Text(
-                        'Tentar novamente',
-                        style: context.typography.titleMedium.copyWith(
-                          color: context.colors.ambar,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+      return _wrapBox(
+        VibesterState.error(message: _erro!, onAction: _buscarHighlights),
       );
     }
 
     if (_highlights.isEmpty) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      height: 200,
-                      width: 200,
-                      child: Opacity(
-                        opacity: 0.8,
-                        child: Image.asset('assets/img/mascote/lupa.png'),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Nenhuma foto ainda',
-                      style: context.typography.bodyLarge.copyWith(
-                        color: context.colors.textDisabled,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+      return _wrapBox(
+        const VibesterState(
+          headline: 'Nenhuma foto',
+          message: 'As publicações aparecem aqui em grade assim que existirem.',
+          icon: Icons.photo_camera_outlined,
+        ),
       );
     }
 
-    return Scaffold(
-      backgroundColor: context.colors.noturno,
-
-      //Uso o gridview no lugar do listview pq é mais simples de mecher e de montar as imagens
-      //O gridview pega toda a largura ta tela, q é dividido pelo crossAC e pelo childAR
-      body: GridView.builder(
-        // Deve ser dinamico e não fixo
+    return _wrapGrid(
+      SliverGrid.builder(
+        gridDelegate: _gridDelegate,
         itemCount: _highlights.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          //pega a largura da tela dividido por 2 (pra dar duas imagens por linha)
-          crossAxisCount: 2,
-          //define a altura com base na largura
-          childAspectRatio: 0.85,
-
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-        ),
-        padding: const EdgeInsets.only(
-          top: 30,
-          left: 12,
-          right: 12,
-          bottom: 12,
-        ),
         itemBuilder: (context, index) {
           return StaggeredEntrance(
             index: index,
-            child: HighlightsCard(highlight: _highlights[index]),
+            child: HighlightsCard(
+              posts: _highlights,
+              index: index,
+              onDeleted: _removerDaGrade,
+            ),
           );
         },
       ),
+    );
+  }
+
+  /// Envolve a grade no padding certo e, fora do modo sliver, num
+  /// `CustomScrollView` próprio — que é o que o detalhe do estabelecimento
+  /// precisa, já que lá a grade vive dentro de uma aba.
+  Widget _wrapGrid(Widget sliverGrid) {
+    const padding = EdgeInsets.fromLTRB(
+      AppSpacing.md,
+      AppSpacing.md,
+      AppSpacing.md,
+      AppSpacing.dockGap,
+    );
+
+    final padded = SliverPadding(padding: padding, sliver: sliverGrid);
+
+    if (widget.asSliver) return padded;
+
+    return CustomScrollView(slivers: [padded]);
+  }
+
+  Widget _wrapBox(Widget child) {
+    if (widget.asSliver) {
+      return SliverToBoxAdapter(child: child);
+    }
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [child],
     );
   }
 }

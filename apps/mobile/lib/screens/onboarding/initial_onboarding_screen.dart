@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/graffiti/scribble_mark.dart';
+import 'package:mobile/widgets/graffiti/spray_glow.dart';
 import 'package:mobile/widgets/motion/word_reveal_text.dart';
+import 'package:mobile/widgets/onboarding/onboarding_footer.dart';
 
-// ===========================================================================
-// ONBOARDING 1 — DESCOBERTA
-// Rodapé: Pular (esquerda) + Próximo (direita). Sem botão voltar.
-// ===========================================================================
-class InitialOnboardingScreen extends StatefulWidget {
-  /// Avanca para a tela 2.
+/// ONBOARDING 1 — o conceito.
+///
+/// Antes esta era uma tela institucional com um retângulo tracejado escrito
+/// "mapa com os locais" no meio: um placeholder de imagem que nunca chegou.
+/// Em vez de esperar a arte, a tela agora **é** a arte — a manchete do produto
+/// em tela cheia, do jeito que a Home vai receber o usuário logo depois. O
+/// onboarding apresenta o Vibester mostrando o Vibester.
+class InitialOnboardingScreen extends StatelessWidget {
+  /// Avança para a tela 2.
   final VoidCallback onNext;
 
-  /// Pula direto para a tela 3.
+  /// Pula direto para a última tela.
   final VoidCallback onSkip;
 
   const InitialOnboardingScreen({
@@ -20,263 +28,80 @@ class InitialOnboardingScreen extends StatefulWidget {
   });
 
   @override
-  State<InitialOnboardingScreen> createState() =>
-      _InitialOnboardingScreenState();
-}
-
-class _InitialOnboardingScreenState extends State<InitialOnboardingScreen> {
-  @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+    final type = context.typography;
+
     return Scaffold(
-      backgroundColor: context.colors.noturno,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ---------- topo (vazio nesta tela) ----------
-              const SizedBox(height: 48),
+      backgroundColor: colors.noturno,
+      body: Stack(
+        children: [
+          Positioned(
+            left: -110,
+            top: 40,
+            child: SprayGlow(color: colors.ambar, size: 340, intensity: 0.2),
+          ),
+          const Positioned.fill(child: Grain(opacity: 0.05, density: 0.5)),
 
-              // ---------- área da imagem ----------
-              const Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: _ImagePlaceholder(
-                    label: 'mapa com os locais',
-                    icon: Icons.map_outlined,
-                  ),
-                ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.screen,
               ),
-
-              const SizedBox(height: 28),
-
-              // ---------- título ----------
-              WordRevealText(
-                text: 'Os melhores rolês perto de você',
-                style: context.typography.headlineLarge.copyWith(
-                  color: context.colors.textPrimary,
-                ),
-              ),
-
-              const SizedBox(height: 26),
-
-              // ---------- texto explicativo ----------
-              Text(
-                'Bares, baladas e eventos por categoria — tudo num lugar só.',
-                style: context.typography.bodyMedium.copyWith(
-                  color: context.colors.grey,
-                  height: 1.55,
-                ),
-              ),
-
-              const SizedBox(height: 26),
-
-              // ---------- indicador de página ----------
-              const _PageDots(current: 0, total: 3),
-
-              const SizedBox(height: 22),
-
-              // ---------- rodapé ----------
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextButton(
-                    onPressed: widget.onSkip,
-                    style: TextButton.styleFrom(
-                      foregroundColor: context.colors.grey,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 12,
-                      ),
-                    ),
-                    child: Text(
-                      'Pular',
-                      style: context.typography.bodyMedium.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
                   const Spacer(),
-                  _GradientButton(label: 'Próximo', onTap: widget.onNext),
+
+                  Text(
+                    'TUDO QUE',
+                    style: type.displayHuge.copyWith(color: colors.textPrimary),
+                  ),
+                  Text(
+                    'ROLA NA',
+                    style: type.displayHuge.copyWith(color: colors.textPrimary),
+                  ),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      WordRevealText(
+                        text: 'CIDADE',
+                        style: type.displayHuge.copyWith(color: colors.ambar),
+                      ),
+                      Positioned(
+                        left: -6,
+                        bottom: -4,
+                        child: ScribbleMark(
+                          shape: ScribbleShape.underline,
+                          color: colors.brasa,
+                          size: const Size(190, 16),
+                          strokeWidth: 3,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: AppSpacing.xl),
+                  Text(
+                    'Bares, baladas, restaurantes e eventos — em um lugar só, '
+                    'com o movimento de cada lugar em tempo real.',
+                    style: type.bodyLarge.copyWith(color: colors.textSecondary),
+                  ),
+
+                  const Spacer(),
+
+                  OnboardingFooter(
+                    step: 0,
+                    total: 3,
+                    onSkip: onSkip,
+                    onNext: onNext,
+                    nextLabel: 'Bora',
+                  ),
                 ],
               ),
-
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// PLACEHOLDER DE IMAGEM
-// ---------------------------------------------------------------------------
-class _ImagePlaceholder extends StatelessWidget {
-  final String label;
-  final IconData icon;
-
-  const _ImagePlaceholder({required this.label, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: context.colors.navy.withOpacity(0.45),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: CustomPaint(
-        painter: _DashedBorderPainter(
-          color: context.colors.ambar.withOpacity(0.35),
-          radius: 22,
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GradientMask(child: Icon(icon, size: 40)),
-              const SizedBox(height: 12),
-              Text(
-                label,
-                style: context.typography.bodySmall.copyWith(
-                  color: context.colors.grey,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DashedBorderPainter extends CustomPainter {
-  final Color color;
-  final double radius;
-  final double dash;
-  final double gap;
-
-  _DashedBorderPainter({
-    required this.color,
-    required this.radius,
-    this.dash = 8,
-    this.gap = 6,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rrect = RRect.fromRectAndRadius(
-      Offset.zero & size,
-      Radius.circular(radius),
-    );
-    final source = Path()..addRRect(rrect);
-    final dashed = Path();
-
-    for (final metric in source.computeMetrics()) {
-      double distance = 0;
-      while (distance < metric.length) {
-        final next = distance + dash;
-        dashed.addPath(
-          metric.extractPath(distance, next.clamp(0.0, metric.length)),
-          Offset.zero,
-        );
-        distance = next + gap;
-      }
-    }
-
-    canvas.drawPath(
-      dashed,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ---------------------------------------------------------------------------
-// INDICADOR DE PÁGINA
-// ---------------------------------------------------------------------------
-class _PageDots extends StatelessWidget {
-  final int current;
-  final int total;
-
-  const _PageDots({required this.current, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(total, (i) {
-        final active = i == current;
-        return Container(
-          margin: const EdgeInsets.only(right: 7),
-          width: active ? 22 : 7,
-          height: 7,
-          decoration: BoxDecoration(
-            gradient: active ? context.colors.gradient : null,
-            color: active ? null : context.colors.grey.withOpacity(0.28),
-            borderRadius: BorderRadius.circular(4),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// BOTÃO PRIMÁRIO EM GRADIENTE
-// ---------------------------------------------------------------------------
-class _GradientButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _GradientButton({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: context.colors.gradient,
-          boxShadow: [
-            BoxShadow(
-              color: context.colors.ambar.withOpacity(0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: context.typography.titleMedium.copyWith(
-                    color: Colors.white,
-                    fontSize: 14.5,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                const Icon(
-                  Icons.arrow_forward_rounded,
-                  size: 17,
-                  color: Colors.white,
-                ),
-              ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }

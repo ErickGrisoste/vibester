@@ -152,7 +152,8 @@ Todo o resto é opcional.
 | Máximo 10 itens | por post |
 | `type` é `IMAGE` ou `VIDEO` | qualquer outro valor é rejeitado |
 | `url` pertence ao bucket | link externo não é aceito como mídia do post |
-| `thumbnailUrl` idem | também precisa ser do bucket |
+| `url` pertence ao `userId` do post | precisa estar sob `posts/{userId}/` — mídia de outro usuário é rejeitada, mesmo se hospedada no bucket |
+| `thumbnailUrl` idem | também precisa ser do bucket **e** do mesmo `userId` |
 | `caption` até 2000 caracteres | opcional |
 
 Corpo do erro:
@@ -248,6 +249,7 @@ bitrate controlado.
 | `403` do R2 no `PUT` | `Content-Type` do `PUT` diferente do `contentType` declarado no passo 1 |
 | `403` do R2 no `PUT` | `uploadUrl` expirada (5 min) — peça outra |
 | `400` "URL não pertence ao bucket de mídia" | mandou a `uploadUrl` no lugar da `publicUrl` |
+| `400` "URL de mídia não pertence a este usuário" | `media[].url`/`thumbnailUrl` não está sob `posts/{userId}/` — confira se o `userId` do passo 3 é o mesmo do passo 1 |
 | `400` em `contentType` | tipo fora da lista, ou `type` e `contentType` incompatíveis |
 | Vídeo some do carrossel | app lendo `imageUrls` em vez de `media` |
 | Post duplicado | falta trava no botão publicar entre o toque e a resposta do `POST /posts` |

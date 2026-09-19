@@ -1,158 +1,305 @@
-import 'dart:io';
-
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/models/feed/publication_model.dart';
+import 'package:mobile/models/media/post_media.dart';
+import 'package:mobile/models/safety/report_reason.dart';
+import 'package:mobile/providers/feed/publication_list_provider.dart';
+import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/utils/divider.dart';
+import 'package:mobile/utils/relative_time.dart';
+import 'package:mobile/utils/username.dart';
+import 'package:mobile/widgets/cards/feed/delete_post_action.dart';
+import 'package:mobile/widgets/common/vibester_image.dart';
+import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/indicators/like_indicator.dart';
+import 'package:mobile/widgets/media/post_media_carousel.dart';
+import 'package:mobile/widgets/motion/double_tap_like.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/safety/report_sheet.dart';
+import 'package:mobile/widgets/safety/safety_actions.dart';
+import 'package:provider/provider.dart';
 
+/// Publicação no feed.
+///
+/// O feed é a parte do produto com maior risco de virar cópia de outra rede:
+/// a estrutura avatar → foto → curtida é praticamente universal. A saída aqui
+/// não foi inventar uma estrutura estranha (o usuário sabe ler feed, e mexer
+/// nisso custaria usabilidade por nada), e sim mudar a **matéria**: a foto é
+/// tratada como um retrato colado no muro — levemente torta, com sombra dura
+/// de papel e grão por cima — e não como uma placa de vidro dentro de um
+/// cartão branco.
+///
+/// A inclinação é minúscula (menos de 1°) e determinística pelo índice do
+/// item: alterna de lado a cada post, então a coluna ganha ritmo sem parecer
+/// bagunça, e o mesmo post nunca "muda de posição" ao rolar de volta.
+///
+/// O selo de local não é enfeite: quando o post veio de um estabelecimento,
+/// ele é o atalho para a página dele — é o que costura a rede social à
+/// descoberta, que é a razão de o Vibester ter as duas coisas.
 class PublicationCard extends StatelessWidget {
   final PublicationModel publication;
 
-  const PublicationCard({super.key, required this.publication});
+  /// Posição na lista, usada para a inclinação alternada.
+  final int index;
 
-  String _timeAgo(DateTime date) {
-    final diff = DateTime.now().difference(date);
+  const PublicationCard({super.key, required this.publication, this.index = 0});
 
-    if (diff.inSeconds < 60) return 'agora mesmo';
-    if (diff.inMinutes < 60) return 'há ${diff.inMinutes} min';
-    if (diff.inHours < 24) return 'há ${diff.inHours}h';
-    if (diff.inDays < 7) return 'há ${diff.inDays}d';
-    if (diff.inDays < 30) return 'há ${(diff.inDays / 7).floor()} sem';
-    if (diff.inDays < 365) return 'há ${(diff.inDays / 30).floor()} meses';
-    return 'há ${(diff.inDays / 365).floor()} anos';
-  }
+  double get _tilt => (index.isEven ? 1 : -1) * 0.0055;
 
-  Widget _buildImage(String src) {
-    if (src.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: src,
-        fit: BoxFit.cover,
-        fadeInDuration: AppMotion.imageFade,
-        fadeOutDuration: AppMotion.imageFade,
-        placeholder: (_, _) => const Center(child: CircularProgressIndicator()),
-        errorWidget: (_, _, _) => const Icon(Icons.error),
-      );
-    }
-    return Image.file(File(src), fit: BoxFit.cover);
+  /// Toque duplo na foto só curte — se já está curtido, o coração grande
+  /// aparece mas nada vai para a API.
+  void _likeFromPhoto(BuildContext context) {
+    if (publication.isLiked) return;
+    final userId = context.read<UserProvider>().user?.accountId;
+    if (userId == null) return;
+    context.read<PublicationListProvider>().toggleLike(publication.id, userId);
   }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
+    final colors = context.colors;
+    final type = context.typography;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screen,
+        AppSpacing.md,
+        AppSpacing.screen,
+        AppSpacing.xxl,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10.0, vertical: 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                InkWell(
-                  onTap: publication.authorId != null
-                      ? () => Navigator.pushNamed(
-                          context,
-                          AppRoutes.otherProfile,
-                          arguments: publication.authorId,
-                        )
-                      : null,
-                  child: CircleAvatar(
-                    radius: 27,
-                    backgroundImage: CachedNetworkImageProvider(
-                      publication.autorProfileImage,
+          _AuthorLine(publication: publication),
+          const SizedBox(height: AppSpacing.md),
+
+          Transform.rotate(
+            angle: _tilt,
+            child: Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  // Sombra dura, sem desfoque: papel sobre parede.
+                  BoxShadow(
+                    color: colors.scrim.withValues(alpha: 0.5),
+                    offset: const Offset(5, 5),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppRadius.sm),
+                  topRight: Radius.circular(AppRadius.sm),
+                  bottomRight: Radius.circular(AppRadius.sm),
+                ),
+                child: AspectRatio(
+                  aspectRatio: 4 / 5,
+                  child: DoubleTapLike(
+                    onLike: () => _likeFromPhoto(context),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Foto, vídeo ou carrossel — na ordem de `media`. As
+                        // bolinhas ficam na base e o contador no topo.
+                        PostMediaCarousel(
+                          media: publication.media.isNotEmpty
+                              ? publication.media
+                              : [
+                                  if (publication.publicationImage.isNotEmpty)
+                                    PostMedia.image(
+                                      publication.publicationImage,
+                                    ),
+                                ],
+                          grain: true,
+                          counterOnTop: true,
+                        ),
+                        if (publication.location != null &&
+                            publication.location!.isNotEmpty)
+                          Positioned(
+                            left: AppSpacing.md,
+                            bottom: AppSpacing.md,
+                            child: VibesterTag(
+                              publication.location!,
+                              icon: Icons.place_outlined,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              publication.autor,
-                              style: context.typography.titleSmall.copyWith(
-                                color: context.colors.textPrimary,
-                              ),
-                            ),
-                            Text(
-                              _timeAgo(publication.publicatedAt),
-                              style: context.typography.bodySmall.copyWith(
-                                color: context.colors.textMuted,
-                                fontSize: 11,
-                              ),
-                            ),
-                            if (publication.location != null)
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Icon(
-                                    Icons.location_on_outlined,
-                                    color: context.colors.brasa,
-                                    size: 16,
-                                  ),
-                                  SizedBox(width: 3),
-                                  Text(
-                                    publication.location!,
-                                    style: context.typography.labelMedium
-                                        .copyWith(
-                                          color: context.colors.brasa.withAlpha(
-                                            150,
-                                          ),
-                                        ),
-                                  ),
-                                ],
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: AppSpacing.md),
+
+          if (publication.description.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+              child: Text(
+                publication.description,
+                style: type.bodyLarge.copyWith(color: colors.textSecondary),
+              ),
+            ),
+
+          Row(
+            children: [
+              LikeIndicator(publication: publication),
+              const Spacer(),
+              Text(
+                formatRelativeTime(publication.publicatedAt).toUpperCase(),
+                style: type.monoMicro.copyWith(color: colors.textDisabled),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _PostOption { delete, report, block }
+
+/// Linha de autoria: avatar, @ e o menu de opções — excluir no post do próprio
+/// usuário; denunciar e bloquear no post de outra pessoa.
+class _AuthorLine extends StatelessWidget {
+  final PublicationModel publication;
+
+  const _AuthorLine({required this.publication});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final type = context.typography;
+
+    final viewerId = context.select<UserProvider, String?>(
+      (p) => p.user?.accountId,
+    );
+    final isOwn =
+        viewerId != null &&
+        publication.id != null &&
+        publication.authorId == viewerId;
+    // Denunciar/bloquear precisa de sessão e de saber de quem é o post.
+    final canModerate =
+        viewerId != null &&
+        publication.id != null &&
+        publication.authorId != null;
+
+    return Row(
+      // O ⋯ fica preso na borda direita, não importa o tamanho do @. Com
+      // `Spacer` ele saía do lugar: `Spacer` é `Expanded` (flex apertado) e
+      // disputava o espaço livre com o `Flexible` (flex solto) do autor —
+      // cada um ficava com metade, então o chip encolhia até o @ caber, o
+      // vazio continuava valendo metade da linha, e o botão parava a meio
+      // caminho. Sem ele, o autor é o único filho flexível: recebe todo o
+      // espaço que sobra do botão e o alinhamento empurra o ⋯ para o fim.
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: VibesterPressable(
+            borderRadius: AppRadius.pillAll,
+            onTap: publication.authorId == null
+                ? null
+                : () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.otherProfile,
+                    arguments: publication.authorId,
+                  ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipOval(
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: VibesterImage(
+                      source: publication.autorProfileImage,
+                      placeholderIcon: Icons.person_outline_rounded,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Flexible(
+                  child: Text(
+                    publication.autor.isEmpty
+                        ? 'Alguém'
+                        : formatHandle(publication.autor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.titleSmall.copyWith(color: colors.textPrimary),
                   ),
                 ),
               ],
             ),
           ),
-
-          Container(
-            color: Colors.grey.withAlpha(50),
-            child: AspectRatio(
-              aspectRatio: 4 / 5,
-              child: _buildImage(publication.publicationImage),
-            ),
-          ),
-
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10.0, vertical: 10),
-            child: Text.rich(
-              TextSpan(
-                text: '${publication.autor}: ',
-                style: context.typography.bodyMedium.copyWith(
-                  color: context.colors.textPrimary,
-                  fontWeight: FontWeight.bold,
-                ),
-                children: [
-                  TextSpan(
-                    text: publication.description,
-                    style: TextStyle(color: context.colors.textMuted),
-                  ),
-                ],
+        ),
+        if (canModerate)
+          PopupMenuButton<_PostOption>(
+            tooltip: 'Opções da publicação',
+            color: colors.surfaceRaised,
+            icon: Icon(Icons.more_horiz_rounded, color: colors.textMuted),
+            onSelected: (option) => switch (option) {
+              _PostOption.delete => confirmAndDeletePost(
+                context,
+                postId: publication.id!,
               ),
-            ),
+              _PostOption.report => showReportSheet(
+                context,
+                targetType: ReportTargetType.post,
+                targetId: publication.id!,
+                targetOwnerId: publication.authorId,
+              ),
+              _PostOption.block => confirmAndBlockUser(
+                context,
+                accountId: publication.authorId!,
+                displayName: formatHandle(publication.autor),
+              ),
+            },
+            itemBuilder: (_) => [
+              if (isOwn)
+                _menuItem(
+                  context,
+                  _PostOption.delete,
+                  Icons.delete_outline_rounded,
+                  'Excluir publicação',
+                )
+              else ...[
+                _menuItem(
+                  context,
+                  _PostOption.report,
+                  Icons.flag_outlined,
+                  'Denunciar publicação',
+                ),
+                _menuItem(
+                  context,
+                  _PostOption.block,
+                  Icons.block_rounded,
+                  'Bloquear perfil',
+                ),
+              ],
+            ],
           ),
+      ],
+    );
+  }
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [LikeIndicator(publication: publication)],
+  PopupMenuItem<_PostOption> _menuItem(
+    BuildContext context,
+    _PostOption value,
+    IconData icon,
+    String label,
+  ) {
+    final color = context.colors.error;
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: AppSpacing.md),
+          Text(
+            label,
+            style: context.typography.titleSmall.copyWith(color: color),
           ),
-
-          MyDivider(height: 1, width: double.infinity),
         ],
       ),
     );

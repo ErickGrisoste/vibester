@@ -1,3 +1,5 @@
+import 'package:mobile/models/media/post_media.dart';
+
 enum FeedItemType { userPost, event, unknown }
 
 class FeedItemModel {
@@ -31,6 +33,11 @@ class FeedItemModel {
   final String? title;
   final String? content;
   final List<String> imageUrls;
+
+  /// Mídia do post na ordem do carrossel, foto e vídeo. Vem de `media`
+  /// (camelCase mesmo neste payload snake_case — ver
+  /// `post-service/docs/midias-no-post.md`); em post antigo, de `image_urls`.
+  final List<PostMedia> media;
   final List<String> tags;
   final int totalLikes;
   final int totalComments;
@@ -64,6 +71,7 @@ class FeedItemModel {
     this.title,
     this.content,
     this.imageUrls = const [],
+    this.media = const [],
     this.tags = const [],
     this.totalLikes = 0,
     this.totalComments = 0,
@@ -108,6 +116,10 @@ class FeedItemModel {
       imageUrls: json['image_urls'] != null
           ? List<String>.from(json['image_urls'])
           : [],
+      media: PostMedia.listFromJson(
+        json['media'],
+        legacyImageUrls: json['image_urls'],
+      ),
       tags: json['tags'] != null ? List<String>.from(json['tags']) : [],
       totalLikes: json['total_likes'] ?? 0,
       totalComments: json['total_comments'] ?? 0,

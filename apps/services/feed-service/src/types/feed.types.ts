@@ -3,9 +3,9 @@ import { MediaItem } from "../utils/media";
 export enum FeedItemType {
     USER_POST = "USER_POST",
     ESTABLISHMENT_POST = "ESTABLISHMENT_POST",
+    // Só estabelecimentos criam eventos hoje — não existe EVENT_USER/EVENT_ESTABLISHMENT
+    // separados por tipo de autor, é sempre EVENT (author_id = establishmentId).
     EVENT = "EVENT",
-    EVENT_USER = "EVENT_USER",
-    EVENT_ESTABLISHMENT = "EVENT_ESTABLISHMENT",
     SPONSORED_POST = "SPONSORED_POST"
 }
 

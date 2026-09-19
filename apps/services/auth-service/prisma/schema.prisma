@@ -17,6 +17,8 @@ model Access {
   username     String   @unique
   email        String   @unique
   passwordHash String
+  // Preenchido pela moderação (POST /admin/accounts/:accountId/suspend).
+  suspendedAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

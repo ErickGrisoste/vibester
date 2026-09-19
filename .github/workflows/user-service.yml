@@ -147,6 +147,16 @@ jobs:
 
       - name: Deploy
         run: |
-          kubectl set image deployment/user-service \
-            user-service=ghcr.io/${{ env.OWNER_LC }}/vibester-user-service:${{ github.sha }}
-          kubectl rollout status deployment/user-service --timeout=120s
+          IMAGE=ghcr.io/${{ env.OWNER_LC }}/vibester-user-service:${{ github.sha }}
+
+          # O initContainer "migrate" roda 'prisma migrate deploy' e precisa
+          # apontar para a MESMA imagem do app — senão ele fica preso na tag
+          # anterior e aplica um conjunto de migrations diferente do código.
+          # O fallback cobre o cluster que ainda não recebeu o k8s/deployment.yaml
+          # com o initContainer: sem ele, 'set image migrate=' falharia o deploy.
+          kubectl set image deployment/user-service migrate="$IMAGE" user-service="$IMAGE" \
+            || {
+              echo "::warning::initContainer 'migrate' ausente no cluster — aplique apps/services/user-service/k8s/deployment.yaml para habilitar migrations automáticas"
+              kubectl set image deployment/user-service user-service="$IMAGE"
+            }
+          kubectl rollout status deployment/user-service --timeout=180s

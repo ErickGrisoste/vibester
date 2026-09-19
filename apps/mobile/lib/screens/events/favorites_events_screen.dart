@@ -1,15 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/providers/events/events_list_provider.dart';
-import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/providers/user/user_provider.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/cards/event/event_card.dart';
+import 'package:mobile/utils/event_time.dart';
+import 'package:mobile/widgets/cards/event/event_poster_card.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
 import 'package:provider/provider.dart';
 
+/// Eventos com presença confirmada.
+///
+/// A lista completa vive em "Seus rolês" (`SavedScreen`); esta tela existe
+/// para a rota direta e para ser embutida sem cabeçalho nem pull-to-refresh
+/// próprios quando já está dentro de outra tela rolável.
 class FavoritesEventsScreen extends StatefulWidget {
-  // Quando embutida nas sub-abas do perfil, o refresh já é feito pelo
-  // RefreshIndicator externo (UserProfileScreen), evitando indicators aninhados.
   final bool showRefreshIndicator;
 
   const FavoritesEventsScreen({super.key, this.showRefreshIndicator = true});
@@ -18,84 +24,87 @@ class FavoritesEventsScreen extends StatefulWidget {
   State<FavoritesEventsScreen> createState() => _FavoritesEventsScreenState();
 }
 
-class _FavoritesEventsScreenState extends State<FavoritesEventsScreen>
-    with AutomaticKeepAliveClientMixin<FavoritesEventsScreen> {
-  @override
-  bool get wantKeepAlive => true;
-
+class _FavoritesEventsScreenState extends State<FavoritesEventsScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<EventsListProvider>().fetchEvents();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load({bool force = false}) async {
+    final userId = context.read<UserProvider>().user?.accountId;
+    if (userId == null) return;
+    await context.read<EventsListProvider>().fetchCheckIns(
+      userId: userId,
+      force: force,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    final colors = context.colors;
+    final events =
+        context
+            .watch<EventsListProvider>()
+            .checkIns
+            .where((e) => e.isUpcoming)
+            .toList()
+          ..sort((a, b) => a.dataDoEvento.compareTo(b.dataDoEvento));
 
-    final List<EventModel> favorites = context
-        .watch<EventsListProvider>()
-        .favorites;
-
-    final list = favorites.isEmpty
+    final list = events.isEmpty
         ? ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            children: [
-              const SizedBox(height: 90),
-              Center(
-                child: SizedBox(
-                  height: 200,
-                  width: 200,
-                  child: Opacity(
-                    opacity: 0.8,
-                    child: Image.asset('assets/img/mascote/lupa.png'),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: Text(
-                  'Nenhum evento confirmado',
-                  style: context.typography.bodyLarge.copyWith(
-                    color: context.colors.textDisabled,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+            children: const [
+              VibesterState(
+                headline: 'Nenhum rolê marcado',
+                message:
+                    'Confirme presença num evento e ele aparece aqui com '
+                    'data e hora.',
+                icon: Icons.event_available_outlined,
               ),
             ],
           )
         : ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            itemCount: favorites.length,
-            itemBuilder: (context, index) {
-              return StaggeredEntrance(
-                index: index,
-                child: EventCard(
-                  event: favorites[index],
-                  onTap: () {
-                    Navigator.pushNamed(
-                      context,
-                      AppRoutes.eventDetail,
-                      arguments: favorites[index],
-                    );
-                  },
-                ),
-              );
-            },
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screen,
+              AppSpacing.lg,
+              AppSpacing.screen,
+              AppSpacing.dockGap,
+            ),
+            itemCount: events.length,
+            itemBuilder: (context, i) => StaggeredEntrance(
+              index: i,
+              child: EventPosterCard(
+                event: events[i],
+                variant: EventCardVariant.wide,
+                hero: false,
+              ),
+            ),
           );
 
+    final body = widget.showRefreshIndicator
+        ? RefreshIndicator(
+            color: colors.ambar,
+            backgroundColor: colors.surface,
+            onRefresh: () => _load(force: true),
+            child: list,
+          )
+        : list;
+
+    if (!widget.showRefreshIndicator) return body;
+
     return Scaffold(
-      backgroundColor: context.colors.noturno,
-      body: widget.showRefreshIndicator
-          ? RefreshIndicator(
-              color: context.colors.ambar,
-              onRefresh: () =>
-                  context.read<EventsListProvider>().fetchEvents(force: true),
-              child: list,
-            )
-          : list,
+      backgroundColor: colors.noturno,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const ScreenHeader(title: 'Vou ir', eyebrow: 'PRESENÇA CONFIRMADA'),
+            Expanded(child: body),
+          ],
+        ),
+      ),
     );
   }
 }

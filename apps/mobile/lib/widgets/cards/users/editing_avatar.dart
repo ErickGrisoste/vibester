@@ -1,12 +1,33 @@
-import 'dart:io';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:mobile/models/media/media_item.dart';
+import 'package:mobile/service/media/media_processor.dart';
+import 'package:mobile/theme/app_motion.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/common/vibester_image.dart';
+import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/media/media_flow.dart';
+import 'package:mobile/widgets/motion/vibester_pressable.dart';
 
+/// Foto de perfil editável.
+///
+/// Segue o mesmo tratamento do retrato no perfil — quadrado com canto rasgado,
+/// grão por cima — em vez do avatar circular com anel âmbar, para a foto ser a
+/// mesma coisa nas duas telas. O selo de editar fica colado no canto, com alvo
+/// de toque grande.
+///
+/// A foto vem do `MediaFlow` (câmera frontal ou galeria → recorte quadrado →
+/// 512px comprimido). Enquanto sobe, a foto nova aparece com um véu e um
+/// indicador; se o envio falhar ([onImageChanged] devolve `false`), volta a
+/// anterior — antes a foto nova ficava na tela mesmo sem ter subido.
 class EditableAvatar extends StatefulWidget {
   final String? imageUrl;
-  final Future<void> Function(File)? onImageChanged;
+
+  /// Sobe a foto e devolve se deu certo.
+  final Future<bool> Function(MediaItem image)? onImageChanged;
+
+  /// Meia-altura da foto, mantido com este nome por compatibilidade com as
+  /// chamadas existentes.
   final double radius;
 
   const EditableAvatar({
@@ -21,101 +42,132 @@ class EditableAvatar extends StatefulWidget {
 }
 
 class _EditableAvatarState extends State<EditableAvatar> {
-  File? _image;
+  MediaItem? _image;
+  bool _uploading = false;
+
+  double get _size => (widget.radius > 0 ? widget.radius : 48) * 2;
 
   @override
-  void initState() {
-    super.initState();
-    debugPrint(
-      '>>> EditableAvatar onImageChanged é null? ${widget.onImageChanged == null}',
-    );
+  void dispose() {
+    if (_image != null && !_uploading) MediaProcessor.discard(_image!);
+    super.dispose();
   }
 
-  Future<void> _pick(ImageSource source) async {
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 85,
-    );
-    if (picked == null) return;
-    if (!mounted) return;
-    final file = File(picked.path);
-    setState(() => _image = file);
-    debugPrint('>>> chamando onImageChanged');
-    await widget.onImageChanged?.call(file);
-  }
+  Future<void> _change() async {
+    if (_uploading) return;
 
-  void _showOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Câmera'),
-            onTap: () {
-              Navigator.pop(context);
-              _pick(ImageSource.camera);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('Galeria'),
-            onTap: () {
-              Navigator.pop(context);
-              _pick(ImageSource.gallery);
-            },
-          ),
-        ],
-      ),
-    );
-  }
+    final picked = await MediaFlow.pickAvatar(context);
+    if (picked == null || !mounted) return;
 
-  ImageProvider? get _provider {
-    if (_image != null) return FileImage(_image!);
-    if (widget.imageUrl != null) {
-      return CachedNetworkImageProvider(widget.imageUrl!);
+    final previous = _image;
+    setState(() {
+      _image = picked;
+      _uploading = true;
+    });
+
+    final ok = await widget.onImageChanged?.call(picked) ?? true;
+    if (!mounted) {
+      if (!ok) MediaProcessor.discard(picked);
+      return;
     }
-    return null;
+
+    setState(() {
+      _uploading = false;
+      if (!ok) _image = previous;
+    });
+    // Apaga a que saiu da tela: a anterior, se a nova subiu; a nova, se falhou.
+    final stale = ok ? previous : picked;
+    if (stale != null) MediaProcessor.discard(stale);
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _showOptions,
-      child: Stack(
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: context.colors.ambar.withAlpha(150),
-                width: 2,
+    final colors = context.colors;
+
+    return Semantics(
+      button: true,
+      label: _uploading ? 'Enviando foto de perfil' : 'Trocar foto de perfil',
+      child: VibesterPressable(
+        onTap: _uploading ? null : _change,
+        borderRadius: AppRadius.smAll,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: colors.scrim.withValues(alpha: 0.5),
+                    offset: const Offset(4, 4),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppRadius.sm),
+                  topRight: Radius.circular(AppRadius.sm),
+                  bottomRight: Radius.circular(AppRadius.sm),
+                ),
+                child: SizedBox(
+                  width: _size,
+                  height: _size * 1.15,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: context.adaptiveMotion(AppMotion.ui),
+                        child: VibesterImage(
+                          key: ValueKey(_image?.path ?? widget.imageUrl),
+                          source: _image?.path ?? widget.imageUrl ?? '',
+                          placeholderIcon: Icons.add_a_photo_outlined,
+                        ),
+                      ),
+                      const Grain(opacity: 0.06, density: 0.5),
+                      AnimatedOpacity(
+                        opacity: _uploading ? 1 : 0,
+                        duration: context.adaptiveMotion(AppMotion.micro),
+                        child: ColoredBox(
+                          color: colors.scrim.withValues(alpha: 0.45),
+                          child: Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: _uploading
+                                  ? CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: colors.ambar,
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            child: CircleAvatar(
-              backgroundColor: context.colors.darkGrey.withAlpha(150),
-              radius: widget.radius > 0 ? widget.radius : 48,
-              backgroundImage: _provider,
-              child: _provider == null
-                  ? Icon(
-                      Icons.camera_alt,
-                      color: context.colors.textPrimary,
-                      size: 50,
-                    )
-                  : null,
+            Positioned(
+              right: -10,
+              bottom: -10,
+              child: Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.ambar,
+                  borderRadius: AppRadius.smAll,
+                  border: Border.all(color: colors.noturno, width: 2),
+                ),
+                child: Icon(
+                  Icons.edit_outlined,
+                  size: 15,
+                  color: colors.onAmbar,
+                ),
+              ),
             ),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: CircleAvatar(
-              radius: 48 * 0.28,
-              backgroundColor: context.colors.ambar,
-              child: Icon(Icons.edit, size: 48 * 0.28, color: Colors.white),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

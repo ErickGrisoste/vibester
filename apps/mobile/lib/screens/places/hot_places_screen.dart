@@ -2,13 +2,22 @@ import 'package:diacritic/diacritic.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
-import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/cards/place/place_card.dart';
+import 'package:mobile/widgets/cards/place/place_tile.dart';
+import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/common/vibester_search_field.dart';
+import 'package:mobile/widgets/common/vibester_skeleton.dart';
+import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
-import 'package:mobile/utils/search_bar.dart';
 import 'package:provider/provider.dart';
 
+/// EM ALTA — estabelecimentos ordenados pelo movimento medido agora.
+///
+/// A ordenação é o conteúdo desta tela: antes ela mostrava a lista na ordem
+/// em que a API devolveu e chamava isso de "Populares Agora". Aqui a lista é
+/// de fato ordenada por `nivelMovimento` decrescente, e quem não tem leitura
+/// de movimento vai para o fim — a promessa do título passa a ser verdade.
 class HotPlacesScreen extends StatefulWidget {
   const HotPlacesScreen({super.key});
 
@@ -17,8 +26,8 @@ class HotPlacesScreen extends StatefulWidget {
 }
 
 class _HotPlacesScreenState extends State<HotPlacesScreen> {
-  final TextEditingController pesquisaController = TextEditingController();
-  List<PlaceModel> listaFiltrada = [];
+  final _searchController = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
@@ -28,131 +37,126 @@ class _HotPlacesScreenState extends State<HotPlacesScreen> {
     });
   }
 
-  List<PlaceModel> filtrarPlaces(List<PlaceModel> places) {
-    final query = removeDiacritics(pesquisaController.text.toUpperCase());
-    if (query.isEmpty) return places;
-    return places
-        .where(
-          (place) =>
-              removeDiacritics(place.nome.toUpperCase()).contains(query) ||
-              removeDiacritics(place.categoria.toUpperCase()).contains(query),
-        )
-        .toList();
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<PlaceModel> _filter(List<PlaceModel> places) {
+    final query = removeDiacritics(_query.trim().toLowerCase());
+    final filtered = query.isEmpty
+        ? [...places]
+        : places
+              .where(
+                (p) =>
+                    removeDiacritics(p.nome.toLowerCase()).contains(query) ||
+                    removeDiacritics(p.categoria.toLowerCase()).contains(query),
+              )
+              .toList();
+
+    filtered.sort((a, b) => b.nivelMovimento.compareTo(a.nivelMovimento));
+    return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final provider = context.watch<PlaceListProvider>();
-    final places = context.watch<PlaceListProvider>().places;
-    final listaFiltrada = filtrarPlaces(places);
+    final places = _filter(provider.places);
 
-    if (provider.isLoading && places.isEmpty) {
-      return Scaffold(
-        backgroundColor: context.colors.noturno,
-        body: Center(
-          child: CircularProgressIndicator(color: context.colors.ambar),
+    return Scaffold(
+      backgroundColor: colors.noturno,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            const ScreenHeader(
+              title: 'Onde tem gente',
+              eyebrow: 'MOVIMENTO AGORA',
+              bottomSpacing: AppSpacing.md,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screen,
+                0,
+                AppSpacing.screen,
+                AppSpacing.md,
+              ),
+              child: VibesterSearchField(
+                controller: _searchController,
+                hint: 'Filtrar por nome ou categoria',
+                onChanged: (value) => setState(() => _query = value),
+              ),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                color: colors.ambar,
+                backgroundColor: colors.surface,
+                onRefresh: () =>
+                    context.read<PlaceListProvider>().fetchPlaces(force: true),
+                child: _buildList(context, provider, places),
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildList(
+    BuildContext context,
+    PlaceListProvider provider,
+    List<PlaceModel> places,
+  ) {
+    if (provider.isLoading && provider.places.isEmpty) {
+      return ListView.separated(
+        padding: const EdgeInsets.all(AppSpacing.screen),
+        itemCount: 6,
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.lg),
+        itemBuilder: (_, _) => const VibesterSkeleton(height: 72),
       );
     }
 
-    return Scaffold(
-      backgroundColor: context.colors.noturno,
-      body: RefreshIndicator(
-        color: context.colors.ambar,
-        onRefresh: () =>
-            context.read<PlaceListProvider>().fetchPlaces(force: true),
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(0, 16, 0, 80),
-          itemCount: listaFiltrada.isEmpty ? 2 : listaFiltrada.length + 1,
-          itemBuilder: (context, index) {
-            if (index == 0) {
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Populares Agora',
-                      style: context.typography.displayMedium.copyWith(
-                        color: context.colors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text.rich(
-                      TextSpan(
-                        text: 'Os locais mais movimentados da cidade ',
-                        style: context.typography.bodyMedium.copyWith(
-                          color: context.colors.textMuted,
-                        ),
-                        children: [
-                          TextSpan(
-                            text: 'ao vivo!',
-                            style: TextStyle(
-                              color: context.colors.ambar,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    CustomSearchBar(
-                      controller: pesquisaController,
-                      onChanged: () {
-                        setState(() {});
-                      },
-                    ),
-                  ],
-                ),
-              );
-            }
+    if (provider.error != null && provider.places.isEmpty) {
+      return ListView(
+        children: [
+          VibesterState.error(
+            message: provider.error!,
+            onAction: () =>
+                context.read<PlaceListProvider>().fetchPlaces(force: true),
+          ),
+        ],
+      );
+    }
 
-            if (listaFiltrada.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 90),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      height: 200,
-                      width: 200,
-                      child: Image.asset('assets/img/mascote/lupa.png'),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Nenhum lugar encontrado',
-                      style: context.typography.bodyLarge.copyWith(
-                        color: context.colors.textDisabled,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Tente buscar por outro nome ou categoria',
-                      style: context.typography.bodySmall.copyWith(
-                        color: context.colors.textDisabled,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
+    if (places.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          VibesterState(
+            headline: _query.isEmpty ? 'Nada por aqui' : 'Nada com esse nome',
+            message: _query.isEmpty
+                ? 'Nenhum estabelecimento cadastrado ainda.'
+                : 'Tenta outro nome ou uma categoria.',
+            icon: Icons.storefront_outlined,
+          ),
+        ],
+      );
+    }
 
-            return StaggeredEntrance(
-              index: index - 1,
-              child: PlaceCard(
-                place: listaFiltrada[index - 1],
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    AppRoutes.placeDetail,
-                    arguments: listaFiltrada[index - 1].id,
-                  );
-                },
-              ),
-            );
-          },
-        ),
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.screen,
+        0,
+        AppSpacing.screen,
+        AppSpacing.dockGap,
+      ),
+      itemCount: places.length,
+      itemBuilder: (context, i) => StaggeredEntrance(
+        index: i,
+        child: PlaceTile(place: places[i]),
       ),
     );
   }

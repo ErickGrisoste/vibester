@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/indicators/review_indicator.dart';
 
+/// Avaliação de um estabelecimento.
+///
+/// Sem cartão em volta: a coluna de avaliações vira uma sequência de blocos
+/// de texto separados por fio, que é como uma página de opiniões se lê. A nota
+/// em estrelas e o tempo ficam na mesma linha do nome, em DM Mono, e o
+/// comentário fica sozinho embaixo — o conteúdo que importa é ele.
 class ReviewCard extends StatelessWidget {
   final String nomeUsuario;
   final double avaliacao;
@@ -17,82 +25,45 @@ class ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      clipBehavior: Clip.antiAlias,
-      color: context.colors.navy,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: context.colors.ambar,
-                  child: Icon(Icons.person, color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        nomeUsuario,
-                        style: context.typography.titleMedium.copyWith(
-                          color: context.colors.textPrimary,
-                          fontSize: 15,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      _buildStars(context, avaliacao),
-                    ],
-                  ),
-                ),
-                Text(
-                  tempo,
-                  style: context.typography.bodySmall.copyWith(
-                    color: context.colors.textMuted,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
+    final colors = context.colors;
+    final type = context.typography;
 
-            const SizedBox(height: 16),
-
-            // Comentário
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.hairline)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  nomeUsuario,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.titleMedium.copyWith(color: colors.textPrimary),
+                ),
+              ),
+              Text(
+                tempo.toUpperCase(),
+                style: type.monoMicro.copyWith(color: colors.textDisabled),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          StarRating(rating: avaliacao),
+          if (comentario.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
             Text(
               comentario,
-              style: context.typography.bodyMedium.copyWith(
-                color: context.colors.textSecondary,
-              ),
+              style: type.bodyLarge.copyWith(color: colors.textSecondary),
             ),
           ],
-        ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildStars(BuildContext context, double rating) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(5, (i) {
-        final starValue = i + 1;
-        IconData icon;
-        if (rating >= starValue) {
-          icon = Icons.star;
-        } else if (rating >= starValue - 0.5) {
-          icon = Icons.star_half;
-        } else {
-          icon = Icons.star_border;
-        }
-        return Icon(icon, color: context.colors.brasa, size: 16);
-      }),
     );
   }
 }
