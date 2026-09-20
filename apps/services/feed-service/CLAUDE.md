@@ -11,7 +11,7 @@
 
 O `feed-service` é responsável exclusivamente por:
 
-- montar e servir a **timeline personalizada** de um usuário (`GET /feed/:userId`), paginada por cursor de `created_at`;
+- montar e servir a **timeline personalizada** de um usuário (`GET /feed/:userId`), paginada por cursor opaco — cronológica ou rankeada conforme o experimento (ver "Feed rankeado na rota");
 - **fan-out on write**: ao consumir eventos de outros domínios (post criado, evento criado, follow/unfollow), duplicar (desnormalizar) o item na partição de feed de cada seguidor — e, no caso de post, também na do próprio autor (`addPostToAuthorFeed`, gravada antes do fan-out, para quem publica ver o post no feed) —, já com todos os dados de exibição embutidos (autor, estabelecimento, evento) para que a leitura seja uma única query por partição, sem joins;
 - manter cópias auxiliares desnormalizadas por domínio (`posts_by_user`, `events_by_id`, `events_by_user`) e índices reversos (`feed_entries_by_post`) que permitem propagar updates/likes/deleções de um item para todas as cópias já distribuídas nos feeds dos seguidores;
 - manter as relações de follow **localmente** (`followers_by_user`, `followers_by_establishment`), como cache de leitura rápida para o fan-out — a fonte de verdade do relacionamento social continua sendo `user-service`/`establishment-service`; este serviço só espelha o necessário para decidir "para quem distribuir".
@@ -209,6 +209,8 @@ Mesmo padrão do `establishment-service`/`post-service`: `src/config/env.ts` val
 
 O `.env.example` já reflete as env vars reais do `env.ts` (`ASTRA_SECURE_CONNECT_BUNDLE`, `JWT_SECRET`, etc.) — ao mexer em qualquer env var, mantenha os dois em sincronia.
 
+`RANKING_ROLLOUT_SHARE` (opcional, 0 a 1, padrão 0) é a fatia do experimento de ranking; é lida com fallback para 0 e aviso no log, nunca derruba o boot.
+
 Propague qualquer variável nova no `k8s/deployment.yaml` (via `envFrom.secretRef: feed-service-secret`, hoje o único mecanismo usado — não há `configMapRef` neste serviço).
 
 ---
@@ -229,7 +231,7 @@ Propague qualquer variável nova no `k8s/deployment.yaml` (via `envFrom.secretRe
 
 ## Ranking do feed (fases 1 e 2 do roteiro de recomendação)
 
-> **Nada disto é chamado pela rota ainda.** `GET /feed/:userId` continua cronológico. Ligar o `Scorer` na leitura depende de resolver a dívida de `feed_by_user` guardar o post inteiro em vez de referência e ordem.
+> **A rota já usa o ranking, mas nasce desligada.** `GET /feed/:userId` passa por `RankedFeedService`; com `RANKING_ROLLOUT_SHARE=0` (padrão) todo mundo continua recebendo o feed cronológico. Ranking aqui ordena o following — não traz conteúdo de quem a pessoa não segue (isso é a fase 3).
 
 O ranking mora neste serviço por decisão: a ordem nasce na leitura (read-time), e um serviço de ranking separado significaria chamada síncrona no caminho mais quente do produto. Não mova para outro serviço antes da fase 4 (value model) sem motivo novo.
 
@@ -248,6 +250,11 @@ src/services/ranking_features.service.ts        → agrega sinais e monta ItemFe
 src/repositories/ranking_counters.repository.ts → os dois modelos de armazenamento (abaixo)
 src/schema/events/interactions-normalized.schema.ts
 migrations/V013 (ranking_counters_by_item), V014 (ranking_affinity_by_user_author)
+src/services/ranked_feed.service.ts            → quem recebe ranking, primeira página, páginas da sessão
+src/repositories/feed_session.repository.ts    → feed_session_items (ordem congelada por 30 min)
+src/utils/feed_cursor.ts                       → os três formatos de cursor
+src/utils/feed_item.ts                         → formato do item na resposta, único para os dois caminhos
+migrations/V015 (feed_session_items)
 ```
 
 ### Leia `interactions.normalized`, nunca `interactions.raw`
@@ -279,6 +286,33 @@ Se algum desses testes falhar depois de uma mudança, a mudança está errada �
 ### Pesos
 
 Escala de teto 100 do catálogo de ações do desenho do produto, com exceções documentadas em `src/ranking/weights.ts`: `IMPRESSION = 0` (é denominador), `SKIP = -30`, `UNLIKE = -60`, e `NOT_INTERESTED = -200` rompendo o teto de propósito para preservar a assimetria de custo. Qualidade e atenção entram no score **normalizadas pela média da plataforma** (1 = item médio); sem isso uma troca de escala transforma a afinidade em ruído. Todos os números são chute até existir um mês de impressão real.
+
+### Feed rankeado na rota (fase 2)
+
+**Quem recebe ranking**, nesta ordem:
+
+1. holdout cronológico permanente de 5% (`isInChronologicalHoldout`) — nunca recebe, nem com a fatia em 100%. É a régua do experimento;
+2. do resto, a fatia `RANKING_ROLLOUT_SHARE` (0 a 1) do experimento `ranking-v1`. Valor ausente ou inválido vira 0. Trocar o nome do experimento reembaralha os grupos.
+
+**Primeira página rankeada**: lê os 200 itens mais recentes da partição (`CANDIDATE_LIMIT`), monta as features (2 queries), ordena com `HeuristicScorer` e devolve os `limit` primeiros direto da memória. Se sobrar item, grava a ordem inteira em `feed_session_items` (lotes de 50 na mesma partição, TTL 30 min) e devolve um cursor de sessão. Custo fixo por primeira página: 1 leitura de 200 linhas + 2 queries de features + 4 lotes — aumentar `CANDIDATE_LIMIT` encarece toda primeira página.
+
+**Páginas seguintes** leem `limit + 1` chaves da sessão a partir da posição e hidratam de `feed_by_user` com `(created_at, item_id) IN (...)` numa query de partição. O Cassandra devolve por `created_at`, então o serviço reordena pela sessão. Item apagado desde a primeira página é pulado.
+
+**Cursor**: o app só repassa o texto, então o formato é livre.
+
+| formato | exemplo | quando |
+|---|---|---|
+| data ISO | `2026-09-12T02:00:00.000Z` | caminho cronológico, e continuação depois do fim da sessão |
+| sessão | `s1.<base64url de {s, o, t?}>` | páginas seguintes do rankeado |
+
+- `t` (tail) só existe quando os candidatos bateram no teto: é a data do mais antigo. Quando a sessão acaba, o próximo cursor vira essa data e o feed segue cronológico dali, sem repetir nem pular.
+- Sessão é servida mesmo que a fatia mude no meio: quem começou rankeado termina rankeado.
+- Sessão expirada (30 min parado) **termina o feed** (`items: []`, `nextCursor: null`) em vez de abrir outra, que repetiria itens. Puxar para atualizar abre uma nova.
+- `user_id` é chave de partição da sessão: cursor de outra pessoa não encontra nada.
+- Mudar o conteúdo do token exige prefixo novo (`s2.`): cursores antigos continuam em apps abertos.
+- **Não volte a pôr `format: "date-time"`** no `cursor` da querystring nem no `nextCursor` da resposta em `routes.ts`: o Fastify recusaria o token de sessão antes do controller. A validação é `parseFeedCursor`, e cursor inválido é 400, nunca 500.
+
+**Limite honesto**: enquanto não houver impressões reais, a qualidade suavizada é igual para todos os itens (a taxa cai no prior), então o ranking se resume a **recência + afinidade com o autor**. Não ligue a fatia esperando efeito de engajamento antes de o app mandar impressão.
 
 ### Bug de bootstrap do runner de migration
 

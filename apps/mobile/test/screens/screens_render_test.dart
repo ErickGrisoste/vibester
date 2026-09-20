@@ -27,6 +27,7 @@ import 'package:mobile/screens/settings/blocked_accounts_screen.dart';
 import 'package:mobile/screens/settings/delete_account_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
+import 'package:mobile/screens/user/follow_list_screen.dart';
 import 'package:mobile/screens/user/other_users_profile_screen.dart';
 import 'package:mobile/screens/user/profile_editing_screen.dart';
 import 'package:mobile/screens/user/user_interests_screen.dart';
@@ -180,6 +181,24 @@ void main() {
         const EventListScreen(placeId: 'place-1'),
         user: fakeUser(),
       );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('FollowListScreen sem rede cai no estado de erro tratado', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        const FollowListScreen(
+          accountId: 'account-1',
+          nome: 'Ana Vibes',
+          totalSeguidores: 128,
+          totalSeguindo: 90,
+        ),
+        size: TestScreens.small,
+        user: fakeUser(),
+      );
+      expect(find.text('SEGUIDORES'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

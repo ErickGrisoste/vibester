@@ -29,6 +29,14 @@ check-ins vivem em `/saved` (`screens/saved/saved_screen.dart`), acessível pelo
 perfil. Não existe mais aba dentro de aba: a `TabBar` FEED/DESTAQUES/EM ALTA e
 a aba de favoritos foram removidas.
 
+Os contadores de seguidores/seguindo (`ProfileCounters`, usado pelos dois
+perfis) abrem `/follow-list` (`screens/user/follow_list_screen.dart`) já no
+lado tocado, e os dois lados alternam ali dentro sem nova navegação. A lista
+usa a mesma linha da busca por pessoas (`UserRow`, `widgets/cards/users/`) e
+leva ao perfil de cada um; é paginada por cursor
+(`GET /user/users/:accountId/followers|following`, que já devolve o perfil
+hidratado) e filtra pelo `BlockProvider`.
+
 O design system está documentado em [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) —
 leia antes de criar componente novo.
 

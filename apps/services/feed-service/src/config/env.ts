@@ -27,6 +27,11 @@ const envSchema = z.object({
     // abuso básico. Ver src/plugins.ts para o motivo de não haver store
     // compartilhado (Redis) por trás desse limite neste serviço.
     RATE_LIMIT_MAX: z.coerce.number().default(300),
+    // Fica como string crua e é interpretada por parseRolloutShare abaixo, em vez de
+    // coagida pelo zod: valor fora da faixa não pode derrubar o boot nem passar em
+    // silêncio — vira 0 com aviso, porque um erro de digitação no deployment não pode
+    // ligar o ranking para todo mundo.
+    RANKING_ROLLOUT_SHARE: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -34,6 +39,25 @@ const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
     console.error("[ENV] Variáveis de ambiente inválidas:", JSON.stringify(parsed.error.flatten().fieldErrors, null, 2));
     process.exit(1);
+}
+
+/**
+ * Fatia do experimento `ranking-v1` (0 a 1) entre quem está fora do holdout cronológico.
+ *
+ * Padrão 0: o feed rankeado vai para produção desligado. Valor inválido também vira 0 —
+ * um erro de digitação no deployment não pode ligar o ranking para todo mundo.
+ */
+function parseRolloutShare(raw: string | undefined): number {
+    if (raw === undefined || raw.trim() === "") { return 0; }
+
+    const share = Number(raw);
+
+    if (!Number.isFinite(share) || share < 0 || share > 1) {
+        console.warn(`[ENV] RANKING_ROLLOUT_SHARE inválido (${raw}); usando 0 (ranking desligado)`);
+        return 0;
+    }
+
+    return share;
 }
 
 const _env = parsed.data;
@@ -55,4 +79,5 @@ export const env = {
         ? _env.CORS_ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
         : undefined,
     rate_limit_max: _env.RATE_LIMIT_MAX,
+    ranking_rollout_share: parseRolloutShare(_env.RANKING_ROLLOUT_SHARE),
 };
