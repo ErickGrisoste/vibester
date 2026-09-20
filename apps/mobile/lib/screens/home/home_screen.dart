@@ -11,6 +11,7 @@ import 'package:mobile/screens/user/user_profile_screen.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/navigation/vibester_navbar.dart';
 import 'package:provider/provider.dart';
+import 'package:mobile/service/interaction/interaction_tracker.dart';
 
 /// Casca de navegação do app.
 ///
@@ -42,6 +43,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const _feedIndex = 0;
+  static const _exploreIndex = 1;
   static const _todayIndex = 2;
   static const _profileIndex = 3;
 
@@ -52,6 +54,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _dockVisible = true;
 
   final _feedKey = GlobalKey<FeedScreenState>();
+  final _exploreKey = GlobalKey<ExploreScreenState>();
+  final _todayKey = GlobalKey<TodayScreenState>();
   final _profileKey = GlobalKey<UserProfileScreenState>();
 
   /// Momento do último toque no voltar do Android, para o padrão "aperte
@@ -62,8 +66,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// (posição de scroll, imagens já carregadas) do destino anterior.
   late final List<Widget> _destinations = [
     FeedScreen(key: _feedKey),
-    const ExploreScreen(),
-    const TodayScreen(),
+    ExploreScreen(key: _exploreKey),
+    TodayScreen(key: _todayKey),
     UserProfileScreen(key: _profileKey),
   ];
 
@@ -173,12 +177,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _selectDestination(int index) {
-    if (index == _currentIndex) return;
+    // Tocar no destino em que já se está reinicia a tela, em vez de não fazer
+    // nada: é o atalho de volta ao começo sem precisar rolar nem desfazer
+    // filtro por filtro.
+    if (index == _currentIndex) {
+      _resetDestination(index);
+      return;
+    }
 
     setState(() {
       _currentIndex = index;
       _dockVisible = true;
     });
+
+    // O IndexedStack mantém o destino anterior montado: ele deixa de ser
+    // pintado, o detector de visibilidade dos cards do feed congela no último
+    // valor, e o post que estava na tela continuaria acumulando atenção fora
+    // do feed. O TickerMode acima não cobre isso — ele cala animação, e o
+    // VisibilityDetector não depende de ticker, e sim de pintura.
+    final tracker = maybeInteractionTracker(context);
+
+    if (index == _feedIndex) {
+      tracker?.resumeSurface();
+    } else {
+      tracker?.pauseSurface();
+    }
 
     // Não há push, então o badge não se atualiza sozinho: uma leitura leve a
     // cada troca de destino é o suficiente e não custa uma tela de loading.
@@ -188,6 +211,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // busca dados novos sozinho ao voltar a ficar visível.
     if (index == _profileIndex) {
       _profileKey.currentState?.refreshProfileData();
+    }
+  }
+
+  /// Cada destino sabe o que "voltar ao começo" significa para ele:
+  ///
+  /// * FEED — sobe até o topo.
+  /// * BUSCA — limpa o termo, fecha o teclado e volta à descoberta.
+  /// * HOJE — sobe, tira o filtro de categoria e recarrega tudo.
+  /// * VOCÊ — sobe e recarrega perfil e registros.
+  void _resetDestination(int index) {
+    if (!_dockVisible) setState(() => _dockVisible = true);
+
+    switch (index) {
+      case _feedIndex:
+        _feedKey.currentState?.scrollToTop();
+      case _exploreIndex:
+        _exploreKey.currentState?.resetTab();
+      case _todayIndex:
+        _todayKey.currentState?.resetTab();
+      case _profileIndex:
+        _profileKey.currentState?.resetTab();
     }
   }
 

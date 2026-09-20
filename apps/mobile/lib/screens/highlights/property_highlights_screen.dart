@@ -22,11 +22,17 @@ class PropertyHighlightsScreen extends StatefulWidget {
   /// continua preguiçosa (só as células visíveis são criadas).
   final bool asSliver;
 
+  /// Avisa quantos posts a grade tem sempre que a lista muda (carregou,
+  /// recarregou ou um post foi excluído). É o que alimenta o contador do
+  /// perfil: cada quadrado da grade conta como um.
+  final ValueChanged<int>? onCountChanged;
+
   const PropertyHighlightsScreen({
     super.key,
     this.accountId,
     this.placeId,
     this.asSliver = false,
+    this.onCountChanged,
   });
 
   @override
@@ -79,6 +85,17 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
 
   Future<void> refresh() => _buscarHighlights();
 
+  /// Post excluído no feed aberto a partir da grade.
+  void _removerDaGrade(String postId) {
+    if (!mounted) return;
+    setState(
+      () => _highlights = _highlights
+          .where((h) => h.postId != postId)
+          .toList(),
+    );
+    widget.onCountChanged?.call(_highlights.length);
+  }
+
   Future<void> _buscarHighlights() async {
     setState(() {
       _isLoading = true;
@@ -105,17 +122,22 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
         highlights = [];
       }
 
+      if (!mounted) return;
       setState(() {
         _highlights = highlights;
       });
+      widget.onCountChanged?.call(highlights.length);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _erro = 'Não foi possível carregar as fotos';
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -156,16 +178,12 @@ class PropertyHighlightsScreenState extends State<PropertyHighlightsScreen>
         gridDelegate: _gridDelegate,
         itemCount: _highlights.length,
         itemBuilder: (context, index) {
-          final highlight = _highlights[index];
           return StaggeredEntrance(
             index: index,
             child: HighlightsCard(
-              highlight: highlight,
-              onDeleted: () => setState(
-                () => _highlights = _highlights
-                    .where((h) => h.postId != highlight.postId)
-                    .toList(),
-              ),
+              posts: _highlights,
+              index: index,
+              onDeleted: _removerDaGrade,
             ),
           );
         },

@@ -109,6 +109,7 @@ Atualmente existem os seguintes serviços:
 - Notification
 - Payment
 - Scrapping
+- Interaction
 
 Cada microserviço possui responsabilidade única e deve evoluir de forma independente.
 
@@ -214,6 +215,9 @@ Entre as funcionalidades existentes estão:
   (contrato de upload e leitura em
   [`apps/services/post-service/docs/midias-no-post.md`](apps/services/post-service/docs/midias-no-post.md));
 - feed;
+- coleta dos sinais implícitos de quem lê o feed (impressão, tempo de atenção,
+  descarte rápido), enviada pelo app em lote ao interaction-service e consumida
+  pelo ranking do feed-service;
 - scraping da movimentação de estabelecimentos;
 - notificações;
 - comunicação entre microserviços.

@@ -30,6 +30,14 @@ class PrimaryTextField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
 
+  /// Valida o campo quando a pessoa sai dele depois de ter digitado algo,
+  /// sem esperar o envio do formulário. Depois que o erro aparece, o campo
+  /// revalida a cada tecla, e o erro some assim que o valor fica certo.
+  ///
+  /// Desligado por padrão: vale para campos em que o formato pode ser
+  /// conferido na hora (e-mail, por exemplo), não para todo campo.
+  final bool validateOnBlur;
+
   const PrimaryTextField({
     super.key,
     required this.controller,
@@ -45,6 +53,7 @@ class PrimaryTextField extends StatefulWidget {
     this.enabled = true,
     this.onChanged,
     this.onSubmitted,
+    this.validateOnBlur = false,
   });
 
   @override
@@ -53,19 +62,36 @@ class PrimaryTextField extends StatefulWidget {
 
 class _PrimaryTextFieldState extends State<PrimaryTextField> {
   final _focusNode = FocusNode();
+  final _fieldKey = GlobalKey<FormFieldState<String>>();
   bool _focused = false;
   bool _hidden = true;
+
+  /// A pessoa digitou algo neste campo. Sair de um campo em que ela só tocou
+  /// não acusa "campo vazio": isso fica para o envio do formulário.
+  bool _edited = false;
+
+  /// Já validou uma vez ao sair do campo: daqui em diante revalida a cada
+  /// tecla, para o erro sumir assim que a pessoa corrigir.
+  bool _validateOnChange = false;
 
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(
-      () => setState(() => _focused = _focusNode.hasFocus),
-    );
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  void _onFocusChanged() {
+    setState(() => _focused = _focusNode.hasFocus);
+
+    if (!_focusNode.hasFocus && widget.validateOnBlur && _edited) {
+      _validateOnChange = true;
+      _fieldKey.currentState?.validate();
+    }
   }
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
     super.dispose();
   }
@@ -76,6 +102,7 @@ class _PrimaryTextFieldState extends State<PrimaryTextField> {
     final type = context.typography;
 
     return FormField<String>(
+      key: _fieldKey,
       initialValue: widget.controller.text,
       validator: widget.validator,
       builder: (state) {
@@ -137,7 +164,9 @@ class _PrimaryTextFieldState extends State<PrimaryTextField> {
                       cursorColor: colors.ambar,
                       style: type.bodyLarge.copyWith(color: colors.textPrimary),
                       onChanged: (value) {
+                        _edited = true;
                         state.didChange(value);
+                        if (_validateOnChange) state.validate();
                         widget.onChanged?.call(value);
                       },
                       onSubmitted: widget.onSubmitted,

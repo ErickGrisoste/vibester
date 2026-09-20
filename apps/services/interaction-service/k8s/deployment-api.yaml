@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: interaction-service-api
+  namespace: default
+  labels:
+    app: interaction-service-api
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: interaction-service-api
+  template:
+    metadata:
+      labels:
+        app: interaction-service-api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: interaction-service-api
+          image: ghcr.io/victormarchidev/vibester-interaction-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3007
+          # Sem volume do Astra e sem as credenciais do Cassandra de propósito:
+          # o modo api só publica no Kafka, nunca abre conexão com o banco.
+          envFrom:
+            - secretRef:
+                name: interaction-service-secret
+          env:
+            - name: SERVICE_MODE
+              value: "api"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "192Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          # Liveness e readiness apontam para endpoints DIFERENTES: /health só diz
+          # que o processo está vivo, /ready checa o broker. Assim uma oscilação do
+          # Kafka tira o pod do balanceador sem reiniciá-lo.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3007
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3007
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL

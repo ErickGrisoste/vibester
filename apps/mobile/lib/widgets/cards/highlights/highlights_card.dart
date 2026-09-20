@@ -4,6 +4,7 @@ import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/cards/highlights/post_detail_screen.dart';
 import 'package:mobile/widgets/common/vibester_image.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
@@ -15,27 +16,41 @@ import 'package:mobile/widgets/motion/vibester_pressable.dart';
 /// imagem, com o mesmo canto rasgado dos demais cartões do app e um grão leve
 /// para amarrar a grade à textura do produto.
 class HighlightsCard extends StatelessWidget {
-  final HighlightModel highlight;
+  /// Todos os posts da grade, na ordem dela. O toque abre o feed com todos,
+  /// já posicionado neste.
+  final List<HighlightModel> posts;
 
-  /// Chamado quando o dono excluiu o post no detalhe, para a grade tirá-lo
-  /// sem refazer a busca.
-  final VoidCallback? onDeleted;
+  /// Posição deste card em [posts].
+  final int index;
 
-  const HighlightsCard({super.key, required this.highlight, this.onDeleted});
+  /// Chamado com o id de cada post que o dono excluir no feed, para a grade
+  /// tirá-lo sem refazer a busca.
+  final ValueChanged<String>? onDeleted;
+
+  const HighlightsCard({
+    super.key,
+    required this.posts,
+    required this.index,
+    this.onDeleted,
+  });
+
+  HighlightModel get highlight => posts[index];
 
   @override
   Widget build(BuildContext context) {
     return VibesterPressable(
       pressScale: AppMotion.scalePress,
       borderRadius: AppRadius.smAll,
-      onTap: () async {
-        final excluido = await Navigator.pushNamed(
-          context,
-          AppRoutes.postDetail,
-          arguments: highlight,
-        );
-        if (excluido == true) onDeleted?.call();
-      },
+      onTap: () => Navigator.pushNamed(
+        context,
+        AppRoutes.postDetail,
+        arguments: PostDetailArgs(
+          // Cópia: a grade pode mudar enquanto o feed está aberto.
+          posts: List.of(posts),
+          initialIndex: index,
+          onDeleted: onDeleted,
+        ),
+      ),
       child: ClipRRect(
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(AppRadius.sm),

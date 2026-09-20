@@ -224,14 +224,16 @@ describe("user-service — HTTP Integration (Postgres + Redis reais)", () => {
       const followersRes = await app.inject({ method: "GET", url: `/users/${ACCOUNT_ID_1}/followers` });
       expect(followersRes.statusCode).toBe(200);
       const followers = JSON.parse(followersRes.payload);
-      expect(followers).toHaveLength(1);
-      expect(followers[0].followerId).toBe(ACCOUNT_ID_2);
+      expect(followers.data).toHaveLength(1);
+      expect(followers.data[0].accountId).toBe(ACCOUNT_ID_2);
+      expect(followers.data[0]).toHaveProperty("username");
+      expect(followers.nextCursor).toBeNull();
 
       const followingRes = await app.inject({ method: "GET", url: `/users/${ACCOUNT_ID_2}/following` });
       expect(followingRes.statusCode).toBe(200);
       const following = JSON.parse(followingRes.payload);
-      expect(following).toHaveLength(1);
-      expect(following[0].followingId).toBe(ACCOUNT_ID_1);
+      expect(following.data).toHaveLength(1);
+      expect(following.data[0].accountId).toBe(ACCOUNT_ID_1);
     });
   });
 });

@@ -43,7 +43,18 @@ class PublicationCard extends StatelessWidget {
   /// Posição na lista, usada para a inclinação alternada.
   final int index;
 
-  const PublicationCard({super.key, required this.publication, this.index = 0});
+  /// Disparado junto com a navegação para o perfil do autor.
+  ///
+  /// O card não fala com a telemetria: quem sabe a posição do item na lista e
+  /// a superfície em que ele apareceu é quem o montou.
+  final VoidCallback? onAuthorTap;
+
+  const PublicationCard({
+    super.key,
+    required this.publication,
+    this.index = 0,
+    this.onAuthorTap,
+  });
 
   double get _tilt => (index.isEven ? 1 : -1) * 0.0055;
 
@@ -71,7 +82,7 @@ class PublicationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _AuthorLine(publication: publication),
+          _AuthorLine(publication: publication, onAuthorTap: onAuthorTap),
           const SizedBox(height: AppSpacing.md),
 
           Transform.rotate(
@@ -164,8 +175,9 @@ enum _PostOption { delete, report, block }
 /// usuário; denunciar e bloquear no post de outra pessoa.
 class _AuthorLine extends StatelessWidget {
   final PublicationModel publication;
+  final VoidCallback? onAuthorTap;
 
-  const _AuthorLine({required this.publication});
+  const _AuthorLine({required this.publication, this.onAuthorTap});
 
   @override
   Widget build(BuildContext context) {
@@ -200,11 +212,14 @@ class _AuthorLine extends StatelessWidget {
             borderRadius: AppRadius.pillAll,
             onTap: publication.authorId == null
                 ? null
-                : () => Navigator.pushNamed(
-                    context,
-                    AppRoutes.otherProfile,
-                    arguments: publication.authorId,
-                  ),
+                : () {
+                    onAuthorTap?.call();
+                    Navigator.pushNamed(
+                      context,
+                      AppRoutes.otherProfile,
+                      arguments: publication.authorId,
+                    );
+                  },
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

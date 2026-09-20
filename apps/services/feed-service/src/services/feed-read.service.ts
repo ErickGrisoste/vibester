@@ -1,5 +1,5 @@
 import { FeedRepository } from "../repositories/feed.repository";
-import { toMediaItems } from "../utils/media";
+import { toFeedResponseItem } from "../utils/feed_item";
 
 export class FeedReadService {
     private feedRepository = new FeedRepository();
@@ -7,13 +7,9 @@ export class FeedReadService {
     async getFeedByUser(userId: string, limit: number, cursor?: Date) {
         const result = await this.feedRepository.findByUser(userId, limit, cursor);
 
-        // A UDT volta em snake_case do driver; o restante da linha já é
-        // snake_case por contrato dessa rota, mas `media` é campo novo e sai
-        // camelCase para bater com o formato do post-service.
-        const items = result.rows.map((row) => ({
-            ...row,
-            media: toMediaItems(row.media, row.image_urls) ?? null,
-        }));
+        // O mapeamento mora em utils/feed_item.ts para que o feed cronológico e o
+        // rankeado nunca divirjam no formato do item.
+        const items = result.rows.map(toFeedResponseItem);
 
         return {
             items,
