@@ -5,8 +5,9 @@ import 'package:mobile/widgets/cards/highlights/post_detail_screen.dart';
 
 import '../helpers/pump_app.dart';
 
-/// A exclusão só pode ser oferecida no post do próprio usuário: o backend
-/// recusa as outras (403), mas mostrar o botão prometeria uma ação que falha.
+/// A exclusão mora no ⋯ da publicação e só pode ser oferecida no post do
+/// próprio usuário: o backend recusa as outras (403), mas mostrar a opção
+/// prometeria uma ação que falha.
 void main() {
   setUpAll(setUpTestEnvironment);
 
@@ -22,29 +23,41 @@ void main() {
     atualizadoEm: DateTime.now().toIso8601String(),
   );
 
-  testWidgets('dono vê o botão de excluir e a confirmação', (tester) async {
+  testWidgets('dono acha o excluir no ⋯ e vê a confirmação', (tester) async {
     await pumpScreen(
       tester,
-      PostDetailScreen(highlight: postDe('account-1')),
+      PostDetailScreen(posts: [postDe('account-1')]),
       user: fakeUser(),
     );
+
+    // Fora do ⋯ não sobrou nenhum atalho de exclusão na tela.
+    expect(find.bySemanticsLabel('Excluir publicação'), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel('Opções da publicação'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.bySemanticsLabel('Excluir publicação'));
     await tester.pumpAndSettle();
 
+    expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.text('Excluir publicação'), findsOneWidget);
     await tester.tap(find.text('Cancelar'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
   });
 
-  testWidgets('post de outra pessoa não tem botão de excluir', (tester) async {
+  testWidgets('no ⋯ do post de outra pessoa não há excluir', (tester) async {
     await pumpScreen(
       tester,
-      PostDetailScreen(highlight: postDe('outra-conta')),
+      PostDetailScreen(posts: [postDe('outra-conta')]),
       user: fakeUser(),
     );
 
+    await tester.tap(find.bySemanticsLabel('Opções da publicação'));
+    await tester.pumpAndSettle();
+
     expect(find.bySemanticsLabel('Excluir publicação'), findsNothing);
+    expect(find.bySemanticsLabel('Denunciar publicação'), findsOneWidget);
+    expect(find.bySemanticsLabel('Bloquear perfil'), findsOneWidget);
   });
 }

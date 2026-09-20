@@ -7,8 +7,17 @@ import 'package:mobile/theme/vibester_dialog.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
 import 'package:provider/provider.dart';
 
-/// Ações de segurança oferecidas sobre conteúdo de outra pessoa.
+/// Ações do menu ⋯ de uma publicação ou de um perfil.
+///
+/// Reúne as ações de segurança sobre conteúdo de outra pessoa e a exclusão
+/// do próprio post — é o mesmo ⋯, só muda quem está olhando, então as duas
+/// famílias moram na mesma folha em vez de cada tela inventar a sua.
 enum SafetyAction {
+  deletePost(
+    'Excluir publicação',
+    Icons.delete_outline_rounded,
+    destructive: true,
+  ),
   reportPost('Denunciar publicação', Icons.flag_outlined, destructive: true),
   reportProfile('Denunciar perfil', Icons.flag_outlined, destructive: true),
   block('Bloquear perfil', Icons.block_rounded, destructive: true),
@@ -21,7 +30,7 @@ enum SafetyAction {
   final bool destructive;
 }
 
-/// Folha de opções (⋯) para post e perfil de terceiros.
+/// Folha de opções (⋯) de um post ou perfil.
 Future<SafetyAction?> showSafetyActionsSheet(
   BuildContext context, {
   required List<SafetyAction> actions,

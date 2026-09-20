@@ -82,6 +82,25 @@ class AppColors extends ThemeExtension<AppColors> {
     ],
   );
 
+  /// Gradiente de dissolução para foto que ocupa o topo de uma tela inteira
+  /// (transparente → preto opaco).
+  ///
+  /// Diferente do [photoScrim], que para em 0.92 porque o card tem borda e a
+  /// foto precisa continuar sendo foto até a base: aqui a imagem termina no
+  /// fundo da tela, então o último stop é preto cheio para não deixar costura
+  /// visível entre o fim da foto e o conteúdo que vem abaixo.
+  LinearGradient get photoFade => LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    stops: const [0.0, 0.35, 0.72, 1.0],
+    colors: [
+      scrim.withValues(alpha: 0.0),
+      scrim.withValues(alpha: 0.25),
+      scrim.withValues(alpha: 0.75),
+      scrim,
+    ],
+  );
+
   /// Véu de cor de marca sobre a base de uma foto, aplicado **por cima** do
   /// [photoScrim].
   ///
@@ -179,18 +198,18 @@ class AppColors extends ThemeExtension<AppColors> {
     // (#D4E0F1). Matiz 215°, entre os dois acentos, para não puxar as
     // camadas nem pro ciano nem pro índigo.
     navy: Color(0xFFCFDDF0),
-    // 195° — ciano-azur. O lado luminoso do par: 4,8:1 sobre o papel, logo
-    // acima do piso de texto. Nenhum azul mais claro que este serve como
-    // `ambar`, porque `ambar` é cor de texto em dezenas de telas.
-    ambar: Color.fromARGB(255, 77, 190, 255),
+    
+    /*( Inversão de cores do ambar )*/
+    ambar: Color(0xFFF88806),
+
     // Escurecido de #94A3B8 mantendo a matiz: `hairline` deriva daqui por
     // opacidade e, com o cinza claro, o separador sumia sobre `surface`.
     grey: Color(0xFF64748B),
     darkGrey: Color(0xFFF0EDF5),
-    // 244° — índigo. 49° de distância do `ambar`: é o que dá ao [gradient] da
-    // marca uma viagem de matiz de verdade, em vez de um degradê de brilho
-    // entre dois azuis parecidos.
-    brasa: Color(0xFF4A3FD6),
+    
+    /*( Inversão de cores do brasa )*/
+    brasa: Color(0xFFFF4D1C),
+
     // Branco com pigmento azul, como o noturno escuro e um preto com pigmento
     // roxo. Papel branco puro tira a temperatura da tela inteira.
     noturno: Color(0xFFF7F9FC),

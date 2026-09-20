@@ -1,0 +1,40 @@
+{
+  "name": "interaction-service",
+  "version": "1.0.0",
+  "description": "Vibester Interaction Service — coleta de sinais implícitos para o ranking do feed",
+  "main": "dist/src/server.js",
+  "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run --config vitest.unit.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --config vitest.coverage.config.ts --coverage",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/src/server.js",
+    "migrate": "node dist/scripts/migrate.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/jwt": "^10.0.0",
+    "@fastify/rate-limit": "^11.1.0",
+    "@fastify/swagger": "^9.7.0",
+    "@fastify/swagger-ui": "^5.2.6",
+    "cassandra-driver": "^4.9.0",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.8.5",
+    "kafkajs": "^2.2.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "@vitest/coverage-v8": "4.1.9",
+    "vitest": "4.1.9"
+  }
+}

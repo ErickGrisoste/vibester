@@ -69,7 +69,14 @@ const feedResponseSchema = {
   type: "object",
   properties: {
     items: { type: "array", items: feedItemSchema },
-    nextCursor: { type: "string", format: "date-time", nullable: true },
+    // String sem `format`: o cursor passou a ser um token opaco na paginação rankeada.
+    // Com `format: "date-time"` o serializador do Fastify recusaria o token. O app já
+    // trata o valor como texto e só o devolve na próxima chamada.
+    nextCursor: {
+      type: "string",
+      nullable: true,
+      description: "Token opaco da próxima página. Repasse exatamente como recebido; null no fim do feed.",
+    },
   },
 };
 
@@ -172,7 +179,7 @@ export async function feedRoutes(app: FastifyInstance) {
       tags: ["Feed"],
       summary: "Buscar feed do usuário",
       description:
-        "Retorna a timeline personalizada de um usuário com posts, eventos e conteúdo patrocinado de quem ele segue, paginados por cursor (data de criação).",
+        "Retorna a timeline de um usuário com posts, eventos e conteúdo patrocinado de quem ele segue. Para parte do público a ordem é rankeada (experimento ranking-v1, com holdout cronológico permanente de 5%); para o resto é cronológica. A paginação usa um cursor opaco em ambos os casos.",
       params: {
         type: "object",
         required: ["userId"],
@@ -190,10 +197,14 @@ export async function feedRoutes(app: FastifyInstance) {
             default: 20,
             description: "Quantidade máxima de itens por página (1-50, padrão: 20)",
           },
+          // Sem `format: "date-time"`: um cursor de sessão rankeada não é data, e o Fastify
+          // o recusaria antes do controller. A validação real acontece em parseFeedCursor.
           cursor: {
             type: "string",
-            format: "date-time",
-            description: "Cursor de paginação: data do último item recebido (ISO 8601). Retorna itens anteriores a esta data.",
+            minLength: 1,
+            maxLength: 512,
+            description:
+              "Cursor opaco: repasse exatamente o nextCursor da página anterior. Datas ISO 8601 (formato antigo) continuam aceitas e retornam ordem cronológica.",
           },
         },
       },

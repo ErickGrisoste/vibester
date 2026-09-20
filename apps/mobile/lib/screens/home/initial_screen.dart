@@ -31,7 +31,7 @@ class InitialScreen extends StatelessWidget {
 
   /// Versão fria: o degradê percorre `ambar` -> `brasa` da paleta clara e o
   /// "STER" é preto. No papel claro o branco do original desapareceria.
-  static const _logoLight = 'assets/img/logo/tipografia_azul.png';
+  static const _logoLight = 'assets/img/logo/tipografia.png';
 
   const InitialScreen({super.key});
 

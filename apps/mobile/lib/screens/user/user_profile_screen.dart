@@ -5,8 +5,10 @@ import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/screens/highlights/property_highlights_screen.dart';
 import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/utils/username.dart';
+import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/cards/users/profile_counters.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
@@ -38,6 +40,43 @@ class UserProfileScreen extends StatefulWidget {
 class UserProfileScreenState extends State<UserProfileScreen> {
   final UserService _userService = UserService();
   final GlobalKey<PropertyHighlightsScreenState> _highlightsKey = GlobalKey();
+  final _scrollController = ScrollController();
+  final _refreshKey = GlobalKey<RefreshIndicatorState>();
+
+  /// Impede dois resets empilhados por toques seguidos no botão.
+  bool _resetting = false;
+
+  /// Quantidade de posts que a grade de fato carregou. Enquanto a grade não
+  /// responde fica `null` e a tela usa o `totalPosts` que veio do perfil.
+  int? _gridCount;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Chamado pela casca da Home quando o usuário toca em VOCÊ estando nela:
+  /// sobe até o topo e recarrega perfil e registros, com o giro do refresh
+  /// à vista.
+  Future<void> resetTab() async {
+    if (_resetting) return;
+    _resetting = true;
+
+    try {
+      if (_scrollController.hasClients && _scrollController.offset > 0) {
+        await _scrollController.animateTo(
+          0,
+          duration: AppMotion.slow,
+          curve: AppMotion.standard,
+        );
+      }
+      if (!mounted) return;
+      await _refreshKey.currentState?.show();
+    } finally {
+      _resetting = false;
+    }
+  }
 
   /// Chamado pela casca da Home ao entrar neste destino: as telas do
   /// `IndexedStack` são montadas uma vez só e não se atualizariam sozinhas.
@@ -106,13 +145,20 @@ class UserProfileScreenState extends State<UserProfileScreen> {
     return Scaffold(
       backgroundColor: colors.noturno,
       body: RefreshIndicator(
+        key: _refreshKey,
         color: colors.ambar,
         backgroundColor: colors.surface,
         onRefresh: _onRefresh,
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            SliverToBoxAdapter(child: _ProfileIdentity(user: user)),
+            SliverToBoxAdapter(
+              child: _ProfileIdentity(
+                user: user,
+                postsCount: _gridCount ?? user.totalPosts,
+              ),
+            ),
             SliverToBoxAdapter(child: _ProfileActions(onShare: _shareProfile)),
             SliverToBoxAdapter(
               child: Padding(
@@ -132,7 +178,9 @@ class UserProfileScreenState extends State<UserProfileScreen> {
                     ),
                     const Spacer(),
                     Text(
-                      user.totalPosts.toString().padLeft(2, '0'),
+                      (_gridCount ?? user.totalPosts)
+                          .toString()
+                          .padLeft(2, '0'),
                       style: context.typography.monoSmall.copyWith(
                         color: colors.textDisabled,
                       ),
@@ -145,6 +193,11 @@ class UserProfileScreenState extends State<UserProfileScreen> {
               key: _highlightsKey,
               accountId: user.accountId ?? '',
               asSliver: true,
+              onCountChanged: (count) {
+                if (mounted && count != _gridCount) {
+                  setState(() => _gridCount = count);
+                }
+              },
             ),
           ],
         ),
@@ -157,8 +210,9 @@ class UserProfileScreenState extends State<UserProfileScreen> {
 
 class _ProfileIdentity extends StatelessWidget {
   final UserModel user;
+  final int postsCount;
 
-  const _ProfileIdentity({required this.user});
+  const _ProfileIdentity({required this.user, required this.postsCount});
 
   /// `interesses` chega da API como texto único; aceita vírgula ou barra como
   /// separador porque as duas formas aparecem nos dados existentes.
@@ -262,7 +316,13 @@ class _ProfileIdentity extends StatelessWidget {
                 ],
 
                 const SizedBox(height: AppSpacing.lg),
-                _Counters(user: user),
+                ProfileCounters(
+                  accountId: user.accountId ?? '',
+                  nome: user.nome,
+                  postsCount: postsCount,
+                  seguidores: user.seguidores,
+                  seguindo: user.seguindo,
+                ),
 
                 if (_interests.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
@@ -285,56 +345,6 @@ class _ProfileIdentity extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Contadores em DM Mono, alinhados à esquerda numa fileira só. Todos vêm de
-/// `fromProfileJson` — nenhum é decorativo.
-class _Counters extends StatelessWidget {
-  final UserModel user;
-
-  const _Counters({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      children: [
-        for (final (i, cell) in <(int, String)>[
-          (user.totalPosts, 'POSTS'),
-          (user.seguidores, 'SEGUIDORES'),
-          (user.seguindo, 'SEGUINDO'),
-        ].indexed) ...[
-          if (i > 0)
-            Container(
-              width: 1,
-              height: 28,
-              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              color: colors.hairline,
-            ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                cell.$1.toString(),
-                style: context.typography.monoDisplay.copyWith(
-                  color: colors.textPrimary,
-                  fontSize: 20,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                cell.$2,
-                style: context.typography.monoMicro.copyWith(
-                  color: colors.textDisabled,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
     );
   }
 }

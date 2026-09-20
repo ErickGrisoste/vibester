@@ -27,6 +27,7 @@ import 'package:mobile/screens/settings/blocked_accounts_screen.dart';
 import 'package:mobile/screens/settings/delete_account_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
+import 'package:mobile/screens/user/follow_list_screen.dart';
 import 'package:mobile/screens/user/other_users_profile_screen.dart';
 import 'package:mobile/screens/user/profile_editing_screen.dart';
 import 'package:mobile/screens/user/user_interests_screen.dart';
@@ -118,18 +119,21 @@ void main() {
   }
 
   group('telas com argumento', () {
-    testWidgets('RegisterScreen separa nome de nome de usuário', (
+    testWidgets('RegisterScreen pede só o nome de usuário, sem @', (
       tester,
     ) async {
       await pumpScreen(tester, const RegisterScreen());
 
+      // Não existe mais campo de nome: o primeiro campo é o de usuário.
+      expect(find.text('NOME'), findsNothing);
+      expect(find.text('NOME DE USUÁRIO'), findsOneWidget);
+
       final campos = find.byType(EditableText);
-      await tester.enterText(campos.at(0), 'João Côrtes');
-      await tester.enterText(campos.at(1), 'João Côrtes');
+      await tester.enterText(campos.at(0), '@João Côrtes');
       await tester.pump();
 
-      // Nome guarda acento e maiúscula; o usuário sai minúsculo e sem acento.
-      expect(find.text('João Côrtes'), findsOneWidget);
+      // O @ digitado some, o texto sai minúsculo e sem acento, e a prévia
+      // mostra o @ que o app coloca.
       expect(find.text('joao cortes'), findsOneWidget);
       expect(find.text('SEU USUÁRIO VAI SER  @joaocortes'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -180,6 +184,24 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('FollowListScreen sem rede cai no estado de erro tratado', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        const FollowListScreen(
+          accountId: 'account-1',
+          nome: 'Ana Vibes',
+          totalSeguidores: 128,
+          totalSeguindo: 90,
+        ),
+        size: TestScreens.small,
+        user: fakeUser(),
+      );
+      expect(find.text('SEGUIDORES'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('PlaceAmbienceGalleryScreen renderiza sem quebrar', (
       tester,
     ) async {
@@ -198,9 +220,46 @@ void main() {
     testWidgets('PostDetailScreen renderiza', (tester) async {
       await pumpScreen(
         tester,
-        PostDetailScreen(highlight: destaque),
+        PostDetailScreen(posts: [destaque]),
         user: fakeUser(),
       );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('PostDetailScreen abre no post tocado, com os outros', (
+      tester,
+    ) async {
+      // Três posts da conta logada; o do meio é o tocado na grade.
+      HighlightModel post(String id, String legenda) => HighlightModel(
+        postId: id,
+        userId: destaque.userId,
+        imagensUrls: const [],
+        legenda: legenda,
+        totalCurtidas: 0,
+        totalComentarios: 0,
+        foiDeletado: false,
+        criadoEm: DateTime.now().toIso8601String(),
+        atualizadoEm: DateTime.now().toIso8601String(),
+      );
+
+      await pumpScreen(
+        tester,
+        PostDetailScreen(
+          posts: [
+            post('post-a', 'Primeiro post'),
+            post('post-b', 'Post tocado'),
+            post('post-c', 'Terceiro post'),
+          ],
+          initialIndex: 1,
+        ),
+        user: fakeUser(),
+      );
+
+      // Todos os posts são da conta logada: o título é "Meus Posts".
+      expect(find.text('Meus Posts'), findsOneWidget);
+      expect(find.text('Post tocado'), findsOneWidget);
+      // Um voltar só, no cabeçalho — não um por post.
+      expect(find.bySemanticsLabel('Voltar'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

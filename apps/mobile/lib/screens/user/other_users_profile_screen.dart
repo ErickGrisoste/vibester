@@ -13,6 +13,7 @@ import 'package:mobile/utils/username.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
+import 'package:mobile/widgets/cards/users/profile_counters.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
@@ -60,6 +61,11 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
 
   bool _isFollowing = false;
   bool _loadingFollow = false;
+
+  /// Quantidade de posts que a grade de fato carregou. Enquanto a grade não
+  /// responde (ou está oculta por bloqueio) fica `null` e a tela usa o
+  /// `totalPosts` que veio do perfil.
+  int? _gridCount;
 
   /// Situação de bloqueio lida do backend ao abrir. O lado "eu bloqueei" também
   /// é refletido pelo [BlockProvider], que muda na hora ao bloquear.
@@ -226,7 +232,9 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
         }
       case SafetyAction.unblock:
         await _desbloquear();
+      // Só existem no ⋯ de uma publicação; aqui o alvo é o perfil.
       case SafetyAction.reportPost:
+      case SafetyAction.deletePost:
         break;
     }
   }
@@ -311,6 +319,7 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
                 SliverToBoxAdapter(
                   child: _OtherIdentity(
                     user: user,
+                    postsCount: _gridCount ?? user.totalPosts,
                     isFollowing: _isFollowing,
                     loading: _loadingFollow,
                     pops: _followPops,
@@ -345,11 +354,24 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
                         AppSpacing.screen,
                         AppSpacing.sm,
                       ),
-                      child: Text(
-                        'PUBLICAÇÕES',
-                        style: context.typography.monoEyebrow.copyWith(
-                          color: colors.ambar,
-                        ),
+                      child: Row(
+                        children: [
+                          Text(
+                            'PUBLICAÇÕES',
+                            style: context.typography.monoEyebrow.copyWith(
+                              color: colors.ambar,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            (_gridCount ?? user.totalPosts)
+                                .toString()
+                                .padLeft(2, '0'),
+                            style: context.typography.monoSmall.copyWith(
+                              color: colors.textDisabled,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -357,6 +379,11 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
                     key: _highlightsKey,
                     accountId: widget.accountId,
                     asSliver: true,
+                    onCountChanged: (count) {
+                      if (mounted && count != _gridCount) {
+                        setState(() => _gridCount = count);
+                      }
+                    },
                   ),
                 ],
               ],
@@ -403,6 +430,7 @@ class _BackButton extends StatelessWidget {
 
 class _OtherIdentity extends StatelessWidget {
   final UserModel user;
+  final int postsCount;
   final bool isFollowing;
   final bool loading;
   final int pops;
@@ -419,6 +447,7 @@ class _OtherIdentity extends StatelessWidget {
 
   const _OtherIdentity({
     required this.user,
+    required this.postsCount,
     required this.isFollowing,
     required this.loading,
     required this.pops,
@@ -567,43 +596,15 @@ class _OtherIdentity extends StatelessWidget {
                 ],
 
                 const SizedBox(height: AppSpacing.lg),
-                Row(
-                  children: [
-                    for (final (i, cell) in <(int, String)>[
-                      (user.totalPosts, 'POSTS'),
-                      (user.seguidores, 'SEGUIDORES'),
-                      (user.seguindo, 'SEGUINDO'),
-                    ].indexed) ...[
-                      if (i > 0)
-                        Container(
-                          width: 1,
-                          height: 28,
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                          ),
-                          color: colors.hairline,
-                        ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            cell.$1.toString(),
-                            style: type.monoDisplay.copyWith(
-                              color: colors.textPrimary,
-                              fontSize: 20,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            cell.$2,
-                            style: type.monoMicro.copyWith(
-                              color: colors.textDisabled,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+                ProfileCounters(
+                  accountId: user.accountId ?? '',
+                  nome: user.nome,
+                  postsCount: postsCount,
+                  seguidores: user.seguidores,
+                  seguindo: user.seguindo,
+                  // Perfil bloqueado esconde as publicações; a gente dele
+                  // segue a mesma regra.
+                  enabled: !blocked,
                 ),
 
                 const SizedBox(height: AppSpacing.xl),

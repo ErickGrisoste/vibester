@@ -5,16 +5,18 @@ vi.mock('../../src/config/redis', async () => {
   const { default: RedisMock } = await import('ioredis-mock');
   const redisMock = new RedisMock();
 
-  const isoDateRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
-  const dateReviver = (_k: string, v: unknown) =>
-    typeof v === 'string' && isoDateRe.test(v) ? new Date(v) : v;
-
   return {
     redis: redisMock,
+    // Fiel ao `cacheAside` real: o que volta do Redis é JSON puro, então toda
+    // data vira **string**. Não reviva datas aqui — era isso que escondia a
+    // rota de seguidores respondendo 500 ("Response doesn't match the schema")
+    // em todo acesso com cache quente, porque o schema de resposta usava
+    // `z.date()`, que recusa string. Schema de resposta com data usa
+    // `z.coerce.date()`.
     cacheAside: async <T>(key: string, ttl: number, fetchFn: () => Promise<T>): Promise<T> => {
       try {
         const cached = await redisMock.get(key);
-        if (cached !== null) return JSON.parse(cached, dateReviver) as T;
+        if (cached !== null) return JSON.parse(cached) as T;
       } catch {}
       const data = await fetchFn();
       try {
@@ -458,18 +460,110 @@ describe('user-service — HTTP Integration', () => {
     });
   });
 
-  describe('GET /users/:userID/followers — Redis cache', () => {
-    it('retorna seguidores: cache miss chama banco, cache hit não', async () => {
-      const followers = [{ followerId: FOLLOWER_ID, createdAt: new Date('2024-01-01T00:00:00.000Z') }];
-      mockUserFollow.findMany.mockResolvedValue(followers);
+  describe('GET /users/:userID/followers — perfis hidratados, cursor e cache', () => {
+    it('devolve o perfil de cada seguidor sem uma consulta por linha', async () => {
+      mockUserFollow.findMany.mockResolvedValue([
+        { followerId: FOLLOWER_ID, createdAt: new Date('2024-01-01T00:00:00.000Z') },
+      ]);
+      mockUserProfile.findMany.mockResolvedValue([
+        { userID: FOLLOWER_ID, name: 'Ana', username: 'ana', avatarUrl: null, followers: 7 },
+      ]);
 
-      const res1 = await app.inject({ method: 'GET', url: `/users/${USER_ID}/followers` });
-      expect(res1.statusCode).toBe(200);
-      expect(JSON.parse(res1.payload)).toHaveLength(1);
+      const res = await app.inject({ method: 'GET', url: `/users/${USER_ID}/followers` });
 
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body.data).toEqual([
+        {
+          accountId: FOLLOWER_ID,
+          name: 'Ana',
+          username: 'ana',
+          avatarUrl: null,
+          followers: 7,
+          followedAt: '2024-01-01T00:00:00.000Z',
+        },
+      ]);
+      // Página incompleta: não há mais o que carregar.
+      expect(body.nextCursor).toBeNull();
+      // Uma consulta de relacionamento + uma de perfis, nunca N+1.
+      expect(mockUserProfile.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('mantém o seguidor cujo perfil não existe, para o cursor não pular ninguém', async () => {
+      mockUserFollow.findMany.mockResolvedValue([
+        { followerId: FOLLOWER_ID, createdAt: new Date('2024-01-01T00:00:00.000Z') },
+      ]);
+      mockUserProfile.findMany.mockResolvedValue([]);
+
+      const res = await app.inject({ method: 'GET', url: `/users/${USER_ID}/followers` });
+
+      expect(res.statusCode).toBe(200);
+      const [primeiro] = JSON.parse(res.payload).data;
+      expect(primeiro.accountId).toBe(FOLLOWER_ID);
+      expect(primeiro.name).toBeNull();
+      expect(primeiro.followers).toBe(0);
+    });
+
+    it('devolve nextCursor quando a página vem cheia e repassa o cursor ao banco', async () => {
+      const ultima = new Date('2024-01-01T00:00:00.000Z');
+      mockUserFollow.findMany.mockResolvedValue([
+        { followerId: FOLLOWER_ID, createdAt: new Date('2024-01-02T00:00:00.000Z') },
+        { followerId: USER_ID, createdAt: ultima },
+      ]);
+      mockUserProfile.findMany.mockResolvedValue([]);
+
+      const res = await app.inject({ method: 'GET', url: `/users/${USER_ID}/followers?limit=2` });
+      expect(JSON.parse(res.payload).nextCursor).toBe(ultima.toISOString());
+
+      await app.inject({
+        method: 'GET',
+        url: `/users/${USER_ID}/followers?limit=2&cursor=${encodeURIComponent(ultima.toISOString())}`,
+      });
+      expect(mockUserFollow.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { followingId: USER_ID, createdAt: { lt: ultima } },
+          take: 2,
+        }),
+      );
+    });
+
+    it('serve a primeira página do cache sem quebrar no schema de data', async () => {
+      // Regressão: o que volta do Redis é JSON, então `followedAt` chega como
+      // string. Com `z.date()` no schema de resposta, todo acesso com cache
+      // quente respondia 500 ("Response doesn't match the schema") — a lista
+      // funcionava na primeira chamada e falhava nos 60s seguintes.
+      mockUserFollow.findMany.mockResolvedValue([
+        { followerId: FOLLOWER_ID, createdAt: new Date('2024-01-01T00:00:00.000Z') },
+      ]);
+      mockUserProfile.findMany.mockResolvedValue([]);
+
+      await app.inject({ method: 'GET', url: `/users/${USER_ID}/followers` });
       const res2 = await app.inject({ method: 'GET', url: `/users/${USER_ID}/followers` });
+
       expect(res2.statusCode).toBe(200);
+      const body = JSON.parse(res2.payload);
+      expect(body.data[0].accountId).toBe(FOLLOWER_ID);
+      expect(body.data[0].followedAt).toBe('2024-01-01T00:00:00.000Z');
       expect(mockUserFollow.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('não usa o cache numa página com cursor — a chave invalidada é só a primeira', async () => {
+      const cursor = new Date('2024-01-01T00:00:00.000Z').toISOString();
+      mockUserFollow.findMany.mockResolvedValue([
+        { followerId: FOLLOWER_ID, createdAt: new Date('2023-12-31T00:00:00.000Z') },
+      ]);
+      mockUserProfile.findMany.mockResolvedValue([]);
+
+      const url = `/users/${USER_ID}/followers?cursor=${encodeURIComponent(cursor)}`;
+      await app.inject({ method: 'GET', url });
+      await app.inject({ method: 'GET', url });
+
+      expect(mockUserFollow.findMany).toHaveBeenCalledTimes(2);
+    });
+
+    it('recusa cursor que não é data', async () => {
+      const res = await app.inject({ method: 'GET', url: `/users/${USER_ID}/followers?cursor=ontem` });
+      expect(res.statusCode).toBe(400);
     });
 
     it('retorna 500 quando a consulta falha', async () => {
@@ -480,14 +574,27 @@ describe('user-service — HTTP Integration', () => {
     });
   });
 
-  describe('GET /users/:userID/following — Redis cache', () => {
-    it('retorna seguidos: cache miss chama banco, cache hit não', async () => {
-      const following = [{ followingId: USER_ID, createdAt: new Date('2024-01-01T00:00:00.000Z') }];
-      mockUserFollow.findMany.mockResolvedValue(following);
+  describe('GET /users/:userID/following — perfis hidratados e cache', () => {
+    it('devolve quem o usuário segue com perfil, do mais recente para o mais antigo', async () => {
+      mockUserFollow.findMany.mockResolvedValue([
+        { followingId: USER_ID, createdAt: new Date('2024-01-01T00:00:00.000Z') },
+      ]);
+      mockUserProfile.findMany.mockResolvedValue([
+        { userID: USER_ID, name: 'Bia', username: 'bia', avatarUrl: 'https://cdn/x', followers: 3 },
+      ]);
 
       const res = await app.inject({ method: 'GET', url: `/users/${FOLLOWER_ID}/following` });
+
       expect(res.statusCode).toBe(200);
-      expect(JSON.parse(res.payload)).toHaveLength(1);
+      const body = JSON.parse(res.payload);
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]).toMatchObject({ accountId: USER_ID, name: 'Bia', username: 'bia', followers: 3 });
+      expect(mockUserFollow.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { followerId: FOLLOWER_ID },
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
 
       await app.inject({ method: 'GET', url: `/users/${FOLLOWER_ID}/following` });
       expect(mockUserFollow.findMany).toHaveBeenCalledTimes(1);

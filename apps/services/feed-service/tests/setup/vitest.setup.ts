@@ -12,5 +12,6 @@ vi.mock('../../src/config/env', () => ({
     cassandra_local_datacenter: undefined,
     cors_allowed_origins: undefined,
     rate_limit_max: 300,
+    ranking_rollout_share: 0,
   },
 }));
