@@ -165,16 +165,16 @@ describe("computeMovement", () => {
       expect(result.score).toBe(50);
     });
 
-    it("should scale confidence with sample count (capped at 7 samples)", () => {
+    it("should scale confidence with sample count, capped at 4 samples (28-day retention limit)", () => {
       const threeSamples = computeMovement({
         liveScore: null,
         historicalSamples: [50, 50, 50],
         previousScore: null,
         previousLevel: null,
       });
-      const sevenSamples = computeMovement({
+      const fourSamples = computeMovement({
         liveScore: null,
-        historicalSamples: [50, 50, 50, 50, 50, 50, 50],
+        historicalSamples: [50, 50, 50, 50],
         previousScore: null,
         previousLevel: null,
       });
@@ -185,8 +185,8 @@ describe("computeMovement", () => {
         previousLevel: null,
       });
 
-      expect(threeSamples.confidence).toBe(0.21);
-      expect(sevenSamples.confidence).toBe(0.5);
+      expect(threeSamples.confidence).toBe(0.38);
+      expect(fourSamples.confidence).toBe(0.5);
       expect(tenSamples.confidence).toBe(0.5);
     });
   });

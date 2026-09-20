@@ -334,4 +334,132 @@ describe("SerpApiService", () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe("searchNearbyPlaces", () => {
+    function makeSearchResult(overrides: {
+      place_id?: string;
+      title?: string;
+      latitude?: number;
+      longitude?: number;
+      rating?: number;
+    } = {}) {
+      return {
+        place_id: overrides.place_id ?? "place-1",
+        title: overrides.title ?? "Bar Teste",
+        gps_coordinates: {
+          latitude: overrides.latitude ?? -23.42,
+          longitude: overrides.longitude ?? -51.93,
+        },
+        rating: overrides.rating,
+      };
+    }
+
+    it("should build one query per type and map results to PlaceResult", async () => {
+      fetchMock.mockResolvedValue(
+        makeFetchResponse({ local_results: [makeSearchResult({ rating: 4.5 })] })
+      );
+
+      const result = await service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000);
+
+      expect(result).toEqual([
+        { placeId: "place-1", name: "Bar Teste", lat: -23.42, lng: -51.93, rating: 4.5 },
+      ]);
+
+      const requestedUrl = new URL(fetchMock.mock.calls[0][0] as unknown as string);
+      expect(requestedUrl.searchParams.get("engine")).toBe("google_maps");
+      expect(requestedUrl.searchParams.get("type")).toBe("search");
+      expect(requestedUrl.searchParams.get("q")).toBe("bar");
+      expect(requestedUrl.searchParams.get("ll")).toBe("@-23.42,-51.93,16z");
+    });
+
+    it("should query a different term per type (bar, night_club, restaurant, cafe)", async () => {
+      fetchMock.mockResolvedValue(makeFetchResponse({ local_results: [] }));
+
+      await service.searchNearbyPlaces(
+        ["bar", "night_club", "restaurant", "cafe"],
+        -23.42,
+        -51.93,
+        1000
+      );
+
+      const queries = fetchMock.mock.calls.map(
+        (call) => new URL(call[0] as unknown as string).searchParams.get("q")
+      );
+      expect(queries).toEqual(["bar", "balada", "restaurante", "café"]);
+    });
+
+    it("should dedupe places seen across multiple types", async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          makeFetchResponse({ local_results: [makeSearchResult({ place_id: "shared" })] })
+        )
+        .mockResolvedValueOnce(
+          makeFetchResponse({ local_results: [makeSearchResult({ place_id: "shared" })] })
+        );
+
+      const result = await service.searchNearbyPlaces(["bar", "restaurant"], -23.42, -51.93, 1000);
+
+      expect(result).toHaveLength(1);
+    });
+
+    it("should paginate via serpapi_pagination.next up to the page cap", async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          makeFetchResponse({
+            local_results: [makeSearchResult({ place_id: "p1" })],
+            serpapi_pagination: { next: "https://serpapi.com/search.json?start=20" },
+          })
+        )
+        .mockResolvedValueOnce(
+          makeFetchResponse({
+            local_results: [makeSearchResult({ place_id: "p2" })],
+            serpapi_pagination: { next: "https://serpapi.com/search.json?start=40" },
+          })
+        )
+        .mockResolvedValueOnce(
+          makeFetchResponse({ local_results: [makeSearchResult({ place_id: "p3" })] })
+        );
+
+      const result = await service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000);
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(result.map((p) => p.placeId)).toEqual(["p1", "p2", "p3"]);
+    });
+
+    it("should stop pagination at MAX_SEARCH_PAGES even if more pages are offered", async () => {
+      fetchMock.mockResolvedValue(
+        makeFetchResponse({
+          local_results: [makeSearchResult()],
+          serpapi_pagination: { next: "https://serpapi.com/search.json?start=20" },
+        })
+      );
+
+      await service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000);
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it("should throw when the HTTP response is not ok", async () => {
+      fetchMock.mockResolvedValue(makeFetchResponse(null, false, 500));
+
+      await expect(
+        service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000)
+      ).rejects.toThrow("Erro ao consultar SerpAPI (busca de lugares): 500");
+    });
+
+    it("should treat a malformed response as no results for that type instead of throwing", async () => {
+      fetchMock.mockResolvedValue(makeFetchResponse({ local_results: "not-an-array" }));
+
+      const result = await service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000);
+
+      expect(result).toEqual([]);
+    });
+
+    it("should return an empty array without calling fetch for an unmapped type", async () => {
+      const result = await service.searchNearbyPlaces(["unknown_type"], -23.42, -51.93, 1000);
+
+      expect(result).toEqual([]);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });

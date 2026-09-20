@@ -3,6 +3,12 @@ import { env } from "../config/env";
 import { fetchWithTimeout } from "../utils/retry";
 import { TTLCache } from "../utils/cache";
 import { consoleLogger } from "../utils/logger";
+import type { PlaceResult } from "../types/place.type";
+import {
+  scrapingExternalApiLatencySeconds,
+  cacheHitTotal,
+  cacheMissTotal,
+} from "../config/metrics";
 
 const WEEK_DAYS: Record<string, number> = {
   sunday: 0,
@@ -85,6 +91,50 @@ const serpApiResponseSchema = z.object({
     .optional(),
 });
 
+const SEARCH_QUERY_BY_TYPE: Record<string, string> = {
+  bar: "bar",
+  night_club: "balada",
+  restaurant: "restaurante",
+  cafe: "café",
+};
+
+/** No máximo 3 páginas (~60 lugares) por tipo buscado — teto de custo/tempo para
+ * uma busca de descoberta manual, não o job horário. */
+const MAX_SEARCH_PAGES = 3;
+
+const serpApiSearchResultSchema = z.object({
+  place_id: z.string(),
+  title: z.string(),
+  gps_coordinates: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }),
+  rating: z.number().optional(),
+});
+
+const serpApiSearchResponseSchema = z.object({
+  local_results: z.array(serpApiSearchResultSchema).optional(),
+  serpapi_pagination: z
+    .object({
+      next: z.string().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * O `ll` da SerpAPI é um zoom de mapa (área visível), não um raio exato em
+ * metros — essa conversão é uma aproximação deliberada, não uma equivalência
+ * matemática ao "radius" do Google Places Nearby Search.
+ */
+function radiusToZoom(radiusMeters: number): number {
+  if (radiusMeters <= 500) return 17;
+  if (radiusMeters <= 1000) return 16;
+  if (radiusMeters <= 2000) return 15;
+  if (radiusMeters <= 5000) return 14;
+  if (radiusMeters <= 10000) return 13;
+  return 12;
+}
+
 function mapSerpApiTypeToCategory(type: string | string[] | undefined): string | null {
   if (!type) return null;
   const types = Array.isArray(type) ? type : [type];
@@ -98,9 +148,111 @@ function mapSerpApiTypeToCategory(type: string | string[] | undefined): string |
 export class SerpApiService {
   private cache = new TTLCache<string, PlacePopularityResult | null>();
 
+  /**
+   * Busca lugares próximos via SerpAPI (engine google_maps, modo "search"),
+   * devolvendo o Google Place ID de cada resultado — usada como alternativa a
+   * GooglePlacesService.searchNearbyPlaces (que exige billing do Google Cloud).
+   */
+  async searchNearbyPlaces(
+    types: string[],
+    lat: number,
+    lng: number,
+    radius: number
+  ): Promise<PlaceResult[]> {
+    const allPlaces: PlaceResult[] = [];
+    const seenPlaceIds = new Set<string>();
+
+    for (const type of types) {
+      const places = await this.searchNearbyPlacesByType(type, lat, lng, radius);
+
+      for (const place of places) {
+        if (seenPlaceIds.has(place.placeId)) continue;
+        seenPlaceIds.add(place.placeId);
+        allPlaces.push(place);
+      }
+    }
+
+    return allPlaces;
+  }
+
+  private async searchNearbyPlacesByType(
+    type: string,
+    lat: number,
+    lng: number,
+    radius: number
+  ): Promise<PlaceResult[]> {
+    const query = SEARCH_QUERY_BY_TYPE[type];
+    if (!query) return [];
+
+    const zoom = radiusToZoom(radius);
+    const places: PlaceResult[] = [];
+    let url: URL | null = this.buildSearchUrl({ query, lat, lng, zoom });
+    let page = 0;
+
+    while (url && page < MAX_SEARCH_PAGES) {
+      const stopTimer = scrapingExternalApiLatencySeconds.startTimer({ api: "serpapi" });
+      const response = await fetchWithTimeout(url);
+      stopTimer();
+
+      if (!response.ok) {
+        throw new Error(`Erro ao consultar SerpAPI (busca de lugares): ${response.status}`);
+      }
+
+      const rawJson = await response.json();
+      const parsed = serpApiSearchResponseSchema.safeParse(rawJson);
+
+      if (!parsed.success) {
+        consoleLogger.warn(
+          `[SerpAPI] Resposta de busca em formato inesperado para query="${query}": ${parsed.error.issues.map((i) => i.path.join(".")).join(", ")}`
+        );
+        break;
+      }
+
+      for (const item of parsed.data.local_results ?? []) {
+        places.push({
+          placeId: item.place_id,
+          name: item.title,
+          lat: item.gps_coordinates.latitude,
+          lng: item.gps_coordinates.longitude,
+          rating: item.rating,
+        });
+      }
+
+      const next = parsed.data.serpapi_pagination?.next;
+      url = next ? this.withApiKey(new URL(next)) : null;
+      page += 1;
+    }
+
+    return places;
+  }
+
+  private buildSearchUrl(params: {
+    query: string;
+    lat: number;
+    lng: number;
+    zoom: number;
+  }): URL {
+    const url = new URL("https://serpapi.com/search.json");
+    url.searchParams.set("engine", "google_maps");
+    url.searchParams.set("type", "search");
+    url.searchParams.set("q", params.query);
+    url.searchParams.set("ll", `@${params.lat},${params.lng},${params.zoom}z`);
+    url.searchParams.set("hl", "pt-BR");
+    return this.withApiKey(url);
+  }
+
+  private withApiKey(url: URL): URL {
+    url.searchParams.set("api_key", env.serpapiKey ?? "");
+    return url;
+  }
+
   async getPlacePopularity(placeId: string): Promise<PlacePopularityResult | null> {
     const cached = this.cache.get(placeId);
-    if (cached !== null) return cached;
+    if (cached !== null) {
+      cacheHitTotal.inc({ cache: "serpapi" });
+      return cached;
+    }
+    cacheMissTotal.inc({ cache: "serpapi" });
 
     const result = await this.fetchPopularity(placeId);
     this.cache.set(placeId, result, CACHE_TTL_MS);
@@ -110,13 +262,13 @@ export class SerpApiService {
   private async fetchPopularity(placeId: string): Promise<PlacePopularityResult | null> {
     const url = new URL("https://serpapi.com/search.json");
     url.searchParams.set("engine", "google_maps");
-    url.searchParams.set("type", "place");
     url.searchParams.set("place_id", placeId);
     url.searchParams.set("api_key", env.serpapiKey ?? "");
     url.searchParams.set("hl", "pt-BR");
-    url.searchParams.set("gl", "br");
 
+    const stopTimer = scrapingExternalApiLatencySeconds.startTimer({ api: "serpapi" });
     const response = await fetchWithTimeout(url);
+    stopTimer();
 
     if (!response.ok) {
       throw new Error(`Erro ao consultar SerpAPI: ${response.status}`);

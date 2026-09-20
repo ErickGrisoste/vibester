@@ -19,6 +19,10 @@ const LEVEL_UPPER_BOUND: Record<Exclude<MovementLevelValue, "UNAVAILABLE">, numb
 };
 
 const MIN_HISTORICAL_SAMPLES = 3;
+/** Retenção de popular_times_daily é 28 dias (ver movement.service.ts) — no máximo
+ * 4 ocorrências do mesmo dia da semana cabem nessa janela, então o confidence do
+ * caminho estimado satura em 4 amostras, não em 7. */
+const MAX_EXPECTED_HISTORICAL_SAMPLES = 4;
 const SMOOTHING_ALPHA = 0.6;
 const HYSTERESIS_MARGIN = 3;
 const FRESH_MAX_MINUTES = 75;
@@ -106,7 +110,10 @@ export function computeMovement(input: MovementEngineInput): MovementEngineOutpu
     rawScore = input.liveScore;
   } else if (input.historicalSamples.length >= MIN_HISTORICAL_SAMPLES) {
     rawScore = median(input.historicalSamples);
-    sampleWeight = Math.min(input.historicalSamples.length / 7, 1);
+    sampleWeight = Math.min(
+      input.historicalSamples.length / MAX_EXPECTED_HISTORICAL_SAMPLES,
+      1
+    );
   }
 
   if (rawScore === null) {

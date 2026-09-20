@@ -42,6 +42,7 @@ function makeGooglePlace(overrides: {
 
 function makeGooglePlacesResponse(overrides: {
   status?: string;
+  error_message?: string;
   results?: ReturnType<typeof makeGooglePlace>[];
   next_page_token?: string;
 } = {}) {
@@ -133,16 +134,21 @@ describe("GooglePlacesService", () => {
       expect(result).toEqual([]);
     });
 
-    it("should break and return collected places when status is not OK or ZERO_RESULTS", async () => {
-      const place = makeGooglePlace({ place_id: "p1", types: ["bar"] });
+    it("should throw when status is not OK or ZERO_RESULTS (e.g. REQUEST_DENIED, INVALID_REQUEST)", async () => {
+      fetchMock.mockResolvedValue(
+        makeFetchResponse(
+          makeGooglePlacesResponse({
+            status: "REQUEST_DENIED",
+            error_message: "You must enable Billing on the Google Cloud Project",
+          })
+        )
+      );
 
-      fetchMock
-        .mockResolvedValueOnce(makeFetchResponse(makeGooglePlacesResponse({ results: [place] })))
-        .mockResolvedValueOnce(makeFetchResponse(makeGooglePlacesResponse({ status: "INVALID_REQUEST" })));
-
-      const result = await service.searchNearbyPlaces(["bar"], -23.55, -46.63, 1000);
-
-      expect(result).toHaveLength(1);
+      await expect(
+        service.searchNearbyPlaces(["bar"], -23.55, -46.63, 1000)
+      ).rejects.toThrow(
+        "Erro Google Places API: REQUEST_DENIED - You must enable Billing on the Google Cloud Project"
+      );
     });
 
     it("should include places with valid types", async () => {

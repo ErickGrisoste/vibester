@@ -68,7 +68,11 @@ export class GooglePlacesService {
       const data = (await response.json()) as GooglePlacesResponse;
 
       if (data.status === "ZERO_RESULTS") return places;
-      if (data.status !== "OK") break;
+      if (data.status !== "OK") {
+        throw new Error(
+          `Erro Google Places API: ${data.status}${data.error_message ? ` - ${data.error_message}` : ""}`
+        );
+      }
 
       for (const item of data.results ?? []) {
         if (!this.isValidPlace(item)) continue;

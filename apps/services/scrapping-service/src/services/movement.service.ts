@@ -6,8 +6,23 @@ import { TTLCache } from "../utils/cache";
 import { type AppLogger, consoleLogger } from "../utils/logger";
 import { kafkaProducer } from "../kafka/producer";
 import { type MovementLevelValue, computeMovement, computeFreshness } from "./movement-engine";
+import {
+  scrapingCycleDurationSeconds,
+  scrapingEstablishmentsTotal,
+  scrapingSuccessTotal,
+  scrapingFailureTotal,
+  movementCalculationTotal,
+  movementConfidence,
+  cacheHitTotal,
+  cacheMissTotal,
+} from "../config/metrics";
+
+const MOVEMENT_EVENT_VERSION = 1;
 
 const MOVEMENT_CACHE_TTL_MS = 5 * 60 * 1000;
+/** Quantos dias de popular_times_daily manter e considerar para o fallback
+ * histórico — mesmo número dos dois lados para não dessincronizar. */
+const POPULAR_TIMES_RETENTION_DAYS = 28;
 
 export class MovementService {
   private movementCache = new TTLCache<string, object | null>();
@@ -20,14 +35,19 @@ export class MovementService {
   ) {}
 
   async updateMovementLevelsFromSavedEstablishments() {
+    const stopCycleTimer = scrapingCycleDurationSeconds.startTimer();
+    const summary = { success: 0, estimated: 0, unavailable: 0, failure: 0, skipped: 0 };
+
     await this.cleanOldPopularTimesDaily();
 
     const establishments = await this.listEstablishmentsWithFallback();
 
+    scrapingEstablishmentsTotal.set(establishments.length);
     this.logger.info(`Estabelecimentos encontrados: ${establishments.length}`);
 
     for (const establishment of establishments) {
       if (!establishment.googlePlaceId) {
+        summary.skipped += 1;
         this.logger.info(`[SKIP] ${establishment.name} sem googlePlaceId`);
         continue;
       }
@@ -90,22 +110,41 @@ export class MovementService {
           category: data?.category ?? null,
         });
 
+        const metricSource =
+          movement.score === null ? "UNAVAILABLE" : movement.isEstimated ? "ESTIMATED" : "LIVE";
+        movementCalculationTotal.inc({ level: movement.level, source: metricSource });
+        movementConfidence.observe({ source: metricSource }, movement.confidence);
+
+        if (movement.score === null) summary.unavailable += 1;
+        else if (movement.isEstimated) summary.estimated += 1;
+        else summary.success += 1;
+        scrapingSuccessTotal.inc();
+
         const tag =
           movement.score === null ? "INDISPONIVEL" : movement.isEstimated ? "FALLBACK" : "OK";
         this.logger.info(
           `[${tag}] ${establishment.name}: ${movement.score ?? "—"}% → ${movement.level} (confidence=${movement.confidence})`
         );
       } catch (error) {
+        summary.failure += 1;
+        scrapingFailureTotal.inc();
         this.logger.error(`[ERRO] Falha ao atualizar ${establishment.name}`, error);
       }
     }
 
-    this.logger.info("Atualização de movement levels finalizada.");
+    const durationSeconds = stopCycleTimer();
+    this.logger.info(
+      `Atualização de movement levels finalizada. total=${establishments.length} sucesso=${summary.success} estimado=${summary.estimated} indisponivel=${summary.unavailable} falha=${summary.failure} skip=${summary.skipped} duracao=${durationSeconds.toFixed(1)}s`
+    );
   }
 
   async getMovementByEstablishmentId(establishmentId: string) {
     const cached = this.movementCache.get(establishmentId);
-    if (cached !== null) return cached;
+    if (cached !== null) {
+      cacheHitTotal.inc({ cache: "movement" });
+      return cached;
+    }
+    cacheMissTotal.inc({ cache: "movement" });
 
     const result = await prisma.currentPopularity.findUnique({
       where: { establishmentId },
@@ -171,6 +210,7 @@ export class MovementService {
           value: JSON.stringify({
             eventId: randomUUID(),
             eventType: "establishment.movement.updated",
+            eventVersion: MOVEMENT_EVENT_VERSION,
             occurredAt: new Date().toISOString(),
             data: {
               establishmentId: data.establishmentId,
@@ -220,7 +260,7 @@ export class MovementService {
     const currentHour = new Date().getHours();
 
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 7);
+    cutoffDate.setDate(cutoffDate.getDate() - POPULAR_TIMES_RETENTION_DAYS);
     cutoffDate.setHours(0, 0, 0, 0);
 
     const rows = await prisma.popularTimesDaily.findMany({
@@ -258,7 +298,7 @@ export class MovementService {
     }
   }
 
-  private async cleanOldPopularTimesDaily(daysToKeep = 7) {
+  private async cleanOldPopularTimesDaily(daysToKeep = POPULAR_TIMES_RETENTION_DAYS) {
     const limitDate = new Date();
     limitDate.setDate(limitDate.getDate() - daysToKeep);
     limitDate.setHours(0, 0, 0, 0);
