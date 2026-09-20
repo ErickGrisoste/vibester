@@ -16,9 +16,11 @@ O `establishment-service` é responsável exclusivamente por:
 - avaliação média (`averageRating`) e nível de movimento (`nivelMovimento`) do estabelecimento;
 - upload de foto de perfil para o Cloudflare R2.
 
-O **nível de movimento** é atualizado por duas vias que já convivem no código — mantenha as duas ao evoluir esse fluxo, não assuma que só uma existe:
-1. **HTTP síncrono**: `PATCH /establishments/:id/movement`, chamado pelo `scrapping-service` a cada hora;
-2. **Kafka assíncrono**: consumidor do tópico `establishments`, evento `establishment.movement.updated` (`src/kafka/consumer.ts`), que também pode atualizar a `category`.
+O **nível de movimento** é atualizado hoje por uma única via real:
+
+- **Kafka assíncrono**: consumidor do tópico `establishments`, evento `establishment.movement.updated` (`src/kafka/consumer.ts`), que também pode atualizar a `category`. É o `scrapping-service` (job horário) que publica esse evento — ver `scrapping-service/CLAUDE.md`.
+
+Existe também `PATCH /establishments/:id/movement` (`updateMovementLevelController`) no código, mas **nenhum serviço do monorepo o chama hoje** (confirmado no `scrapping-service`, cujo único fetch para este serviço é `GET /establishments/open`, de leitura) — é um endpoint órfão/manual, não um segundo caminho de atualização automática ativo. Não assuma que ele está em uso; se for removê-lo ou reativá-lo como via administrativa oficial, faça isso de forma explícita (não silenciosa).
 
 Nunca adicione regras de negócio de autenticação, perfil de usuário, feed ou pagamento aqui. Se uma feature parece pertencer a outro domínio, ela deve ser feita no serviço correspondente e comunicada via Kafka.
 

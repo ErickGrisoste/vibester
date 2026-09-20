@@ -23,6 +23,7 @@ model Establishment {
   latitude        Float
   longitude       Float
   openingHours    EstablishmentOpeningHour[]
+  images          EstablishmentImage[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -31,6 +32,25 @@ model Establishment {
   @@index([latitude, longitude])
   @@index([name])
   @@map("establishments")
+}
+
+model EstablishmentImage {
+  id              String        @id @default(uuid())
+  establishmentId String
+  url             String
+  source          ImageSource   @default(SERPAPI)
+  position        Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  establishment   Establishment @relation(fields: [establishmentId], references: [id], onDelete: Cascade)
+
+  @@index([establishmentId])
+  @@map("establishment_images")
+}
+
+enum ImageSource {
+  SERPAPI
+  MANUAL
 }
 
 model EstablishmentOpeningHour {

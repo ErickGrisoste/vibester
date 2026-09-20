@@ -12,7 +12,6 @@ import { eventUnconfirmanceSchema } from "../schema/events/event-unconfirmance";
 import { eventConfirmanceSchema } from "../schema/events/event-confirmance";
 import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
-import { unwrapEventData } from "./envelope";
 import { kafka } from "./client";
 import { interactionsNormalizedSchema } from "../schema/events/interactions-normalized.schema";
 import { RankingFeaturesService } from "../services/ranking_features.service";

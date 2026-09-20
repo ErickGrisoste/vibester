@@ -37,8 +37,22 @@ export interface GetEstablishmentParams {
 
 export interface EstablishmentProfileResponse extends EstablishmentInterface {
   openingHours: OpeningHour[];
+  images: EstablishmentImageResponse[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface EstablishmentImageResponse {
+  id: string;
+  url: string;
+  source: "SERPAPI" | "MANUAL";
+  position: number;
+}
+
+export interface ReplaceEstablishmentImagesInput {
+  url: string;
+  position: number;
+  source?: "SERPAPI" | "MANUAL";
 }
 
 export interface MovementLevelResponse {

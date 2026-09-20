@@ -99,6 +99,7 @@ export async function routes(app: FastifyInstance) {
           200: { type: "object", additionalProperties: true },
           401: errorSchema,
           404: errorSchema,
+          500: errorSchema,
         },
       },
     },

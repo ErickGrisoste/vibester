@@ -35,15 +35,23 @@ export async function getMovementByEstablishmentId(
   request: FastifyRequest<{ Params: { establishmentId: string } }>,
   reply: FastifyReply
 ) {
-  const { establishmentId } = request.params;
+  try {
+    const { establishmentId } = request.params;
 
-  const movement = await movementService.getMovementByEstablishmentId(establishmentId);
+    const movement = await movementService.getMovementByEstablishmentId(establishmentId);
 
-  if (!movement) {
-    return reply.status(404).send({
-      message: "Movement not found",
+    if (!movement) {
+      return reply.status(404).send({
+        message: "Movement not found",
+      });
+    }
+
+    return reply.status(200).send(movement);
+  } catch (error) {
+    console.error("[MovementController] Erro:", error);
+
+    return reply.status(500).send({
+      message: "Erro ao consultar movimento",
     });
   }
-
-  return reply.status(200).send(movement);
 }
