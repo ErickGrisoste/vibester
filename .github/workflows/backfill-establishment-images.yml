@@ -1,0 +1,94 @@
+name: Backfill establishment images
+
+# Disparo manual de propósito (workflow_dispatch), não em todo push/deploy —
+# rodar o backfill em todo restart do scrapping-service gastaria chamadas
+# pagas da SerpAPI por estabelecimento a cada deploy, sem necessidade real
+# (a galeria já persiste; ver scripts/backfill-establishment-images.ts).
+on:
+  workflow_dispatch:
+
+jobs:
+  backfill:
+    name: Build backfill image and run Job on cluster
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Normalize image owner casing
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Estágio "builder" de propósito (não o final de produção) — é o único
+      # que tem scripts/ e o tsx (devDependency), a imagem final não tem
+      # nenhum dos dois (ver Dockerfile).
+      - name: Build and push builder-stage image
+        uses: docker/build-push-action@v5
+        with:
+          context: "apps/services/scrapping-service"
+          target: builder
+          push: true
+          tags: ghcr.io/${{ env.OWNER_LC }}/vibester-scrapping-service:backfill-${{ github.run_id }}
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.VPS_KUBECONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Run backfill Job
+        run: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: backfill-establishment-images-${{ github.run_id }}
+            namespace: default
+          spec:
+            backoffLimit: 0
+            ttlSecondsAfterFinished: 3600
+            template:
+              spec:
+                restartPolicy: Never
+                imagePullSecrets:
+                  - name: ghcr-secret
+                containers:
+                  - name: backfill
+                    image: ghcr.io/${{ env.OWNER_LC }}/vibester-scrapping-service:backfill-${{ github.run_id }}
+                    command: ["npx", "tsx", "scripts/backfill-establishment-images.ts"]
+                    envFrom:
+                      - secretRef:
+                          name: scrapping-service-secret
+          EOF
+
+      - name: Wait for the Job and stream its logs
+        run: |
+          JOB_NAME=backfill-establishment-images-${{ github.run_id }}
+          for i in $(seq 1 60); do
+            SUCCEEDED=$(kubectl get job "$JOB_NAME" -o jsonpath='{.status.succeeded}')
+            FAILED=$(kubectl get job "$JOB_NAME" -o jsonpath='{.status.failed}')
+            if [ "$SUCCEEDED" = "1" ]; then
+              echo "Job concluído com sucesso."
+              kubectl logs "job/$JOB_NAME"
+              exit 0
+            fi
+            if [ "$FAILED" = "1" ]; then
+              echo "Job falhou."
+              kubectl logs "job/$JOB_NAME"
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "Timeout esperando o Job terminar."
+          kubectl logs "job/$JOB_NAME" || true
+          exit 1
