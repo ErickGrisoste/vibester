@@ -19,6 +19,8 @@ import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/routes/route_observer.dart';
+import 'package:mobile/service/interaction/interaction_tracker.dart';
 import 'package:mobile/service/theme/theme_service.dart';
 import 'package:mobile/service/user/interests_storage.dart';
 import 'package:mobile/theme/app_theme.dart';
@@ -54,6 +56,7 @@ import 'package:mobile/screens/user/user_interests_screen.dart';
 import 'package:mobile/screens/user/user_profile_screen.dart';
 import 'package:mobile/widgets/cards/highlights/post_detail_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 // Builders de transição de rota (fade+slide+scale compostos) vivem em
 // lib/theme/vibester_page_route.dart: vibesterSlideRoute, vibesterFadeRoute,
@@ -78,6 +81,16 @@ void main() async {
   // Limites do cache de imagem em memória — o motivo de cada número vive
   // junto do cache de disco, em lib/service/media/image_cache.dart.
   VibesterImageCache.configureMemoryCache();
+
+  // Resolução com que o VisibilityDetector reporta mudança de visibilidade.
+  // O padrão de 500ms é grosso demais para a telemetria do feed: o
+  // InteractionTracker separa "piscada de rolagem" (<300ms, descartada) de
+  // "descarte rápido" (<1s, sinal negativo) de "foi visto" (≥1s), e com meio
+  // segundo de granularidade esses três casos se confundem. 100ms custa mais
+  // CPU, e é o preço de o dado de atenção significar alguma coisa.
+  VisibilityDetectorController.instance.updateInterval = const Duration(
+    milliseconds: 100,
+  );
 
   await initializeDateFormatting('pt_BR', null);
   // Interesses escolhidos no onboarding: restaurados antes da primeira tela
@@ -156,6 +169,12 @@ class _MyAppState extends State<MyApp> {
   late final ThemeProvider _themeProvider;
   late final BlockProvider _blockProvider;
 
+  /// Telemetria do feed. Vive no State pelo mesmo motivo dos providers acima:
+  /// guarda as impressões abertas e o buffer de envio, e seria zerada a cada
+  /// reconstrução se nascesse no `build`.
+  late final InteractionTracker _interactionTracker;
+  AppLifecycleListener? _lifecycleListener;
+
   @override
   void initState() {
     super.initState();
@@ -165,6 +184,15 @@ class _MyAppState extends State<MyApp> {
     _notificationProvider = NotificationProvider();
     _themeProvider = ThemeProvider(widget.initialThemeMode);
     _blockProvider = BlockProvider();
+    _interactionTracker = InteractionTracker();
+
+    // O fim da sessão é a parte mais valiosa do dado — é o que fez a pessoa
+    // sair — e é exatamente o que se perde sem um envio ao ir para segundo
+    // plano, porque o app pode nunca mais voltar.
+    _lifecycleListener = AppLifecycleListener(
+      onPause: _interactionTracker.onAppPaused,
+      onResume: _interactionTracker.onAppResumed,
+    );
 
     // A busca do contador de não lidas saiu daqui: a HomeScreen agora a faz
     // ao montar e ao voltar do segundo plano, o que cobre também quem entra
@@ -334,6 +362,8 @@ class _MyAppState extends State<MyApp> {
     _notificationProvider.dispose();
     _themeProvider.dispose();
     _blockProvider.dispose();
+    _lifecycleListener?.dispose();
+    _interactionTracker.dispose();
     super.dispose();
   }
 
@@ -349,10 +379,13 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider.value(value: _notificationProvider),
         ChangeNotifierProvider.value(value: _themeProvider),
         ChangeNotifierProvider.value(value: _blockProvider),
+        // Provider simples, não ChangeNotifier: telemetria nunca redesenha tela.
+        Provider<InteractionTracker>.value(value: _interactionTracker),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) => MaterialApp(
           navigatorKey: _navigatorKey,
+          navigatorObservers: [appRouteObserver],
           debugShowCheckedModeBanner: false,
           //Chama a classe da propriedade de scroll
           scrollBehavior: _NoBounceScrollBehavior(),

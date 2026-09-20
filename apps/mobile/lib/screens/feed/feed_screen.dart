@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
+import 'package:mobile/models/interaction/interaction_event_model.dart';
 import 'package:mobile/routes/app_routes.dart';
+import 'package:mobile/routes/route_observer.dart';
+import 'package:mobile/service/interaction/interaction_tracker.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
@@ -12,6 +15,7 @@ import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/motion/staggered_entrance.dart';
 import 'package:mobile/widgets/navigation/navbar_tokens.dart';
+import 'package:mobile/widgets/tracking/tracked_feed_item.dart';
 import 'package:provider/provider.dart';
 
 /// FEED — o que as pessoas estão postando.
@@ -36,8 +40,11 @@ class FeedScreen extends StatefulWidget {
   State<FeedScreen> createState() => FeedScreenState();
 }
 
-class FeedScreenState extends State<FeedScreen> {
+class FeedScreenState extends State<FeedScreen> with RouteAware {
   final _scrollController = ScrollController();
+
+  /// Guardado aqui porque `context.read` não pode ser chamado no `dispose`.
+  InteractionTracker? _tracker;
 
   /// Altura do cabeçalho com a logo. O conteúdo reserva esse espaço no topo
   /// do scroll, então com o cabeçalho à vista nada nasce escondido atrás dele.
@@ -116,7 +123,32 @@ class FeedScreenState extends State<FeedScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    _tracker = maybeInteractionTracker(context);
+
+    final route = ModalRoute.of(context);
+
+    if (route != null) {
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  /// Uma rota foi empilhada por cima — perfil do autor, detalhe do post.
+  ///
+  /// A partir daqui o `Overlay` para de pintar esta tela e o detector de
+  /// visibilidade dos cards congela no último valor. Sem este aviso, o post
+  /// que estava na tela acumularia atenção durante a visita à outra tela.
+  @override
+  void didPushNext() => _tracker?.pauseSurface();
+
+  @override
+  void didPopNext() => _tracker?.resumeSurface();
+
+  @override
   void dispose() {
+    appRouteObserver.unsubscribe(this);
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
@@ -187,13 +219,49 @@ class FeedScreenState extends State<FeedScreen> {
                     else
                       SliverList.builder(
                         itemCount: publications.length,
-                        itemBuilder: (context, index) => StaggeredEntrance(
-                          index: index,
-                          child: PublicationCard(
-                            publication: publications[index],
+                        itemBuilder: (context, index) {
+                          final publication = publications[index];
+                          final itemId = publication.id;
+
+                          // Post recém-criado, ainda só local: sem id não há o
+                          // que rastrear, e um itemId vazio reprovaria o lote
+                          // inteiro no interaction-service.
+                          if (itemId == null) {
+                            return StaggeredEntrance(
+                              index: index,
+                              child: PublicationCard(
+                                publication: publication,
+                                index: index,
+                              ),
+                            );
+                          }
+
+                          // A posição é a da lista já filtrada por bloqueio —
+                          // a que a pessoa viu de fato, que é o que torna a
+                          // comparação entre itens justa.
+                          final tracked = TrackedItem(
+                            itemId: itemId,
+                            itemType: InteractionItemType.post,
+                            source: InteractionSource.feed,
+                            position: index,
+                            authorId: publication.authorId,
+                          );
+
+                          return StaggeredEntrance(
                             index: index,
-                          ),
-                        ),
+                            child: TrackedFeedItem(
+                              item: tracked,
+                              child: PublicationCard(
+                                publication: publication,
+                                index: index,
+                                onAuthorTap: () => _tracker?.recordTap(
+                                  tracked,
+                                  InteractionType.profileOpen,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
 
                     if (provider.isLoadingMore)

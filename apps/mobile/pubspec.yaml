@@ -60,6 +60,8 @@ dependencies:
   video_compress: ^3.1.4
   video_player: ^2.11.1
   gal: ^2.3.3
+  visibility_detector: ^0.4.0+2
+  uuid: ^4.6.0
 
 dependency_overrides:
   # path_provider_foundation 2.6.0 (assim como a 2.5.0) depende de package:objective_c,

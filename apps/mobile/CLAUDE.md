@@ -53,6 +53,7 @@ Toda a comunicação com o backend passa por um `baseUrl` único (`ApiEndpoints.
 - **Mídia**: **`camera`** (câmera própria do app), **`image_picker`** (galeria e câmera do sistema como reserva), **`image_cropper`** (recorte do avatar) e **`flutter_image_compress`** (resize + JPEG antes do upload) — todos atrás da camada de mídia descrita em [Mídia](#mídia-câmera-e-galeria); upload direto para o R2 via URL pré-assinada obtida do backend
 - **`cached_network_image`** para exibir imagens de rede com cache em disco/memória — use sempre este widget para imagem remota, nunca `Image.network` puro
 - **Fontes empacotadas** (sem `google_fonts`): **Outfit** (400–800) como fonte do tema e **DM Mono** (300/400/500) para metadado — ver `DESIGN_SYSTEM.md` e `lib/theme/app_typography.dart`
+- **`visibility_detector`** para saber quanto tempo cada card do feed ficou na tela e **`uuid`** para o `eventId`/`sessionId` da telemetria — ver "Telemetria do feed" abaixo
 - **`email_validator`**, **`intl`** (formatação de data/hora, localizado em `pt_BR`), **`diacritic`**, **`pinput`** (código de verificação), **`font_awesome_flutter`**, **`url_launcher`**, **`share_plus`**, **`app_links`** (deep links `vibester://profile/{token}`, `vibester://event/{id}` e `vibester://place/{id}`; os links compartilháveis `https://vibester.com.br/u|e|l/...` são páginas da `apps/landing-page` com o botão "Abrir no Vibester" — evento e lugar são montados em `service/share_links.dart`, sem token), **`shared_preferences`** (tema e interesses)
 - Não introduza uma segunda solução de state management (Bloc, Riverpod, GetX) ou um segundo client HTTP — o padrão do projeto é `provider` + `dio`.
 
@@ -78,10 +79,45 @@ lib/
   utils/        helpers sem estado (data_freshness.dart, relative_time.dart, search_state.dart, etc.)
 ```
 
-Existe suíte de testes em `test/` (323 testes; hoje 322 passam — o caso do par
-de acento frio em `test/theme/palette_test.dart` cobra do tema claro um âmbar
-azul que `AppColors.light` não usa mais, e já falhava antes de qualquer
-mudança nova): `theme/` guarda a paleta, `utils/` cobre a lógica temporal do evento, `service/` cobre o tratamento de erro da API e a expiração do JWT, `media/` cobre a máquina de estados da câmera, o seletor e cada estado sem preview da câmera, `widgets/` cobre os componentes do design system e `screens/` monta **toda** tela em três larguras e nos dois temas. Essa última é o QA visual automatizado — em debug, estouro de layout vira erro de framework e reprova o teste. Ainda não há workflow de CI (`.github/workflows`) rodando isso para o mobile; ao mexer em tela ou componente, rode `flutter analyze && flutter test` (os dois passam limpos hoje) e acrescente o caso novo à bateria.
+Existe suíte de testes em `test/` (208 testes, `flutter test` verde): `theme/` guarda a paleta, `utils/` cobre a lógica temporal do evento, `service/` cobre o tratamento de erro da API, a expiração do JWT e a régua de visibilidade da telemetria do feed, `media/` cobre a máquina de estados da câmera, o seletor e cada estado sem preview da câmera, `widgets/` cobre os componentes do design system e `screens/` monta **toda** tela em três larguras e nos dois temas. Essa última é o QA visual automatizado — em debug, estouro de layout vira erro de framework e reprova o teste. Ainda não há workflow de CI (`.github/workflows`) rodando isso para o mobile; ao mexer em tela ou componente, rode `flutter analyze && flutter test` (os dois passam limpos hoje) e acrescente o caso novo à bateria.
+
+### Telemetria do feed
+
+O app é a **única** fonte de impressão, tempo de atenção e descarte rápido — se ele
+não contar, ninguém conta, e esse dado não volta depois. Três peças:
+
+- `service/interaction/interaction_tracker.dart` — a régua do que conta como
+  "visto" e o envio em lote. É onde mora toda a decisão; leia o comentário de
+  classe antes de mexer em qualquer número.
+- `widgets/tracking/tracked_feed_item.dart` — o sensor, um `VisibilityDetector`
+  por card. Não decide nada.
+- `models/interaction/interaction_event_model.dart` — o contrato, espelho de
+  `apps/services/interaction-service/src/types/interaction.types.ts`.
+
+Três regras ao tocar nisso:
+
+1. **O cliente só manda o que só ele sabe.** `LIKE`/`COMMENT`/`FOLLOW` já viram
+   evento Kafka no serviço de origem e a API os **rejeita**.
+2. **Telemetria nunca trava nem insiste.** Falha de envio descarta o lote; não
+   adicione retry nem fila persistente.
+3. **Um campo inválido derruba o lote inteiro**, não só o evento ruim. Por isso
+   `InteractionEvent` corta `position`/`dwellMs` nos tetos do schema e omite
+   campo nulo em vez de enviar `null`.
+
+Uma superfície nova que queira rastreamento precisa avisar o tracker quando sai
+da frente do usuário (`pauseSurface`/`resumeSurface`): o `VisibilityDetector` só
+é notificado quando a fração visível **muda**, e ela não muda quando o widget
+continua montado mas deixa de ser pintado — é o caso do `IndexedStack` da
+navegação e de qualquer rota empilhada por cima. O `TickerMode` por destino não
+cobre isso: ele cala animação, e o detector não depende de ticker, e sim de
+pintura.
+
+**Vídeo ainda não é medido.** `videoWatchMs`/`videoLoops` seriam sinais fortes
+(reassistir de propósito é dos gestos mais expressivos que existem), mas exigem
+campo novo no contrato do interaction-service — ficam para depois que o feed
+rankeado estiver medindo o básico.
+
+---
 
 ### Padrão de uma feature nova
 

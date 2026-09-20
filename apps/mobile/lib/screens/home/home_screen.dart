@@ -11,6 +11,7 @@ import 'package:mobile/screens/user/user_profile_screen.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/navigation/vibester_navbar.dart';
 import 'package:provider/provider.dart';
+import 'package:mobile/service/interaction/interaction_tracker.dart';
 
 /// Casca de navegação do app.
 ///
@@ -188,6 +189,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _currentIndex = index;
       _dockVisible = true;
     });
+
+    // O IndexedStack mantém o destino anterior montado: ele deixa de ser
+    // pintado, o detector de visibilidade dos cards do feed congela no último
+    // valor, e o post que estava na tela continuaria acumulando atenção fora
+    // do feed. O TickerMode acima não cobre isso — ele cala animação, e o
+    // VisibilityDetector não depende de ticker, e sim de pintura.
+    final tracker = maybeInteractionTracker(context);
+
+    if (index == _feedIndex) {
+      tracker?.resumeSurface();
+    } else {
+      tracker?.pauseSurface();
+    }
 
     // Não há push, então o badge não se atualiza sozinho: uma leitura leve a
     // cada troca de destino é o suficiente e não custa uma tela de loading.
