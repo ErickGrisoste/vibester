@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:email_validator/email_validator.dart';
 import 'package:mobile/models/media/media_item.dart';
+import 'package:mobile/models/user/follow_profile.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/api_endpoints.dart';
@@ -162,6 +164,61 @@ class UserService {
       );
     } on DioException catch (e) {
       throw Exception(apiErrorMessage(e, 'Erro ao deixar de seguir usuário'));
+    }
+  }
+
+  /// Quem segue `accountId`, do follow mais recente para o mais antigo.
+  ///
+  /// Paginada por cursor: passe em `cursor` o `nextCursor` da página anterior.
+  /// O perfil de cada pessoa já vem na resposta — não busque perfil por item.
+  Future<FollowProfilesPage> listFollowers(
+    String accountId, {
+    String? cursor,
+    int limit = 30,
+  }) => _listFollow(
+    ApiEndpoints.followers(accountId),
+    cursor: cursor,
+    limit: limit,
+    fallback: 'Erro ao carregar seguidores',
+  );
+
+  /// Quem `accountId` segue, do follow mais recente para o mais antigo.
+  Future<FollowProfilesPage> listFollowing(
+    String accountId, {
+    String? cursor,
+    int limit = 30,
+  }) => _listFollow(
+    ApiEndpoints.following(accountId),
+    cursor: cursor,
+    limit: limit,
+    fallback: 'Erro ao carregar quem esse perfil segue',
+  );
+
+  Future<FollowProfilesPage> _listFollow(
+    String url, {
+    required String? cursor,
+    required int limit,
+    required String fallback,
+  }) async {
+    try {
+      final response = await ApiClient.dio.get(
+        url,
+        queryParameters: {'limit': limit, 'cursor': ?cursor},
+      );
+
+      final dados = response.data;
+      if (dados is! Map<String, dynamic>) {
+        // Resposta fora do contrato — acontece com uma versão antiga do
+        // user-service ainda no ar, que devolvia uma lista de ids em vez da
+        // página. O cast cru lançaria um TypeError de dentro do try, que não
+        // é DioException e chegaria à tela como texto de erro do Dart.
+        debugPrint('Resposta inesperada em $url: ${dados.runtimeType}');
+        throw Exception(fallback);
+      }
+
+      return FollowProfilesPage.fromJson(dados);
+    } on DioException catch (e) {
+      throw Exception(apiErrorMessage(e, fallback));
     }
   }
 

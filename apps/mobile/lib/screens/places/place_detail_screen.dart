@@ -31,8 +31,9 @@ import 'package:url_launcher/url_launcher.dart';
 /// escolha de layout:
 ///
 /// * O banner era uma **URL fixa de banco de imagens** (uma foto genérica de
-///   DJ) usada para todo estabelecimento do app. Agora usa `banner` e, na
-///   falta dele, a foto de perfil; sem nenhuma das duas, a superfície com
+///   DJ) usada para todo estabelecimento do app. Agora o fundo do hero é a
+///   própria foto de perfil do lugar, dissolvendo em preto até o fundo da
+///   tela; na falta dela, o `banner`; sem nenhuma das duas, a superfície com
 ///   grão do `VibesterImage`.
 /// * A barra de estatísticas exibia **"12k seguidores"** literalmente
 ///   escrito no código, igual para todos. Foi substituída por números que a
@@ -283,9 +284,12 @@ class _PlaceHero extends StatelessWidget {
     final type = context.typography;
     final distance = formatDistance(place.distancia);
 
-    final banner = place.bannerImage.isNotEmpty
-        ? place.bannerImage
-        : place.profileImage;
+    // O fundo é a **foto de perfil** do estabelecimento — é ela que o usuário
+    // reconhece do card que o trouxe até aqui. O `banner` só entra quando o
+    // lugar não tem foto de perfil.
+    final fundo = place.profileImage.isNotEmpty
+        ? place.profileImage
+        : place.bannerImage;
 
     return SizedBox(
       height: 340,
@@ -293,11 +297,14 @@ class _PlaceHero extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           VibesterImage(
-            source: banner,
+            source: fundo,
+            alignment: Alignment.topCenter,
             placeholderIcon: Icons.storefront_outlined,
           ),
           const Grain(opacity: 0.07, density: 0.45),
-          DecoratedBox(decoration: BoxDecoration(gradient: colors.photoScrim)),
+          // Preto descendo até opaco: a foto dissolve no fundo da tela em vez
+          // de terminar numa borda reta (ver AppColors.photoFade).
+          DecoratedBox(decoration: BoxDecoration(gradient: colors.photoFade)),
 
           Positioned(
             top: MediaQuery.of(context).padding.top + AppSpacing.sm,
