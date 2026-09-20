@@ -13,6 +13,7 @@ import { eventConfirmanceSchema } from "../schema/events/event-confirmance";
 import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
 import { kafka } from "./client";
+import { unwrapEventData } from "./envelope";
 import { interactionsNormalizedSchema } from "../schema/events/interactions-normalized.schema";
 import { RankingFeaturesService } from "../services/ranking_features.service";
 import { kafkaHandlerErrorTotal } from "../metrics/registry";
