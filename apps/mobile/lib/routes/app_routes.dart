@@ -46,6 +46,9 @@ class AppRoutes {
   static const userInterestsSetup = '/user-interests-setup';
   static const otherProfile = '/other-profile';
 
+  // Seguidores / seguindo de um perfil, abertos pelos contadores.
+  static const followList = '/follow-list';
+
   //NOTIFICATIONS
   static const notifications = '/notifications';
 

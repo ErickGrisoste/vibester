@@ -92,15 +92,16 @@ tests/
 O serviço sustenta leitura de perfil e follow/unfollow em alta concorrência (hot path de rede social). Ao alterar código:
 
 1. **Cache-aside é o padrão para leitura**: toda leitura de perfil/seguidores/seguidos deve usar `cacheAside` com TTL curto (hoje 60s) em vez de bater direto no Postgres. Se adicionar uma leitura nova de alto tráfego, siga o mesmo padrão em vez de criar uma variante própria.
-2. **Cache é fire-and-forget na escrita** (`redis.set(...).catch(() => {})` dentro de `cacheAside`, `redis.del(...).catch(() => {})` nas mutações) — nunca faça o cache bloquear ou falhar a resposta principal; Redis indisponível deve degradar para ir direto ao banco, nunca derrubar a request.
-3. **Transações atômicas só quando necessário**: use `$transaction` para múltiplas escritas relacionadas (contadores de followers/following), mas rode as operações independentes dentro dela com `Promise.all` (já feito em `increaseFollower`/`decreaseFollower`) em vez de sequenciais.
-4. **Evitar N+1**: uma query com `select` restrito aos campos necessários (ver `getFollowers.service.ts`, `searchProfiles.service.ts`) em vez de trazer a entidade inteira ou fazer uma query por item de lista.
-5. **Paginação obrigatória em listagens que crescem sem limite** (`search` já pagina com `take`/`skip` e `$transaction` para `findMany` + `count` em paralelo). Qualquer endpoint novo de listagem (ex.: se listagem de seguidores crescer para contas com milhões de seguidores) deve nascer paginado — nunca um `findMany` sem `take`.
-6. **Busca por nome/username (`searchProfiles.service.ts`) hoje usa `contains`/`mode: insensitive`** (equivalente a `ILIKE %q%`), que não escala bem para milhões de perfis (sem uso de índice). Se for expandir a busca (mais campos, mais volume, ranking), considere sinalizar a necessidade de um índice trigram (`pg_trgm`) ou motor de busca dedicado antes de simplesmente aumentar o alcance da query atual.
-7. **Reaproveitar singletons de infra**: Prisma (`src/prisma/index.ts`), Redis (`src/config/redis.ts`) e Kafka producer (`src/kafka/producer.ts`) — nunca instancie um novo client dentro de um service/controller.
-8. **Kafka para efeitos assíncronos**: eventos de follow/unfollow são publicados após a transação confirmada, nunca de forma síncrona bloqueando a resposta ao cliente.
-9. **Limite de memória do processo é explícito**: `--max-old-space-size=384` no `CMD` do Dockerfile e no `command` do `k8s/deployment.yaml`, alinhado ao limite de memória do pod (512Mi). Se uma mudança aumentar significativamente o uso de memória (ex.: cache local grande, buffers), reavalie esse valor e o `resources.limits.memory` do deployment juntos.
-10. Ao adicionar rota nova, pense no custo em alta volumetria (milhões de perfis/relações de follow) desde o design da query, não como otimização posterior.
+2. **Schema de resposta de rota cacheada usa `z.coerce.date()`, nunca `z.date()`**: o que volta do Redis é JSON, então toda data chega como **string**. Com `z.date()` a rota funciona na primeira chamada (Prisma devolve `Date`) e responde **500 "Response doesn't match the schema"** durante todo o TTL seguinte — foi exatamente o que aconteceu com `GET /users/:accountId/followers`. O mock de `cacheAside` em `tests/integration/profile.integration.spec.ts` não revive datas de propósito, para reproduzir isso.
+3. **Cache é fire-and-forget na escrita** (`redis.set(...).catch(() => {})` dentro de `cacheAside`, `redis.del(...).catch(() => {})` nas mutações) — nunca faça o cache bloquear ou falhar a resposta principal; Redis indisponível deve degradar para ir direto ao banco, nunca derrubar a request.
+4. **Transações atômicas só quando necessário**: use `$transaction` para múltiplas escritas relacionadas (contadores de followers/following), mas rode as operações independentes dentro dela com `Promise.all` (já feito em `increaseFollower`/`decreaseFollower`) em vez de sequenciais.
+5. **Evitar N+1**: uma query com `select` restrito aos campos necessários (ver `getFollowers.service.ts`, `searchProfiles.service.ts`) em vez de trazer a entidade inteira ou fazer uma query por item de lista. `UserFollow` não tem relação declarada com `UserProfile`, então listagem de gente é sempre **duas** consultas — a do relacionamento e um `findMany` com `userID: { in: [...] }` da página — como em `GetFollowersService.hydrate` e `BlockService.listBlocked`; nunca um `findUnique` de perfil por linha.
+6. **Paginação obrigatória em listagens que crescem sem limite**: `search` pagina com `take`/`skip` e `$transaction` para `findMany` + `count` em paralelo; seguidores/seguidos e bloqueios paginam **por cursor** em `createdAt` (`getFollowers.service.ts`, `block.service.ts`), que é o padrão para lista de tamanho ilimitado — `OFFSET` fica mais caro a cada página. Qualquer endpoint novo de listagem deve nascer paginado — nunca um `findMany` sem `take`.
+7. **Busca por nome/username (`searchProfiles.service.ts`) hoje usa `contains`/`mode: insensitive`** (equivalente a `ILIKE %q%`), que não escala bem para milhões de perfis (sem uso de índice). Se for expandir a busca (mais campos, mais volume, ranking), considere sinalizar a necessidade de um índice trigram (`pg_trgm`) ou motor de busca dedicado antes de simplesmente aumentar o alcance da query atual.
+8. **Reaproveitar singletons de infra**: Prisma (`src/prisma/index.ts`), Redis (`src/config/redis.ts`) e Kafka producer (`src/kafka/producer.ts`) — nunca instancie um novo client dentro de um service/controller.
+9. **Kafka para efeitos assíncronos**: eventos de follow/unfollow são publicados após a transação confirmada, nunca de forma síncrona bloqueando a resposta ao cliente.
+10. **Limite de memória do processo é explícito**: `--max-old-space-size=384` no `CMD` do Dockerfile e no `command` do `k8s/deployment.yaml`, alinhado ao limite de memória do pod (512Mi). Se uma mudança aumentar significativamente o uso de memória (ex.: cache local grande, buffers), reavalie esse valor e o `resources.limits.memory` do deployment juntos.
+11. Ao adicionar rota nova, pense no custo em alta volumetria (milhões de perfis/relações de follow) desde o design da query, não como otimização posterior.
 
 ---
 
@@ -127,6 +128,22 @@ Todo valor de configuração novo deve passar por `src/config/env.ts` (nunca ler
 - `k8s/`: `deployment.yaml` tem `startupProbe` (`/health`), `livenessProbe` (`/health`) e **`readinessProbe` separado em `/ready`** (checa DB + Redis) — ao adicionar uma nova dependência de infra crítica (novo banco, cache, fila), atualize `/ready` em `routes.ts` para refletir a saúde real do serviço.
 - `hpa.yaml`: min 1 / max 4 réplicas, CPU 70% / memória 80%, com `behavior` assimétrico (scale-up rápido, scale-down com `stabilizationWindowSeconds: 300` para evitar oscilação).
 - Sem `.env.example` neste serviço hoje — se for adicionar uma env var nova relevante para rodar localmente, considere criar um alinhado ao padrão do `auth-service`.
+
+---
+
+## Listagem de seguidores e seguidos
+
+`GET /users/:accountId/followers` e `GET /users/:accountId/following` (`getFollowers.service.ts`) são a fonte das listas que o app abre ao tocar nos contadores do perfil. As duas devolvem a mesma forma:
+
+```
+{ data: [{ accountId, name, username, avatarUrl, followers, followedAt }], nextCursor }
+```
+
+- **Perfil já vem hidratado** (nome, @, avatar e contador de seguidores), para o cliente não precisar buscar perfil por item. São duas consultas por página, nunca N+1 (ver §4 de Performance).
+- **Paginação por cursor**: `?limit` (1–50, padrão 30) e `?cursor` = o `nextCursor` da página anterior, que é o `followedAt` do último item em ISO. `nextCursor: null` significa fim da lista. Ordem: follow mais recente primeiro.
+- **Cache só na primeira página no tamanho padrão**, sob as chaves `user:followers:<id>`/`user:following:<id>` — as mesmas que `increaseFollower`/`decreaseFollower` já invalidam. Página com cursor ou `limit` fora do padrão vai direto ao banco de propósito: cachear sob outra chave deixaria entrada órfã, servindo lista desatualizada depois de um follow.
+- **Follow cujo perfil não existe** (perfil ainda não criado pelo consumer, ou conta em exclusão) permanece na lista com os campos nulos em vez de ser filtrado — filtrar encurtaria a página e faria o cursor pular registros.
+- **Não filtra bloqueio**: o `UserFollow` de quem bloqueou já foi desfeito no `BlockService.block`, e o cliente ainda filtra pelo próprio estado de bloqueio antes de exibir.
 
 ---
 

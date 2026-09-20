@@ -13,6 +13,7 @@ import 'package:mobile/utils/username.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
+import 'package:mobile/widgets/cards/users/profile_counters.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
@@ -231,7 +232,9 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
         }
       case SafetyAction.unblock:
         await _desbloquear();
+      // Só existem no ⋯ de uma publicação; aqui o alvo é o perfil.
       case SafetyAction.reportPost:
+      case SafetyAction.deletePost:
         break;
     }
   }
@@ -593,43 +596,15 @@ class _OtherIdentity extends StatelessWidget {
                 ],
 
                 const SizedBox(height: AppSpacing.lg),
-                Row(
-                  children: [
-                    for (final (i, cell) in <(int, String)>[
-                      (postsCount, 'POSTS'),
-                      (user.seguidores, 'SEGUIDORES'),
-                      (user.seguindo, 'SEGUINDO'),
-                    ].indexed) ...[
-                      if (i > 0)
-                        Container(
-                          width: 1,
-                          height: 28,
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                          ),
-                          color: colors.hairline,
-                        ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            cell.$1.toString(),
-                            style: type.monoDisplay.copyWith(
-                              color: colors.textPrimary,
-                              fontSize: 20,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            cell.$2,
-                            style: type.monoMicro.copyWith(
-                              color: colors.textDisabled,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+                ProfileCounters(
+                  accountId: user.accountId ?? '',
+                  nome: user.nome,
+                  postsCount: postsCount,
+                  seguidores: user.seguidores,
+                  seguindo: user.seguindo,
+                  // Perfil bloqueado esconde as publicações; a gente dele
+                  // segue a mesma regra.
+                  enabled: !blocked,
                 ),
 
                 const SizedBox(height: AppSpacing.xl),

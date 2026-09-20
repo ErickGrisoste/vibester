@@ -8,6 +8,7 @@ import 'package:mobile/utils/username.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/widgets/cards/users/profile_counters.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
@@ -315,7 +316,13 @@ class _ProfileIdentity extends StatelessWidget {
                 ],
 
                 const SizedBox(height: AppSpacing.lg),
-                _Counters(user: user, postsCount: postsCount),
+                ProfileCounters(
+                  accountId: user.accountId ?? '',
+                  nome: user.nome,
+                  postsCount: postsCount,
+                  seguidores: user.seguidores,
+                  seguindo: user.seguindo,
+                ),
 
                 if (_interests.isNotEmpty) ...[
                   const SizedBox(height: AppSpacing.lg),
@@ -338,57 +345,6 @@ class _ProfileIdentity extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Contadores em DM Mono, alinhados à esquerda numa fileira só. Todos vêm de
-/// `fromProfileJson` — nenhum é decorativo.
-class _Counters extends StatelessWidget {
-  final UserModel user;
-  final int postsCount;
-
-  const _Counters({required this.user, required this.postsCount});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Row(
-      children: [
-        for (final (i, cell) in <(int, String)>[
-          (postsCount, 'POSTS'),
-          (user.seguidores, 'SEGUIDORES'),
-          (user.seguindo, 'SEGUINDO'),
-        ].indexed) ...[
-          if (i > 0)
-            Container(
-              width: 1,
-              height: 28,
-              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              color: colors.hairline,
-            ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                cell.$1.toString(),
-                style: context.typography.monoDisplay.copyWith(
-                  color: colors.textPrimary,
-                  fontSize: 20,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                cell.$2,
-                style: context.typography.monoMicro.copyWith(
-                  color: colors.textDisabled,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
     );
   }
 }

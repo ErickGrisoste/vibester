@@ -47,6 +47,7 @@ import 'package:mobile/screens/settings/blocked_accounts_screen.dart';
 import 'package:mobile/screens/settings/delete_account_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
+import 'package:mobile/screens/user/follow_list_screen.dart';
 import 'package:mobile/screens/user/other_users_profile_screen.dart';
 import 'package:mobile/screens/user/profile_editing_screen.dart';
 import 'package:mobile/screens/user/user_interests_screen.dart';
@@ -489,6 +490,12 @@ class _MyAppState extends State<MyApp> {
                 final accountid = settings.arguments as String;
                 return vibesterSlideRoute(
                   OtherUsersProfileScreen(accountId: accountid),
+                  settings,
+                );
+              case AppRoutes.followList:
+                final args = settings.arguments as FollowListArgs;
+                return vibesterSlideRoute(
+                  FollowListScreen.fromArgs(args),
                   settings,
                 );
 

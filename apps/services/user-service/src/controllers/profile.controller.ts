@@ -4,7 +4,7 @@ import { z } from "zod";
 import { CreateProfileService } from "../services/createProfile.service.js";
 import { EditProfileService } from "../services/editProfile.service.js";
 import { GetProfileService } from "../services/getProfile.service.js";
-import { GetFollowersService } from "../services/getFollowers.service.js";
+import { GetFollowersService, FOLLOW_PAGE_SIZE } from "../services/getFollowers.service.js";
 import { SearchProfilesService } from "../services/searchProfiles.service.js";
 import { CheckFollowService } from "../services/checkFollow.service.js";
 import { GenerateShareLinkService } from "../services/generateShareLink.service.js";
@@ -91,14 +91,23 @@ const shareTokenParamsSchema = z.object({
   token: z.string().uuid(),
 });
 
-const followerEntrySchema = z.object({
-  followerId: z.string().uuid(),
-  createdAt: z.date(),
+const followListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(FOLLOW_PAGE_SIZE),
+  cursor: z.string().datetime().optional(),
 });
 
-const followingEntrySchema = z.object({
-  followingId: z.string().uuid(),
-  createdAt: z.date(),
+const followProfileSchema = z.object({
+  accountId: z.string().uuid(),
+  name: z.string().nullable(),
+  username: z.string().nullable(),
+  avatarUrl: z.string().nullable(),
+  followers: z.number().int(),
+  followedAt: z.coerce.date(),
+});
+
+const followProfilesPageSchema = z.object({
+  data: z.array(followProfileSchema),
+  nextCursor: z.string().nullable(),
 });
 
 const isFollowingSchema = z.object({
@@ -348,14 +357,22 @@ export async function profileRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Profile"],
       summary: "Listar seguidores",
-      description: "Retorna a lista de usuários que seguem o usuário informado.",
+      description:
+        "Perfis que seguem o usuário informado, mais recentes primeiro, já com nome, username e avatar. " +
+        "`nextCursor` vai em `cursor` para a próxima página; `null` significa fim da lista.",
       params: accountIdParamsSchema,
-      response: { 200: z.array(followerEntrySchema), 500: errorSchema },
+      querystring: followListQuerySchema,
+      response: { 200: followProfilesPageSchema, 500: errorSchema },
     },
   }, async (request, reply) => {
     try {
-      const followers = await getFollowersService.listFollowers(request.params.accountId);
-      return reply.status(200).send(followers);
+      const { limit, cursor } = request.query;
+      const page = await getFollowersService.listFollowers(
+        request.params.accountId,
+        limit,
+        cursor ? new Date(cursor) : undefined,
+      );
+      return reply.status(200).send(page);
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send({ message: "Error listing followers" });
@@ -366,14 +383,22 @@ export async function profileRoutes(app: FastifyInstance) {
     schema: {
       tags: ["Profile"],
       summary: "Listar quem o usuário segue",
-      description: "Retorna a lista de usuários que o usuário informado está seguindo.",
+      description:
+        "Perfis que o usuário informado segue, mais recentes primeiro, já com nome, username e avatar. " +
+        "`nextCursor` vai em `cursor` para a próxima página; `null` significa fim da lista.",
       params: accountIdParamsSchema,
-      response: { 200: z.array(followingEntrySchema), 500: errorSchema },
+      querystring: followListQuerySchema,
+      response: { 200: followProfilesPageSchema, 500: errorSchema },
     },
   }, async (request, reply) => {
     try {
-      const following = await getFollowersService.listFollowing(request.params.accountId);
-      return reply.status(200).send(following);
+      const { limit, cursor } = request.query;
+      const page = await getFollowersService.listFollowing(
+        request.params.accountId,
+        limit,
+        cursor ? new Date(cursor) : undefined,
+      );
+      return reply.status(200).send(page);
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send({ message: "Error listing following" });

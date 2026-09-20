@@ -30,6 +30,13 @@ class ApiEndpoints {
       '$baseUrl/user/users/profile/followers/decrease';
   static String checkFollowing(String followerId, String followingId) =>
       '$baseUrl/user/users/$followerId/follows/$followingId';
+  // Listagens de gente do perfil. Paginadas por cursor (`nextCursor` =
+  // `followedAt` do último item) — os parâmetros `limit`/`cursor` vão em
+  // `queryParameters`, como na listagem de bloqueados.
+  static String followers(String accountId) =>
+      '$baseUrl/user/users/$accountId/followers';
+  static String following(String accountId) =>
+      '$baseUrl/user/users/$accountId/following';
   static String generateShareLink() => '$baseUrl/user/users/share';
   static String resolveShareLink(String token) =>
       '$baseUrl/user/users/share/$token';

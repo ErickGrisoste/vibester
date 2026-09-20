@@ -29,6 +29,14 @@ check-ins vivem em `/saved` (`screens/saved/saved_screen.dart`), acessível pelo
 perfil. Não existe mais aba dentro de aba: a `TabBar` FEED/DESTAQUES/EM ALTA e
 a aba de favoritos foram removidas.
 
+Os contadores de seguidores/seguindo (`ProfileCounters`, usado pelos dois
+perfis) abrem `/follow-list` (`screens/user/follow_list_screen.dart`) já no
+lado tocado, e os dois lados alternam ali dentro sem nova navegação. A lista
+usa a mesma linha da busca por pessoas (`UserRow`, `widgets/cards/users/`) e
+leva ao perfil de cada um; é paginada por cursor
+(`GET /user/users/:accountId/followers|following`, que já devolve o perfil
+hidratado) e filtra pelo `BlockProvider`.
+
 O design system está documentado em [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) —
 leia antes de criar componente novo.
 
@@ -70,7 +78,10 @@ lib/
   utils/        helpers sem estado (data_freshness.dart, relative_time.dart, search_state.dart, etc.)
 ```
 
-Existe suíte de testes em `test/` (208 testes, `flutter test` verde): `theme/` guarda a paleta, `utils/` cobre a lógica temporal do evento, `service/` cobre o tratamento de erro da API e a expiração do JWT, `media/` cobre a máquina de estados da câmera, o seletor e cada estado sem preview da câmera, `widgets/` cobre os componentes do design system e `screens/` monta **toda** tela em três larguras e nos dois temas. Essa última é o QA visual automatizado — em debug, estouro de layout vira erro de framework e reprova o teste. Ainda não há workflow de CI (`.github/workflows`) rodando isso para o mobile; ao mexer em tela ou componente, rode `flutter analyze && flutter test` (os dois passam limpos hoje) e acrescente o caso novo à bateria.
+Existe suíte de testes em `test/` (323 testes; hoje 322 passam — o caso do par
+de acento frio em `test/theme/palette_test.dart` cobra do tema claro um âmbar
+azul que `AppColors.light` não usa mais, e já falhava antes de qualquer
+mudança nova): `theme/` guarda a paleta, `utils/` cobre a lógica temporal do evento, `service/` cobre o tratamento de erro da API e a expiração do JWT, `media/` cobre a máquina de estados da câmera, o seletor e cada estado sem preview da câmera, `widgets/` cobre os componentes do design system e `screens/` monta **toda** tela em três larguras e nos dois temas. Essa última é o QA visual automatizado — em debug, estouro de layout vira erro de framework e reprova o teste. Ainda não há workflow de CI (`.github/workflows`) rodando isso para o mobile; ao mexer em tela ou componente, rode `flutter analyze && flutter test` (os dois passam limpos hoje) e acrescente o caso novo à bateria.
 
 ### Padrão de uma feature nova
 

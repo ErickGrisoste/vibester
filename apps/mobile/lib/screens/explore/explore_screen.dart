@@ -7,16 +7,15 @@ import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/models/user/user_model.dart';
 import 'package:mobile/providers/events/events_list_provider.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
-import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/event_time.dart';
 import 'package:mobile/utils/search_state.dart';
-import 'package:mobile/utils/username.dart';
 import 'package:mobile/widgets/cards/event/event_poster_card.dart';
 import 'package:mobile/widgets/cards/place/place_tile.dart';
+import 'package:mobile/widgets/cards/users/user_row.dart';
 import 'package:mobile/widgets/common/vibester_image.dart';
 import 'package:mobile/widgets/common/vibester_search_field.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
@@ -491,7 +490,13 @@ class ExploreScreenState extends State<ExploreScreen> {
       itemCount: users.length,
       itemBuilder: (context, i) => StaggeredEntrance(
         index: i,
-        child: _UserRow(user: users[i]),
+        child: UserRow(
+          accountId: users[i].accountId,
+          nome: users[i].name,
+          nomeUsuario: users[i].username,
+          fotoPerfil: users[i].avatarUrl,
+          seguidores: users[i].followers,
+        ),
       ),
     );
   }
@@ -672,75 +677,3 @@ class _CategoryBlock extends StatelessWidget {
   }
 }
 
-class _UserRow extends StatelessWidget {
-  final UserSearchResult user;
-
-  const _UserRow({required this.user});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return VibesterPressable(
-      onTap: () => Navigator.pushNamed(
-        context,
-        AppRoutes.otherProfile,
-        arguments: user.accountId,
-      ),
-      borderRadius: AppRadius.mdAll,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-        child: Row(
-          children: [
-            ClipOval(
-              child: SizedBox(
-                width: 48,
-                height: 48,
-                child: VibesterImage(
-                  source: user.avatarUrl ?? '',
-                  placeholderIcon: Icons.person_outline_rounded,
-                ),
-              ),
-            ),
-            const SizedBox(width: AppSpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user.name?.isNotEmpty == true
-                        ? user.name!
-                        : (user.username ?? 'Usuário'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.typography.titleMedium.copyWith(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    [
-                      if (formatHandle(user.username).isNotEmpty)
-                        formatHandle(user.username),
-                      '${user.followers} SEGUINDO ELE',
-                    ].join('  ·  '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.typography.monoSmall.copyWith(
-                      color: colors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.arrow_outward_rounded,
-              size: 18,
-              color: colors.textDisabled,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

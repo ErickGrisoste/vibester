@@ -157,6 +157,8 @@ ao rolar a tela.
 | `EventPosterCard` | `cards/event/` | `hero` `compact` `wide` |
 | `PlaceTile` | `cards/place/` | `rail` `row` |
 | `PublicationCard` | `cards/feed/` | post do feed |
+| `UserRow` | `cards/users/` | uma pessoa numa lista (busca, seguidores, seguindo) — leva ao perfil |
+| `ProfileCounters` | `cards/users/` | posts / seguidores / seguindo; os dois últimos abrem a listagem de gente |
 | `LikeHeart` | `motion/` | coração de curtida que anima quando `liked` muda (estouro ao curtir, recuo ao descurtir) — use em todo botão de curtir |
 | `DoubleTapLike` | `motion/` | toque duplo na mídia do post: só curte, com coração grande no centro |
 | `AppCamera` | `media/camera/` | câmera do app: preview, flash, lente, zoom, foco e todos os estados (sempre no tema escuro) |

@@ -77,6 +77,8 @@ Future<void> pumpScreen(
   Size size = TestScreens.medium,
   UserModel? user,
   ThemeMode themeMode = ThemeMode.dark,
+  BlockProvider? blocks,
+  RouteFactory? onGenerateRoute,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -94,7 +96,7 @@ Future<void> pumpScreen(
         ChangeNotifierProvider(create: (_) => PublicationListProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider(themeMode)),
-        ChangeNotifierProvider(create: (_) => BlockProvider()),
+        ChangeNotifierProvider.value(value: blocks ?? BlockProvider()),
         ChangeNotifierProvider.value(value: userProvider),
       ],
       child: MaterialApp(
@@ -103,9 +105,11 @@ Future<void> pumpScreen(
         themeMode: themeMode,
         home: screen,
         // As telas navegam por nome; sem isso um toque acidental num botão
-        // derrubaria o teste por rota desconhecida.
-        onGenerateRoute: (settings) =>
-            MaterialPageRoute(builder: (_) => const SizedBox.shrink()),
+        // derrubaria o teste por rota desconhecida. Um teste que precisa ver
+        // para onde a tela navegou passa o seu próprio `onGenerateRoute`.
+        onGenerateRoute:
+            onGenerateRoute ??
+            (settings) => MaterialPageRoute(builder: (_) => const SizedBox.shrink()),
       ),
     ),
   );

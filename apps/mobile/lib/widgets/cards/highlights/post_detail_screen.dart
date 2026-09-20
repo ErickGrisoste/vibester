@@ -248,14 +248,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     });
   }
 
-  Future<void> _abrirOpcoes(HighlightModel post) async {
+  /// Folha do ⋯: excluir no post do dono; denunciar e bloquear no de outra
+  /// pessoa. Mesmas opções do cartão do feed, mesma ordem.
+  Future<void> _abrirOpcoes(HighlightModel post, {required bool isOwn}) async {
     final action = await showSafetyActionsSheet(
       context,
-      actions: const [SafetyAction.reportPost, SafetyAction.block],
+      actions: isOwn
+          ? const [SafetyAction.deletePost]
+          : const [SafetyAction.reportPost, SafetyAction.block],
     );
     if (!mounted || action == null) return;
 
     switch (action) {
+      case SafetyAction.deletePost:
+        await _excluir(post.postId);
       case SafetyAction.reportPost:
         await showReportSheet(
           context,
@@ -285,15 +291,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget _buildPost(HighlightModel post, String? viewerId) {
     final isOwn = viewerId != null && post.userId == viewerId;
 
+    // Sem sessão, ou sem saber de quem é o post, não há o que oferecer no ⋯.
+    final temOpcoes = viewerId != null && post.userId.isNotEmpty;
+
     return _PostItem(
       key: ValueKey(post.postId),
       post: post,
-      isOwn: isOwn,
-      canReport: !isOwn && viewerId != null && post.userId.isNotEmpty,
-      deleting: _deleting.contains(post.postId),
+      showOptions: temOpcoes && !_deleting.contains(post.postId),
       onLike: () => _alternarCurtida(post.postId),
-      onDelete: () => _excluir(post.postId),
-      onOptions: () => _abrirOpcoes(post),
+      onOptions: () => _abrirOpcoes(post, isOwn: isOwn),
     );
   }
 
@@ -442,21 +448,18 @@ class _PostsHeader extends StatelessWidget {
 /// item sair e voltar da área visível.
 class _PostItem extends StatelessWidget {
   final HighlightModel post;
-  final bool isOwn;
-  final bool canReport;
-  final bool deleting;
+
+  /// O ⋯ no canto superior direito da mídia. Fora enquanto a exclusão do
+  /// post está em andamento.
+  final bool showOptions;
   final VoidCallback onLike;
-  final VoidCallback onDelete;
   final VoidCallback onOptions;
 
   const _PostItem({
     super.key,
     required this.post,
-    required this.isOwn,
-    required this.canReport,
-    required this.deleting,
+    required this.showOptions,
     required this.onLike,
-    required this.onDelete,
     required this.onOptions,
   });
 
@@ -480,9 +483,9 @@ class _PostItem extends StatelessWidget {
                 child: PostMediaCarousel(media: post.midias),
               ),
             ),
-            // A lixeira do dono fica na linha do coração; aqui em cima só o
-            // menu de opções dos posts de outras pessoas.
-            if (canReport)
+            // Toda ação sobre o post — excluir, denunciar, bloquear — entra
+            // por aqui: um ⋯ só, no mesmo canto, seja o post de quem for.
+            if (showOptions)
               Positioned(
                 top: AppSpacing.sm,
                 right: AppSpacing.lg,
@@ -505,26 +508,16 @@ class _PostItem extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  _Action(
-                    icon: LikeHeart(
-                      liked: post.curtidoPeloUsuario,
-                      inactiveColor: colors.textSecondary,
-                      size: 22,
-                    ),
-                    value: post.totalCurtidas,
-                    active: post.curtidoPeloUsuario,
-                    semanticLabel: post.curtidoPeloUsuario
-                        ? 'Descurtir'
-                        : 'Curtir',
-                    onTap: onLike,
-                  ),
-                  if (isOwn) ...[
-                    const Spacer(),
-                    _DeleteButton(onTap: deleting ? null : onDelete),
-                  ],
-                ],
+              _Action(
+                icon: LikeHeart(
+                  liked: post.curtidoPeloUsuario,
+                  inactiveColor: colors.textSecondary,
+                  size: 22,
+                ),
+                value: post.totalCurtidas,
+                active: post.curtidoPeloUsuario,
+                semanticLabel: post.curtidoPeloUsuario ? 'Descurtir' : 'Curtir',
+                onTap: onLike,
               ),
 
               if (post.legenda.isNotEmpty) ...[
@@ -631,40 +624,6 @@ class _Action extends StatelessWidget {
                 style: context.typography.mono.copyWith(color: color),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Lixeira na linha do coração, só nos posts do próprio usuário: o ícone
-/// sozinho, em vermelho, sem contorno. A área de toque continua com 44px,
-/// igual à do coração, mesmo com o ícone menor.
-class _DeleteButton extends StatelessWidget {
-  final VoidCallback? onTap;
-
-  const _DeleteButton({this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Excluir publicação',
-      excludeSemantics: true,
-      child: VibesterPressable(
-        onTap: onTap,
-        borderRadius: AppRadius.pillAll,
-        child: SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(
-            Icons.delete_outline_rounded,
-            size: 22,
-            // Apagado enquanto a exclusão está em andamento.
-            color: context.colors.error.withValues(
-              alpha: onTap == null ? 0.4 : 1,
-            ),
           ),
         ),
       ),
