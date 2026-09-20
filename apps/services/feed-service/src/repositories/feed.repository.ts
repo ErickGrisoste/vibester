@@ -262,6 +262,37 @@ export class FeedRepository extends BaseRepository {
         result.rows = [...rows, ...missing];
     }
 
+    /**
+     * Linhas do feed pelas chaves exatas `(created_at, item_id)`, numa query de partição.
+     *
+     * Usado para hidratar as páginas de uma sessão rankeada: a sessão guarda só a ordem,
+     * e o conteúdo continua vindo daqui. IN multi-coluna sobre a chave de clustering, com
+     * a lista limitada a uma página (no máximo 50). O Cassandra devolve na ordem de
+     * clustering, não na ordem pedida — quem chama reordena.
+     */
+    async findByKeys(userId: string, keys: readonly { createdAt: Date; itemId: string }[]) {
+        if (keys.length === 0) { return []; }
+
+        const placeholders = keys.map(() => "(?, ?)").join(", ");
+        const params: unknown[] = [userId];
+
+        for (const key of keys) {
+            params.push(key.createdAt, key.itemId);
+        }
+
+        const result = await this.execute(
+            `
+                SELECT *
+                FROM feed_keyspace.feed_by_user
+                WHERE user_id = ?
+                AND (created_at, item_id) IN (${placeholders});
+            `,
+            params
+        );
+
+        return result.rows;
+    }
+
     async delete(userId: string, createdAt: Date, itemId: string) {
         return this.execute(
             `

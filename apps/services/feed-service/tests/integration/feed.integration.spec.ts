@@ -6,6 +6,7 @@ vi.mock('../../src/config/cassandra', () => ({
 }));
 
 import { buildServer, makeAuthHeader } from '../helpers/fastify.test.helper';
+import { encodeSessionCursor } from '../../src/utils/feed_cursor';
 
 const USER_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
 const ITEM_ID = 'b1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
@@ -151,6 +152,45 @@ describe('feed-service — HTTP Integration', () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.payload);
       expect(body.nextCursor).not.toBeNull();
+    });
+
+    it('devolve o nextCursor como data ISO em texto no caminho cronológico', async () => {
+      const lastDate = new Date('2024-01-10T08:00:00.000Z');
+      mockExecute.mockResolvedValueOnce({ rows: [makeFeedRow({ created_at: lastDate })] });
+
+      const res = await app.inject({ method: 'GET', url: `/feed/${USER_ID}`, headers: { authorization: authHeader } });
+
+      expect(JSON.parse(res.payload).nextCursor).toBe('2024-01-10T08:00:00.000Z');
+    });
+
+    it('aceita cursor opaco de sessão: o schema da rota não pode exigir formato de data', async () => {
+      const token = encodeSessionCursor('7e1f0c8a-1111-4111-8111-aaaaaaaaaaaa', 20);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/feed/${USER_ID}?cursor=${encodeURIComponent(token)}`,
+        headers: { authorization: authHeader },
+      });
+
+      // Sessão sem linhas (expirada) termina o feed; o que importa é não virar 400.
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.payload)).toEqual({ items: [], nextCursor: null });
+      expect(mockExecute).toHaveBeenCalledWith(
+        expect.stringContaining('feed_session_items'),
+        [USER_ID, '7e1f0c8a-1111-4111-8111-aaaaaaaaaaaa', 20, 21],
+        expect.anything()
+      );
+    });
+
+    it('retorna 400 para cursor de sessão corrompido, sem tocar no banco', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/feed/${USER_ID}?cursor=${encodeURIComponent('s1.nao-e-um-token')}`,
+        headers: { authorization: authHeader },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(mockExecute).not.toHaveBeenCalled();
     });
 
     it('retorna 500 quando o banco falha', async () => {

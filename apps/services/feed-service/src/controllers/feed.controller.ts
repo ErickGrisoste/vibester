@@ -1,7 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
-import { FeedReadService } from "../services/feed-read.service";
+import { RankedFeedService } from "../services/ranked_feed.service";
 
-const feedReadService = new FeedReadService();
+const rankedFeedService = new RankedFeedService();
 
 interface GetFeedParams { userId: string; }
 
@@ -22,8 +22,6 @@ export class FeedController {
 
     const limit = request.query.limit ? Number(request.query.limit) : 20;
 
-    const cursor = request.query.cursor ? new Date(request.query.cursor) : undefined;
-
     if (!userId) {
       return reply.status(400).send({
         message: "User id is required",
@@ -36,16 +34,12 @@ export class FeedController {
       });
     }
 
-    if (request.query.cursor && cursor && Number.isNaN(cursor.getTime())) {
-      return reply.status(400).send({
-        message: "Invalid cursor",
-      });
-    }
-
-    // Erros daqui pra frente (ex.: Cassandra fora do ar) propagam para o
-    // errorHandler global (src/errors/error.handler.ts), que decide o status
-    // code e loga de forma estruturada — não capturar aqui de novo.
-    const feed = await feedReadService.getFeedByUser(userId, limit, cursor);
+    // O cursor segue cru: é o serviço que sabe distinguir uma data legada de um
+    // token de sessão rankeada. Cursor inválido vira InvalidFeedCursorError, que
+    // é um HttpError 400 — assim ele segue o mesmo caminho de todo erro daqui
+    // pra frente: o errorHandler global (src/errors/error.handler.ts) decide o
+    // status e loga de forma estruturada, sem try/catch novo no controller.
+    const feed = await rankedFeedService.getFeed(userId, limit, request.query.cursor);
 
     return reply.status(200).send(feed);
   }

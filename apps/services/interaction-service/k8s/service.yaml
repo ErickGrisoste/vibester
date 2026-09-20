@@ -1,0 +1,13 @@
+# Só o modo api recebe tráfego. O worker não precisa de Service: os probes do k8s
+# batem direto no pod, e nada chama o worker por HTTP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: interaction-service
+  namespace: default
+spec:
+  selector:
+    app: interaction-service-api
+  ports:
+    - port: 3007
+      targetPort: 3007

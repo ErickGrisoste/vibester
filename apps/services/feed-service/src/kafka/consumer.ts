@@ -14,6 +14,8 @@ import { postLikedSchema } from "../schema/events/post-liked.schema";
 import { postUnlikedSchema } from "../schema/events/post-unliked.schema";
 import { unwrapEventData } from "./envelope";
 import { kafka } from "./client";
+import { interactionsNormalizedSchema } from "../schema/events/interactions-normalized.schema";
+import { RankingFeaturesService } from "../services/ranking_features.service";
 import { kafkaHandlerErrorTotal } from "../metrics/registry";
 
 export class KafkaConsumer {
@@ -28,6 +30,9 @@ export class KafkaConsumer {
         "post.unliked",
         "user.followed",
         "user.unfollowed",
+        // Publicado pelo interaction-service. Alimenta os contadores do ranking; não
+        // altera o conteúdo do feed, só as features usadas para ordená-lo.
+        "interactions.normalized",
     ];
 
     private readonly directTopicHandlers: Record<string, (data: unknown) => Promise<void>> = {
@@ -36,6 +41,9 @@ export class KafkaConsumer {
 
         "user.unfollowed": async (data: unknown) =>
             this.followService.handleUserUnfollowed(followSchema.parse(data)),
+
+        "interactions.normalized": async (data: unknown) =>
+            this.rankingFeaturesService.handleInteractions(interactionsNormalizedSchema.parse(data)),
     };
 
     private handlers = {
@@ -91,6 +99,7 @@ export class KafkaConsumer {
         private readonly feedFanoutService: FeedFanoutService,
         private readonly followService: FollowService,
         private readonly eventAttendanceService: EventAttendanceService,
+        private readonly rankingFeaturesService: RankingFeaturesService = new RankingFeaturesService()
     ) {
         this.consumer = kafka.consumer({
             groupId: "feed-service-group",
