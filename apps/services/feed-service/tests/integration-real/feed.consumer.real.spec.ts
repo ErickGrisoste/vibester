@@ -99,9 +99,15 @@ describe("feed-service — Kafka Consumers (Cassandra real)", () => {
       expect(followerFeed.rows).toHaveLength(1);
       expect(followerFeed.rows[0].item_id.toString()).toBe(POST_ID);
 
+      // feed_entries_by_post é o índice reverso de "quem tem este post no
+      // feed" — desde `addPostToAuthorFeed` (o autor também vê o próprio post
+      // no feed, gravado pelo mesmo FeedWriter), a entrada do autor convive
+      // com a de cada seguidor, então aqui espera-se autor + 1 seguidor.
       const entries = await feedEntriesRepository.findByItemId(POST_ID);
-      expect(entries.rows).toHaveLength(1);
-      expect(entries.rows[0].user_id.toString()).toBe(FOLLOWER_ID);
+      expect(entries.rows).toHaveLength(2);
+      const entryUserIds = entries.rows.map((row) => row.user_id.toString());
+      expect(entryUserIds).toContain(FOLLOWER_ID);
+      expect(entryUserIds).toContain(AUTHOR_ID);
     });
   });
 
