@@ -1,14 +1,16 @@
 import { vi, describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
-const { mockGetPopularity, mockGetMovement, mockSearchNearby } = vi.hoisted(() => ({
+const { mockGetPopularity, mockGetMovement, mockSearchNearby, mockSearchNearbySerpApi } = vi.hoisted(() => ({
   mockGetPopularity: vi.fn(),
   mockGetMovement: vi.fn(),
   mockSearchNearby: vi.fn(),
+  mockSearchNearbySerpApi: vi.fn(),
 }));
 
 vi.mock('../../src/services/serpapi.service', () => ({
   SerpApiService: vi.fn(function(this: any) {
     this.getPlacePopularity = mockGetPopularity;
+    this.searchNearbyPlaces = mockSearchNearbySerpApi;
   }),
 }));
 
@@ -50,6 +52,7 @@ describe('scrapping-service — HTTP Integration', () => {
     mockGetPopularity.mockResolvedValue(undefined);
     mockGetMovement.mockResolvedValue(null);
     mockSearchNearby.mockResolvedValue([]);
+    mockSearchNearbySerpApi.mockResolvedValue([]);
   });
 
   const authHeaders = () => ({ Authorization: `Bearer ${token}` });
@@ -179,12 +182,12 @@ describe('scrapping-service — HTTP Integration', () => {
       expect(res.statusCode).toBe(401);
     });
 
-    it('retorna lista de lugares próximos', async () => {
+    it('retorna lista de lugares próximos via SerpAPI (fonte principal)', async () => {
       const places = [
         { placeId: 'ChIJplace1', name: 'Bar do João', lat: -23.42, lng: -51.93, rating: 4.5 },
         { placeId: 'ChIJplace2', name: 'Clube Night XYZ', lat: -23.43, lng: -51.94, rating: 4.2 },
       ];
-      mockSearchNearby.mockResolvedValue(places);
+      mockSearchNearbySerpApi.mockResolvedValue(places);
 
       const res = await app.inject({
         method: 'GET',
@@ -196,10 +199,11 @@ describe('scrapping-service — HTTP Integration', () => {
       const body = JSON.parse(res.payload);
       expect(body).toHaveLength(2);
       expect(body[0]).toHaveProperty('name', 'Bar do João');
+      expect(mockSearchNearby).not.toHaveBeenCalled();
     });
 
     it('retorna lista vazia quando não há lugares no raio', async () => {
-      mockSearchNearby.mockResolvedValue([]);
+      mockSearchNearbySerpApi.mockResolvedValue([]);
 
       const res = await app.inject({
         method: 'GET',
@@ -211,7 +215,28 @@ describe('scrapping-service — HTTP Integration', () => {
       expect(JSON.parse(res.payload)).toHaveLength(0);
     });
 
-    it('retorna 500 quando Google Places API falha', async () => {
+    it('cai para o Google Places quando a SerpAPI falha (fallback)', async () => {
+      const places = [
+        { placeId: 'ChIJplace1', name: 'Bar do João', lat: -23.42, lng: -51.93, rating: 4.5 },
+      ];
+      mockSearchNearbySerpApi.mockRejectedValue(new Error('SerpAPI indisponível'));
+      mockSearchNearby.mockResolvedValue(places);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/places/nearby',
+        headers: authHeaders(),
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.payload);
+      expect(body).toHaveLength(1);
+      expect(body[0]).toHaveProperty('name', 'Bar do João');
+      expect(mockSearchNearby).toHaveBeenCalledTimes(1);
+    });
+
+    it('retorna 500 quando SerpAPI e Google Places falham', async () => {
+      mockSearchNearbySerpApi.mockRejectedValue(new Error('SerpAPI indisponível'));
       mockSearchNearby.mockRejectedValue(new Error('Google API error'));
 
       const res = await app.inject({

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile/models/feed/publication_model.dart';
 import 'package:mobile/models/media/post_media.dart';
+import 'package:mobile/models/safety/report_reason.dart';
 import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
@@ -8,12 +9,15 @@ import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/utils/relative_time.dart';
 import 'package:mobile/utils/username.dart';
+import 'package:mobile/widgets/cards/feed/delete_post_action.dart';
 import 'package:mobile/widgets/common/vibester_image.dart';
 import 'package:mobile/widgets/common/vibester_tag.dart';
 import 'package:mobile/widgets/indicators/like_indicator.dart';
 import 'package:mobile/widgets/media/post_media_carousel.dart';
 import 'package:mobile/widgets/motion/double_tap_like.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/safety/report_sheet.dart';
+import 'package:mobile/widgets/safety/safety_actions.dart';
 import 'package:provider/provider.dart';
 
 /// Publicação no feed.
@@ -95,8 +99,8 @@ class PublicationCard extends StatelessWidget {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // Foto, vídeo ou carrossel — na ordem de `media`. O
-                        // indicador vai no topo porque a base é do selo de local.
+                        // Foto, vídeo ou carrossel — na ordem de `media`. As
+                        // bolinhas ficam na base e o contador no topo.
                         PostMediaCarousel(
                           media: publication.media.isNotEmpty
                               ? publication.media
@@ -107,7 +111,7 @@ class PublicationCard extends StatelessWidget {
                                     ),
                                 ],
                           grain: true,
-                          indicatorOnTop: true,
+                          counterOnTop: true,
                         ),
                         if (publication.location != null &&
                             publication.location!.isNotEmpty)
@@ -154,7 +158,10 @@ class PublicationCard extends StatelessWidget {
   }
 }
 
-/// Linha de autoria: avatar, @, e o local como destino tocável.
+enum _PostOption { delete, report, block }
+
+/// Linha de autoria: avatar, @ e o menu de opções — excluir no post do próprio
+/// usuário; denunciar e bloquear no post de outra pessoa.
 class _AuthorLine extends StatelessWidget {
   final PublicationModel publication;
 
@@ -165,40 +172,136 @@ class _AuthorLine extends StatelessWidget {
     final colors = context.colors;
     final type = context.typography;
 
+    final viewerId = context.select<UserProvider, String?>(
+      (p) => p.user?.accountId,
+    );
+    final isOwn =
+        viewerId != null &&
+        publication.id != null &&
+        publication.authorId == viewerId;
+    // Denunciar/bloquear precisa de sessão e de saber de quem é o post.
+    final canModerate =
+        viewerId != null &&
+        publication.id != null &&
+        publication.authorId != null;
+
     return Row(
+      // O ⋯ fica preso na borda direita, não importa o tamanho do @. Com
+      // `Spacer` ele saía do lugar: `Spacer` é `Expanded` (flex apertado) e
+      // disputava o espaço livre com o `Flexible` (flex solto) do autor —
+      // cada um ficava com metade, então o chip encolhia até o @ caber, o
+      // vazio continuava valendo metade da linha, e o botão parava a meio
+      // caminho. Sem ele, o autor é o único filho flexível: recebe todo o
+      // espaço que sobra do botão e o alinhamento empurra o ⋯ para o fim.
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        VibesterPressable(
-          borderRadius: AppRadius.pillAll,
-          onTap: publication.authorId == null
-              ? null
-              : () => Navigator.pushNamed(
-                  context,
-                  AppRoutes.otherProfile,
-                  arguments: publication.authorId,
-                ),
-          child: Row(
-            children: [
-              ClipOval(
-                child: SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: VibesterImage(
-                    source: publication.autorProfileImage,
-                    placeholderIcon: Icons.person_outline_rounded,
+        Flexible(
+          child: VibesterPressable(
+            borderRadius: AppRadius.pillAll,
+            onTap: publication.authorId == null
+                ? null
+                : () => Navigator.pushNamed(
+                    context,
+                    AppRoutes.otherProfile,
+                    arguments: publication.authorId,
+                  ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipOval(
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: VibesterImage(
+                      source: publication.autorProfileImage,
+                      placeholderIcon: Icons.person_outline_rounded,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Text(
-                publication.autor.isEmpty
-                    ? 'Alguém'
-                    : formatHandle(publication.autor),
-                style: type.titleSmall.copyWith(color: colors.textPrimary),
-              ),
-            ],
+                const SizedBox(width: AppSpacing.md),
+                Flexible(
+                  child: Text(
+                    publication.autor.isEmpty
+                        ? 'Alguém'
+                        : formatHandle(publication.autor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.titleSmall.copyWith(color: colors.textPrimary),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
+        if (canModerate)
+          PopupMenuButton<_PostOption>(
+            tooltip: 'Opções da publicação',
+            color: colors.surfaceRaised,
+            icon: Icon(Icons.more_horiz_rounded, color: colors.textMuted),
+            onSelected: (option) => switch (option) {
+              _PostOption.delete => confirmAndDeletePost(
+                context,
+                postId: publication.id!,
+              ),
+              _PostOption.report => showReportSheet(
+                context,
+                targetType: ReportTargetType.post,
+                targetId: publication.id!,
+                targetOwnerId: publication.authorId,
+              ),
+              _PostOption.block => confirmAndBlockUser(
+                context,
+                accountId: publication.authorId!,
+                displayName: formatHandle(publication.autor),
+              ),
+            },
+            itemBuilder: (_) => [
+              if (isOwn)
+                _menuItem(
+                  context,
+                  _PostOption.delete,
+                  Icons.delete_outline_rounded,
+                  'Excluir publicação',
+                )
+              else ...[
+                _menuItem(
+                  context,
+                  _PostOption.report,
+                  Icons.flag_outlined,
+                  'Denunciar publicação',
+                ),
+                _menuItem(
+                  context,
+                  _PostOption.block,
+                  Icons.block_rounded,
+                  'Bloquear perfil',
+                ),
+              ],
+            ],
+          ),
       ],
+    );
+  }
+
+  PopupMenuItem<_PostOption> _menuItem(
+    BuildContext context,
+    _PostOption value,
+    IconData icon,
+    String label,
+  ) {
+    final color = context.colors.error;
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: AppSpacing.md),
+          Text(
+            label,
+            style: context.typography.titleSmall.copyWith(color: color),
+          ),
+        ],
+      ),
     );
   }
 }

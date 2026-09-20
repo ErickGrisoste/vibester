@@ -1,23 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:mobile/models/user/interest_model.dart';
-import 'package:mobile/service/user/interests_storage.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/common/vibester_chip.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
+import 'package:mobile/widgets/graffiti/spray_glow.dart';
+import 'package:mobile/widgets/motion/word_reveal_text.dart';
 import 'package:mobile/widgets/onboarding/onboarding_footer.dart';
 
-/// ONBOARDING 2 — personalização.
+/// ONBOARDING 2 — de onde vem o movimento.
 ///
-/// Era a segunda tela institucional, com outro retângulo tracejado de
-/// placeholder. Virou o único passo do onboarding que **faz** alguma coisa:
-/// o usuário escolhe as vibes dele e a escolha é guardada
-/// ([InterestsStorage]), passando a valer no filtro da Home.
+/// Esta tela já foi um seletor de vibes, mas a mesma pergunta passou a ser
+/// feita no cadastro ("O que você curte?"), e o usuário respondia duas vezes
+/// seguidas — na segunda com a resposta anterior já marcada, parecendo que o
+/// app tinha esquecido. A escolha ficou onde ela é passo obrigatório do fluxo,
+/// e o onboarding recuperou a vaga.
 ///
-/// A escolha é opcional de propósito — nada de barrar a entrada no produto
-/// atrás de um formulário de preferências (§54: não coletar informação sem
-/// necessidade). Quem pular vê tudo, que é um padrão perfeitamente bom.
-class OnboardingCentralOneScreen extends StatefulWidget {
+/// O que entrou no lugar é o elo que faltava entre as outras duas. A tela 1
+/// promete "o movimento de cada lugar em tempo real" e nunca diz de onde esse
+/// movimento sai; a tela 3 pede localização para posicionar o usuário. Esta
+/// aqui responde a pergunta do meio — o movimento são as pessoas — e transforma
+/// três cartazes soltos numa sequência: a cidade existe, ela é feita por gente,
+/// e a localização te coloca dentro dela.
+///
+/// Segue a estrutura das outras duas — glow, grão, manchete em caixa alta com
+/// a última linha em âmbar, parágrafo, rodapé. O que a distingue é o lugar da
+/// luz e a ausência de marcação à mão: a tela 1 tem o sublinhado, a 3 tem o
+/// ícone, esta fica só com a manchete. Assim as três são a mesma família sem
+/// serem a mesma imagem.
+///
+/// Só menciona o que o app faz hoje: check-in, publicação e seguir perfis.
+/// Vibe check e "amigos na área" ficam de fora enquanto estiverem como "em
+/// breve" nos ajustes — prometer no onboarding o que o usuário não acha depois
+/// é o jeito mais rápido de queimar a confiança na primeira sessão.
+class OnboardingCentralOneScreen extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onBack;
   final VoidCallback onSkip;
@@ -30,22 +44,6 @@ class OnboardingCentralOneScreen extends StatefulWidget {
   });
 
   @override
-  State<OnboardingCentralOneScreen> createState() =>
-      _OnboardingCentralOneScreenState();
-}
-
-class _OnboardingCentralOneScreenState
-    extends State<OnboardingCentralOneScreen> {
-  final List<Interest> _interests = defaultInterests;
-
-  int get _selectedCount => _interests.where((i) => i.selected).length;
-
-  Future<void> _continuar() async {
-    await InterestsStorage.save(_interests);
-    widget.onNext();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final type = context.typography;
@@ -54,7 +52,15 @@ class _OnboardingCentralOneScreenState
       backgroundColor: colors.noturno,
       body: Stack(
         children: [
-          const Positioned.fill(child: Grain(opacity: 0.04, density: 0.4)),
+          // A luz percorre a sequência: tela 1 no alto à esquerda, esta no
+          // meio à direita, tela 3 embaixo à direita.
+          Positioned(
+            right: -130,
+            top: 230,
+            child: SprayGlow(color: colors.brasa, size: 330, intensity: 0.18),
+          ),
+          const Positioned.fill(child: Grain(opacity: 0.05, density: 0.5)),
+
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(
@@ -63,58 +69,37 @@ class _OnboardingCentralOneScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: AppSpacing.xxl),
+                  const Spacer(),
+
                   Text(
-                    'QUAL É A',
+                    'A CIDADE',
                     style: type.displayHuge.copyWith(color: colors.textPrimary),
                   ),
                   Text(
-                    'SUA VIBE?',
-                    style: type.displayHuge.copyWith(color: colors.ambar),
+                    'INTEIRA',
+                    style: type.displayHuge.copyWith(color: colors.textPrimary),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text(
-                    'Escolhe o que você curte pra gente começar por aí. Dá '
-                    'pra mudar quando quiser.',
-                    style: type.bodyLarge.copyWith(color: colors.textSecondary),
+                  WordRevealText(
+                    text: 'NUM FEED',
+                    style: type.displayHuge.copyWith(color: colors.ambar),
                   ),
 
                   const SizedBox(height: AppSpacing.xl),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Wrap(
-                        spacing: AppSpacing.sm,
-                        runSpacing: AppSpacing.xs,
-                        children: [
-                          for (final interest in _interests)
-                            VibesterChip(
-                              label: interest.label,
-                              emoji: interest.emoji,
-                              selected: interest.selected,
-                              onTap: () => setState(
-                                () => interest.selected = !interest.selected,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                  Text(
+                    'Pesquisas não te contam se o rolê tá bom. Quem tá lá conta. '
+                    'Segue a galera que curte o que você curte e vê a noite '
+                    'acontecer em tempo real com nosso feed!',
+                    style: type.bodyLarge.copyWith(color: colors.textSecondary),
                   ),
 
-                  if (_selectedCount > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: Text(
-                        _selectedCount == 1
-                            ? '1 VIBE ESCOLHIDA'
-                            : '$_selectedCount VIBES ESCOLHIDAS',
-                        style: type.monoMicro.copyWith(color: colors.ambar),
-                      ),
-                    ),
+                  const Spacer(),
 
-                  OnboardingFooterHost(
-                    onNext: _continuar,
-                    onBack: widget.onBack,
-                    hasSelection: _selectedCount > 0,
+                  OnboardingFooter(
+                    step: 1,
+                    total: 3,
+                    onBack: onBack,
+                    onNext: onNext,
+                    nextLabel: 'Próximo',
                   ),
                 ],
               ),
@@ -122,32 +107,6 @@ class _OnboardingCentralOneScreenState
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Pequeno invólucro para escolher o rótulo do botão conforme haja seleção —
-/// "Continuar" quando o usuário escolheu algo, "Depois eu escolho" quando não.
-class OnboardingFooterHost extends StatelessWidget {
-  final VoidCallback onNext;
-  final VoidCallback onBack;
-  final bool hasSelection;
-
-  const OnboardingFooterHost({
-    super.key,
-    required this.onNext,
-    required this.onBack,
-    required this.hasSelection,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return OnboardingFooter(
-      step: 1,
-      total: 3,
-      onBack: onBack,
-      onNext: onNext,
-      nextLabel: hasSelection ? 'Continuar' : 'Depois eu vejo',
     );
   }
 }

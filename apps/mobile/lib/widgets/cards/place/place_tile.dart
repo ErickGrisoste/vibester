@@ -61,12 +61,10 @@ class PlaceTile extends StatelessWidget {
     Navigator.pushNamed(context, AppRoutes.placeDetail, arguments: place.id);
   }
 
-  /// A API entrega duas fotos e nem sempre as duas: banner para composição
-  /// grande, perfil para miniatura, cada uma com o outro como reserva.
-  String get _railImage =>
-      place.bannerImage.isNotEmpty ? place.bannerImage : place.profileImage;
-
-  String get _rowImage =>
+  /// A API entrega duas fotos e nem sempre as duas. Os dois formatos mostram
+  /// a foto de perfil — é ela que identifica o lugar num relance, inclusive
+  /// no quadrado 1:1 do trilho "perto de você" — e o banner fica de reserva.
+  String get _image =>
       place.profileImage.isNotEmpty ? place.profileImage : place.bannerImage;
 
   @override
@@ -101,7 +99,7 @@ class PlaceTile extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   VibesterImage(
-                    source: _railImage,
+                    source: _image,
                     placeholderIcon: Icons.storefront_outlined,
                   ),
                   const Grain(opacity: 0.05, density: 0.4),
@@ -168,7 +166,7 @@ class PlaceTile extends StatelessWidget {
         width: 72,
         height: 72,
         child: VibesterImage(
-          source: _rowImage,
+          source: _image,
           placeholderIcon: Icons.storefront_outlined,
         ),
       ),

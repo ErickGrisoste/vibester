@@ -355,9 +355,9 @@ describe("scrapping-service — Integração real (Postgres)", () => {
       expect(mockKafkaSend).not.toHaveBeenCalled();
     });
 
-    it("remove registros de PopularTimesDaily com mais de 7 dias ao iniciar a atualização", async () => {
+    it("remove registros de PopularTimesDaily com mais de 28 dias ao iniciar a atualização", async () => {
       const oldDate = new Date();
-      oldDate.setDate(oldDate.getDate() - 10);
+      oldDate.setDate(oldDate.getDate() - 30);
       oldDate.setHours(0, 0, 0, 0);
 
       const recentDate = new Date();

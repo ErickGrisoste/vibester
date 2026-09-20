@@ -55,7 +55,26 @@ export class FeedFanoutService {
         const post = toPost(feedItem);
 
         await this.savePostByUser(post);
+        await this.addPostToAuthorFeed(feedItem);
         await this.distributePostToFollowers(feedItem);
+    }
+
+    /**
+     * O autor também vê o próprio post no feed — é a confirmação de que a
+     * publicação deu certo. Antes o post ia só para os seguidores, e quem
+     * publicava não o encontrava no próprio feed. Escreve pelo FeedWriter
+     * (feed_by_user + feed_entries_by_post), então curtida, edição e exclusão
+     * alcançam essa cópia pelo mesmo índice reverso das dos seguidores. Vem
+     * antes do fan-out: numa conta grande, a distribuição leva vários lotes, e o
+     * autor não deveria esperar por ela.
+     */
+    private async addPostToAuthorFeed(feedItem: Omit<FeedItem, "userId">) {
+        if (!feedItem.authorId) {
+            return;
+        }
+
+        const ttl = this.feedTtlService.getTtl(feedItem);
+        await this.feedWriter.addItemToUserFeed(this.buildFollowerFeedItem(feedItem, feedItem.authorId), ttl);
     }
 
     async handleContentPostUpdated(event: UpdatePostContentEvent) {

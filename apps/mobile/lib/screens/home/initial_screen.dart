@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/utils/external_links.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
+import 'package:mobile/widgets/common/legal_link.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/graffiti/scribble_mark.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
@@ -24,11 +26,23 @@ import 'package:mobile/widgets/motion/word_reveal_text.dart';
 /// mancha de spray atrás, grão por cima de tudo, e as duas ações no rodapé,
 /// na zona do polegar.
 class InitialScreen extends StatelessWidget {
+  /// Logotipo com o "STER" em branco, para o papel escuro.
+  static const _logo = 'assets/img/logo/tipografia.png';
+
+  /// Versão fria: o degradê percorre `ambar` -> `brasa` da paleta clara e o
+  /// "STER" é preto. No papel claro o branco do original desapareceria.
+  static const _logoLight = 'assets/img/logo/tipografia_azul.png';
+
   const InitialScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    // Brilho efetivo do tema, não o `ThemeMode` do provider: assim
+    // `ThemeMode.system` também acerta o logotipo.
+    final logo = Theme.of(context).brightness == Brightness.light
+        ? _logoLight
+        : _logo;
     final type = context.typography;
 
     return Scaffold(
@@ -65,7 +79,7 @@ class InitialScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Image.asset(
-                            'assets/img/logo/tipografia.png',
+                            logo,
                             height: 22,
                             fit: BoxFit.contain,
                             alignment: Alignment.centerLeft,
@@ -138,14 +152,18 @@ class InitialScreen extends StatelessWidget {
                                 const TextSpan(
                                   text: 'AO CONTINUAR VOCÊ ACEITA OS ',
                                 ),
-                                TextSpan(
-                                  text: 'TERMOS DE USO',
-                                  style: TextStyle(color: colors.textMuted),
+                                LegalLink.span(
+                                  context,
+                                  label: 'TERMOS DE USO',
+                                  uri: ExternalLinks.terms,
+                                  style: type.monoMicro,
                                 ),
                                 const TextSpan(text: ' E A '),
-                                TextSpan(
-                                  text: 'POLÍTICA DE PRIVACIDADE',
-                                  style: TextStyle(color: colors.textMuted),
+                                LegalLink.span(
+                                  context,
+                                  label: 'POLÍTICA DE PRIVACIDADE',
+                                  uri: ExternalLinks.privacy,
+                                  style: type.monoMicro,
                                 ),
                               ],
                             ),

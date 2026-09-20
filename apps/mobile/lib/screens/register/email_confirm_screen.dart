@@ -14,11 +14,9 @@ import 'package:mobile/widgets/motion/vibester_shake.dart';
 import 'package:pinput/pinput.dart';
 import 'package:provider/provider.dart';
 
-/// Confirmação de e-mail por código.
-///
-/// A tela serve dois fluxos com o mesmo código: ativar uma conta recém-criada
-/// (segue para a edição de perfil) e confirmar identidade antes de redefinir a
-/// senha (via [onEmailConfirmed]).
+/// Confirmação de e-mail por código ao criar a conta (segue para a edição de
+/// perfil). A redefinição de senha tem tela própria, com o código do
+/// `/auth/password/forgot` — `ResetPasswordScreen`.
 ///
 /// Duas correções vieram com o redesenho: o código tem 6 dígitos, mas a
 /// validação local liberava com 5 (`length < 5`) e o erro só aparecia depois
@@ -28,12 +26,10 @@ import 'package:provider/provider.dart';
 class EmailConfirmScreen extends StatefulWidget {
   final String email;
   final String senha;
-  final VoidCallback? onEmailConfirmed;
 
   const EmailConfirmScreen({
     required this.email,
     required this.senha,
-    this.onEmailConfirmed,
     super.key,
   });
 
@@ -51,11 +47,6 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
   final _userService = UserService();
 
   Future<void> _aoVerificar() async {
-    if (widget.onEmailConfirmed != null) {
-      widget.onEmailConfirmed!();
-      return;
-    }
-
     try {
       final loginResponse = await _userService.login(
         emailOuUsername: widget.email,
@@ -84,10 +75,22 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
 
       await AuthStorageService.saveSession(usuarioLogado);
 
+      // Primeira etapa do cadastro, gravada antes de navegar: a partir daqui
+      // a pilha é descartada a cada passo, então esta marca é a única coisa
+      // que sabe onde o usuário parou se o app for fechado.
+      await AuthStorageService.marcarEtapa(EtapaCadastro.perfil);
+
       if (!mounted) return;
       context.read<UserProvider>().setUser(usuarioLogado);
 
-      Navigator.pushNamed(context, AppRoutes.profileEditing);
+      // A conta existe e a sessão está salva: register e email-confirm não
+      // podem continuar alcançáveis pelo voltar. Antes ficavam na pilha, e o
+      // usuário já logado caminhava de volta para a tela de criar conta.
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRoutes.profileEditing,
+        (route) => false,
+      );
     } catch (e) {
       debugPrint(e.toString());
       ApiClient.token = null;

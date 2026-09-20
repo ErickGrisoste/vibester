@@ -5,22 +5,25 @@ import 'package:mobile/routes/app_routes.dart';
 import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/utils/date_picker_field.dart';
+import 'package:mobile/utils/age.dart';
+import 'package:mobile/utils/username_input_formatter.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
 import 'package:mobile/widgets/common/screen_header.dart';
+import 'package:mobile/widgets/common/terms_consent_field.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/text-field/date_picker_field.dart';
 import 'package:mobile/widgets/text-field/primary_text_field.dart';
 
 /// Criar conta.
 ///
 /// Mesmo contrato de antes (`name`, `username`, `email`, `password`,
-/// `bornAt`), mesma regra de montar o `username` a partir do nome. O que
+/// `bornAt`), `name` e `username` vêm de campos separados. O que
 /// mudou é a leitura do formulário: rótulos presos aos campos em vez de
 /// empurrados por padding lateral, um campo por linha com respiro constante,
 /// e a prévia do `@usuario` que vai ser criado aparecendo enquanto a pessoa
-/// digita o nome — antes ela só descobria o próprio username depois de a
+/// digita o nome de usuário — antes ela só descobria o próprio username depois de a
 /// conta existir.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -34,6 +37,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _userService = UserService();
 
   final _nomeController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
   DateTime? _dataNascimento;
@@ -43,6 +47,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _nomeController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _senhaController.dispose();
     super.dispose();
@@ -56,7 +61,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   String get _usernamePreview =>
-      '@${_nomeController.text.trim().replaceAll(' ', '')}';
+      '@${_usernameController.text.trim().replaceAll(' ', '')}';
 
   Future<void> _criarConta() async {
     if (!_formKey.currentState!.validate()) return;
@@ -65,7 +70,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     final nomeDigitado = _nomeController.text.trim();
-    final usernameFormatado = '@${nomeDigitado.replaceAll(' ', '')}';
+    final usernameFormatado = _usernamePreview;
     final email = _emailController.text.trim();
     final senha = _senhaController.text;
 
@@ -89,10 +94,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
       setState(() => _isLoading = false);
+      // A mensagem já vem tratada pelo UserService (apiErrorMessage): email em
+      // uso, idade mínima e sem conexão pedem ações diferentes.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Não foi possível criar a conta. Tenta de novo.'),
-        ),
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );
     }
   }
@@ -100,7 +105,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final nome = _nomeController.text.trim();
+    final username = _usernameController.text.trim();
 
     return Scaffold(
       backgroundColor: colors.noturno,
@@ -134,24 +139,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         PrimaryTextField(
                           controller: _nomeController,
                           label: 'Nome',
-                          icon: Icons.person_outline_rounded,
+                          icon: Icons.badge_outlined,
                           inputFormatters: [
                             LengthLimitingTextInputFormatter(60),
                           ],
-                          onChanged: (_) => setState(() {}),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Informe seu nome';
-                            }
-                            if (value.contains('@')) {
-                              return 'O nome não pode conter "@"';
+                              return 'Informe como te chamam';
                             }
                             return null;
                           },
                         ),
-                        // Prévia do username derivado do nome: a regra existe
-                        // no código, então é justo mostrar o resultado dela.
-                        if (nome.isNotEmpty)
+
+                        const SizedBox(height: AppSpacing.lg),
+                        PrimaryTextField(
+                          controller: _usernameController,
+                          label: 'Nome de usuário',
+                          icon: Icons.person_outline_rounded,
+                          inputFormatters: [
+                            LengthLimitingTextInputFormatter(60),
+                            const UsernameInputFormatter(),
+                          ],
+                          onChanged: (_) => setState(() {}),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Informe seu nome de usuário';
+                            }
+                            if (value.contains('@')) {
+                              return 'O nome de usuário não pode conter "@"';
+                            }
+                            if (UsernameInputFormatter.normalize(value) !=
+                                value) {
+                              return 'Use só letras minúsculas e sem acento';
+                            }
+                            return null;
+                          },
+                        ),
+                        // Prévia do @ que vai ser gravado (sem espaços), para
+                        // a pessoa não descobrir o próprio username só depois.
+                        if (username.isNotEmpty)
                           Padding(
                             padding: const EdgeInsets.only(top: AppSpacing.sm),
                             child: Text(
@@ -188,9 +214,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           initialDate: _dataNascimento,
                           onDateSelected: (data) =>
                               setState(() => _dataNascimento = data),
-                          validator: (value) => value == null
-                              ? 'Informe sua data de nascimento'
-                              : null,
+                          validator: (value) {
+                            if (value == null) {
+                              return 'Informe sua data de nascimento';
+                            }
+                            if (!hasMinimumAge(value)) {
+                              return 'O Vibester é só para maiores de '
+                                  '$minimumAgeYears anos';
+                            }
+                            return null;
+                          },
                         ),
 
                         const SizedBox(height: AppSpacing.lg),
@@ -214,6 +247,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return null;
                           },
                         ),
+
+                        const SizedBox(height: AppSpacing.lg),
+                        TermsConsentField(),
 
                         const SizedBox(height: AppSpacing.xl),
                         VibesterButton(

@@ -13,7 +13,8 @@ O `user-service` é responsável exclusivamente por:
 
 - perfil público do usuário (`UserProfile`: nome, username, avatar, bio, contadores);
 - relacionamento de seguidores (`UserFollow`: follow/unfollow, listagem de seguidores/seguidos, checagem de follow);
-- busca de perfis por nome/username.
+- busca de perfis por nome/username;
+- bloqueio entre usuários e denúncias de perfil/publicação (`UserBlock`, `ContentReport`), e limpeza desses dados quando a conta é excluída (`user.deleted`).
 
 Ele **não** possui credenciais (senha, email de login) — isso é responsabilidade do `auth-service`. O perfil é criado automaticamente ao consumir o evento `user.registered` do Kafka (ver `src/kafka/consumer.ts`), nunca via chamada síncrona do auth-service.
 
@@ -126,3 +127,15 @@ Todo valor de configuração novo deve passar por `src/config/env.ts` (nunca ler
 - `k8s/`: `deployment.yaml` tem `startupProbe` (`/health`), `livenessProbe` (`/health`) e **`readinessProbe` separado em `/ready`** (checa DB + Redis) — ao adicionar uma nova dependência de infra crítica (novo banco, cache, fila), atualize `/ready` em `routes.ts` para refletir a saúde real do serviço.
 - `hpa.yaml`: min 1 / max 4 réplicas, CPU 70% / memória 80%, com `behavior` assimétrico (scale-up rápido, scale-down com `stabilizationWindowSeconds: 300` para evitar oscilação).
 - Sem `.env.example` neste serviço hoje — se for adicionar uma env var nova relevante para rodar localmente, considere criar um alinhado ao padrão do `auth-service`.
+
+---
+
+## Bloqueio, denúncia e exclusão de conta (requisitos da App Store)
+
+Rotas em `controllers/safety.controller.ts` (prefixo `/users`), **todas autenticadas**: o id de quem age sai do JWT (`controllers/auth.ts` → `request.jwtVerify()`, mesmo `JWT_SECRET` do auth-service), nunca do corpo. Sem token válido: 401.
+
+- `POST /blocks { blockedId }` → 201. Cria `UserBlock` (idempotente) e desfaz o follow **nas duas direções** via `EditProfileService.decreaseFollower` (contadores, cache e `user.unfollowed` iguais a um unfollow comum). `DELETE /blocks/:blockedId` → 200. `GET /blocks?limit&cursor` → perfis bloqueados paginados por `createdAt` (índice `blockerId, createdAt`). `GET /blocks/:accountId/status` → `{ blocking, blockedBy }`.
+- `POST /profile/followers/increase` agora responde **403** quando há bloqueio em qualquer direção.
+- `POST /reports { targetType: USER|POST, targetId, targetOwnerId (obrigatório em POST), reason, details? }` → 201 `{ id, created }`. Grava `ContentReport` (unique por denunciante+alvo: repetir não duplica nem reenvia) e publica `content.reported`, que o notification-service manda para `MODERATION_EMAIL`. Se o publish falhar a denúncia é apagada e o erro sobe — denúncia sem aviso ficaria invisível. Não é possível denunciar o próprio perfil/post (400). `status` (`OPEN/ACTIONED/DISMISSED`) existe para a moderação; ainda não há rota que o altere.
+- **Consumidor `user.deleted`** (`handleUserDeletedEvent` → `UserDeletionService`): desfaz follows em páginas de 500 (publica `user.unfollowed` antes de apagar, decrementa contadores dos outros perfis com `updateMany` por página), apaga bloqueios de/para a conta, denúncias feitas por ela e contra o perfil, e o `UserProfile`. Idempotente; erro de banco sobe para o Kafka reentregar.
+- Env: `RATE_LIMIT_BLOCK_MAX` (30/min), `RATE_LIMIT_REPORT_MAX` (20/min), por IP. Migração `20260914000000_add_userblock_contentreport`.

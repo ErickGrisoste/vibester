@@ -76,6 +76,29 @@ describe("SerpApiService", () => {
     expect(result).toBeNull();
   });
 
+  it("should return null and log a warning when the response shape doesn't match the expected schema", async () => {
+    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+
+    fetchMock.mockResolvedValue(
+      makeFetchResponse({
+        place_results: {
+          popular_times: {
+            current_day: "friday",
+            graph_results: { friday: "not-an-array" },
+          },
+        },
+      })
+    );
+
+    const result = await service.getPlacePopularity("place-malformed");
+
+    expect(result).toBeNull();
+    const loggedLines = writeSpy.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(loggedLines).toContain("place-malformed");
+
+    writeSpy.mockRestore();
+  });
+
   it("should parse currentDay and currentDayInt correctly", async () => {
     fetchMock.mockResolvedValue(
       makeFetchResponse({
@@ -309,6 +332,231 @@ describe("SerpApiService", () => {
       await service.getPlacePopularity("place-b");
 
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("searchNearbyPlaces", () => {
+    function makeSearchResult(overrides: {
+      place_id?: string;
+      title?: string;
+      latitude?: number;
+      longitude?: number;
+      rating?: number;
+    } = {}) {
+      return {
+        place_id: overrides.place_id ?? "place-1",
+        title: overrides.title ?? "Bar Teste",
+        gps_coordinates: {
+          latitude: overrides.latitude ?? -23.42,
+          longitude: overrides.longitude ?? -51.93,
+        },
+        rating: overrides.rating,
+      };
+    }
+
+    it("should build one query per type and map results to PlaceResult", async () => {
+      fetchMock.mockResolvedValue(
+        makeFetchResponse({ local_results: [makeSearchResult({ rating: 4.5 })] })
+      );
+
+      const result = await service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000);
+
+      expect(result).toEqual([
+        { placeId: "place-1", name: "Bar Teste", lat: -23.42, lng: -51.93, rating: 4.5 },
+      ]);
+
+      const requestedUrl = new URL(fetchMock.mock.calls[0][0] as unknown as string);
+      expect(requestedUrl.searchParams.get("engine")).toBe("google_maps");
+      expect(requestedUrl.searchParams.get("type")).toBe("search");
+      expect(requestedUrl.searchParams.get("q")).toBe("bar");
+      expect(requestedUrl.searchParams.get("ll")).toBe("@-23.42,-51.93,16z");
+    });
+
+    it("should query a different term per type (bar, night_club, restaurant, cafe)", async () => {
+      fetchMock.mockResolvedValue(makeFetchResponse({ local_results: [] }));
+
+      await service.searchNearbyPlaces(
+        ["bar", "night_club", "restaurant", "cafe"],
+        -23.42,
+        -51.93,
+        1000
+      );
+
+      const queries = fetchMock.mock.calls.map(
+        (call) => new URL(call[0] as unknown as string).searchParams.get("q")
+      );
+      expect(queries).toEqual(["bar", "balada", "restaurante", "café"]);
+    });
+
+    it("should dedupe places seen across multiple types", async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          makeFetchResponse({ local_results: [makeSearchResult({ place_id: "shared" })] })
+        )
+        .mockResolvedValueOnce(
+          makeFetchResponse({ local_results: [makeSearchResult({ place_id: "shared" })] })
+        );
+
+      const result = await service.searchNearbyPlaces(["bar", "restaurant"], -23.42, -51.93, 1000);
+
+      expect(result).toHaveLength(1);
+    });
+
+    it("should paginate via serpapi_pagination.next up to the page cap", async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          makeFetchResponse({
+            local_results: [makeSearchResult({ place_id: "p1" })],
+            serpapi_pagination: { next: "https://serpapi.com/search.json?start=20" },
+          })
+        )
+        .mockResolvedValueOnce(
+          makeFetchResponse({
+            local_results: [makeSearchResult({ place_id: "p2" })],
+            serpapi_pagination: { next: "https://serpapi.com/search.json?start=40" },
+          })
+        )
+        .mockResolvedValueOnce(
+          makeFetchResponse({ local_results: [makeSearchResult({ place_id: "p3" })] })
+        );
+
+      const result = await service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000);
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(result.map((p) => p.placeId)).toEqual(["p1", "p2", "p3"]);
+    });
+
+    it("should stop pagination at MAX_SEARCH_PAGES even if more pages are offered", async () => {
+      fetchMock.mockResolvedValue(
+        makeFetchResponse({
+          local_results: [makeSearchResult()],
+          serpapi_pagination: { next: "https://serpapi.com/search.json?start=20" },
+        })
+      );
+
+      await service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000);
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it("should throw when the HTTP response is not ok", async () => {
+      fetchMock.mockResolvedValue(makeFetchResponse(null, false, 500));
+
+      await expect(
+        service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000)
+      ).rejects.toThrow("Erro ao consultar SerpAPI (busca de lugares): 500");
+    });
+
+    it("should treat a malformed response as no results for that type instead of throwing", async () => {
+      fetchMock.mockResolvedValue(makeFetchResponse({ local_results: "not-an-array" }));
+
+      const result = await service.searchNearbyPlaces(["bar"], -23.42, -51.93, 1000);
+
+      expect(result).toEqual([]);
+    });
+
+    it("should return an empty array without calling fetch for an unmapped type", async () => {
+      const result = await service.searchNearbyPlaces(["unknown_type"], -23.42, -51.93, 1000);
+
+      expect(result).toEqual([]);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getPlaceImages", () => {
+    it("returns the full-res image URLs from the Ambiente category", async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          makeFetchResponse({ place_results: { data_id: "0xabc:0xdef" } })
+        )
+        .mockResolvedValueOnce(
+          makeFetchResponse({
+            photos: [
+              { thumbnail: "https://img.test/t1.jpg", image: "https://img.test/full1.jpg" },
+              { thumbnail: "https://img.test/t2.jpg", image: "https://img.test/full2.jpg" },
+            ],
+          })
+        );
+
+      const result = await service.getPlaceImages("place-123");
+
+      expect(result).toEqual(["https://img.test/full1.jpg", "https://img.test/full2.jpg"]);
+
+      const photosUrl = new URL(String(fetchMock.mock.calls[1][0]));
+      expect(photosUrl.searchParams.get("engine")).toBe("google_maps_photos");
+      expect(photosUrl.searchParams.get("data_id")).toBe("0xabc:0xdef");
+      expect(photosUrl.searchParams.get("category_id")).toBe("CgIYIg");
+    });
+
+    it("returns an empty array without a second call when data_id is missing", async () => {
+      fetchMock.mockResolvedValueOnce(makeFetchResponse({ place_results: {} }));
+
+      const result = await service.getPlaceImages("place-no-data-id");
+
+      expect(result).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("respects the limit parameter", async () => {
+      fetchMock
+        .mockResolvedValueOnce(makeFetchResponse({ place_results: { data_id: "0xabc:0xdef" } }))
+        .mockResolvedValueOnce(
+          makeFetchResponse({
+            photos: [
+              { image: "https://img.test/1.jpg" },
+              { image: "https://img.test/2.jpg" },
+              { image: "https://img.test/3.jpg" },
+            ],
+          })
+        );
+
+      const result = await service.getPlaceImages("place-123", 2);
+
+      expect(result).toEqual(["https://img.test/1.jpg", "https://img.test/2.jpg"]);
+    });
+
+    it("throws when the photos request is not ok", async () => {
+      fetchMock
+        .mockResolvedValueOnce(makeFetchResponse({ place_results: { data_id: "0xabc:0xdef" } }))
+        .mockResolvedValueOnce(makeFetchResponse(null, false, 500));
+
+      await expect(service.getPlaceImages("place-123")).rejects.toThrow(
+        "Erro ao consultar SerpAPI (fotos): 500"
+      );
+    });
+
+    it("returns an empty array when the photos response shape is unexpected", async () => {
+      fetchMock
+        .mockResolvedValueOnce(makeFetchResponse({ place_results: { data_id: "0xabc:0xdef" } }))
+        .mockResolvedValueOnce(makeFetchResponse({ photos: "not-an-array" }));
+
+      const result = await service.getPlaceImages("place-123");
+
+      expect(result).toEqual([]);
+    });
+
+    it("throws when the data_id request itself is not ok", async () => {
+      fetchMock.mockResolvedValueOnce(makeFetchResponse(null, false, 500));
+
+      await expect(service.getPlaceImages("place-123")).rejects.toThrow(
+        "Erro ao consultar SerpAPI (data_id): 500"
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns an empty array without a second call when the data_id response shape is unexpected", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      fetchMock.mockResolvedValueOnce(
+        makeFetchResponse({ place_results: { popular_times: { graph_results: { x: "not-an-array" } } } })
+      );
+
+      const result = await service.getPlaceImages("place-123");
+
+      expect(result).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      writeSpy.mockRestore();
     });
   });
 });

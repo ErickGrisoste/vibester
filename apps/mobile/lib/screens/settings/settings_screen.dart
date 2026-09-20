@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:mobile/providers/notification/notification_provider.dart';
+import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/service/payment/payment_service.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/theme/vibester_dialog.dart';
+import 'package:mobile/utils/external_links.dart';
 import 'package:mobile/widgets/common/screen_header.dart';
 import 'package:mobile/widgets/common/settings_row.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Configurações.
 ///
@@ -20,10 +20,12 @@ import 'package:url_launcher/url_launcher.dart';
 /// quebra assim que o texto de um item quebra em duas linhas — e apresentava
 /// como iguais tanto os itens que funcionavam quanto os oito que tinham
 /// `onTap: () {}`. Aqui os grupos são apenas rótulos em DM Mono sobre linhas
-/// separadas por fio, a altura vem do conteúdo, e **o que ainda não existe é
-/// mostrado como não existente**: item apagado, sem toque, com o selo "EM
-/// BREVE". Prometer um destino que não abre é pior que assumir que ele ainda
-/// não está pronto.
+/// separadas por fio, a altura vem do conteúdo, e **o que ainda não existe não
+/// aparece**: nada de item "em breve" prometendo um destino que não abre.
+///
+/// Fora desta versão: "Ghost vibe" (switch só local, sem backend) e "Vibester
+/// Club" (assinatura por checkout externo, fora das regras de compra da App
+/// Store). O `PaymentService` continua no código para quando voltar.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -32,14 +34,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final PaymentService _paymentService = PaymentService();
-
-  /// Preferência local de visibilidade, ainda sem contrapartida no backend.
-  bool _modoFantasma = false;
-  bool _carregandoCheckout = false;
-
-  static const String _promocoesProductId = 'prod_g3JtzRb2TASCFuBYrQ2M4gTp';
-
   Future<void> _confirmarLogout() async {
     final colors = context.colors;
 
@@ -84,7 +78,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     if (confirmar != true || !mounted) return;
 
+    final notificationProvider = context.read<NotificationProvider>();
+    final blockProvider = context.read<BlockProvider>();
     await context.read<UserProvider>().logout();
+    notificationProvider.clear();
+    blockProvider.clear();
 
     if (!mounted) return;
     Navigator.pushNamedAndRemoveUntil(
@@ -92,37 +90,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       AppRoutes.initialScreen,
       (_) => false,
     );
-  }
-
-  Future<void> _abrirCheckoutPromocoes() async {
-    if (_carregandoCheckout) return;
-    setState(() => _carregandoCheckout = true);
-
-    try {
-      final url = await _paymentService.createCheckout(
-        productId: _promocoesProductId,
-        quantity: 1,
-      );
-
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não foi possível abrir o checkout')),
-        );
-      }
-    } catch (e) {
-      // Mensagem tratada na tela; detalhe da exceção só no log local.
-      debugPrint('Falha no checkout: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não foi possível abrir o checkout')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _carregandoCheckout = false);
-    }
   }
 
   @override
@@ -148,18 +115,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 AppRoutes.personalInformationSettings,
               ),
             ),
-            const SettingsRow(
-              icon: Icons.shield_outlined,
-              label: 'Segurança',
-              comingSoon: true,
-            ),
             SettingsRow(
-              icon: Icons.manage_accounts_outlined,
-              label: 'Gerenciamento de conta',
-              onTap: () => Navigator.pushNamed(
-                context,
-                AppRoutes.accountManagementSettings,
-              ),
+              icon: Icons.block_rounded,
+              label: 'Contas bloqueadas',
+              onTap: () =>
+                  Navigator.pushNamed(context, AppRoutes.blockedAccounts),
             ),
 
             const SettingsGroupLabel('APARÊNCIA'),
@@ -167,7 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: themeProvider.isDarkMode
                   ? Icons.dark_mode_outlined
                   : Icons.light_mode_outlined,
-              label: 'Modo escuro',
+              label: themeProvider.isDarkMode ? 'Modo escuro' : 'Modo claro',
               trailing: Switch(
                 value: themeProvider.isDarkMode,
                 activeThumbColor: colors.onAmbar,
@@ -177,68 +137,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
 
-            const SettingsGroupLabel('PRIVACIDADE'),
-            const SettingsRow(
-              icon: Icons.my_location_outlined,
-              label: 'Permissões de localização',
-              comingSoon: true,
+            const SettingsGroupLabel('AJUDA E PRIVACIDADE'),
+            SettingsRow(
+              icon: Icons.mail_outline_rounded,
+              label: 'Ajuda e contato',
+              description: ExternalLinks.contactEmail,
+              onTap: () => ExternalLinks.openContact(context),
             ),
             SettingsRow(
-              icon: FontAwesomeIcons.ghost.data,
-              label: 'Ghost vibe',
-              description:
-                  'Ficar invisível nos lugares em que você faz check-in',
-              trailing: Switch(
-                value: _modoFantasma,
-                activeThumbColor: colors.onAmbar,
-                activeTrackColor: colors.ambar,
-                inactiveTrackColor: colors.surface,
-                onChanged: (value) => setState(() => _modoFantasma = value),
-              ),
-            ),
-            const SettingsRow(
-              icon: Icons.visibility_outlined,
-              label: 'Visualizar vibe checks',
-              comingSoon: true,
-            ),
-
-            const SettingsGroupLabel('NOTIFICAÇÕES'),
-            const SettingsRow(
-              icon: Icons.people_outline_rounded,
-              label: 'Amigos na área',
-              comingSoon: true,
-            ),
-            const SettingsRow(
-              icon: Icons.event_note_outlined,
-              label: 'Atualizações de eventos',
-              comingSoon: true,
-            ),
-
-            const SettingsGroupLabel('VIBESTER CLUB'),
-            SettingsRow(
-              icon: Icons.workspace_premium_outlined,
-              label: 'Assinar o Vibester Club',
-              description: 'Promoções e vantagens nos lugares parceiros',
-              accent: true,
-              loading: _carregandoCheckout,
-              onTap: _abrirCheckoutPromocoes,
-            ),
-
-            const SettingsGroupLabel('AJUDA'),
-            const SettingsRow(
-              icon: Icons.help_outline_rounded,
-              label: 'Central de ajuda',
-              comingSoon: true,
-            ),
-            const SettingsRow(
-              icon: Icons.card_giftcard_outlined,
-              label: 'Convidar um amigo',
-              comingSoon: true,
-            ),
-            const SettingsRow(
               icon: Icons.description_outlined,
-              label: 'Termos e política',
-              comingSoon: true,
+              label: 'Termos de Uso',
+              onTap: () => ExternalLinks.open(context, ExternalLinks.terms),
+            ),
+            SettingsRow(
+              icon: Icons.privacy_tip_outlined,
+              label: 'Política de Privacidade',
+              onTap: () => ExternalLinks.open(context, ExternalLinks.privacy),
             ),
 
             const SizedBox(height: AppSpacing.xxl),
@@ -263,6 +177,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     style: context.typography.titleMedium.copyWith(
                       color: colors.error,
                       fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: AppSpacing.md),
+            Center(
+              child: VibesterPressable(
+                borderRadius: AppRadius.pillAll,
+                onTap: () =>
+                    Navigator.pushNamed(context, AppRoutes.deleteAccount),
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Text(
+                    'Excluir conta',
+                    style: context.typography.titleSmall.copyWith(
+                      color: colors.textMuted,
+                      decoration: TextDecoration.underline,
+                      decorationColor: colors.textMuted,
                     ),
                   ),
                 ),

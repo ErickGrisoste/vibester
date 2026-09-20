@@ -5,13 +5,12 @@ import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/screens/events/event_list_screen.dart';
 import 'package:mobile/screens/highlights/property_highlights_screen.dart';
-import 'package:mobile/screens/places/place_ambience_gallery_screen.dart';
 import 'package:mobile/service/places/place_service.dart';
+import 'package:mobile/service/share_links.dart';
 import 'package:mobile/theme/app_colors.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/theme/vibester_page_route.dart';
 import 'package:mobile/utils/event_time.dart';
 import 'package:mobile/utils/hero_tags.dart';
 import 'package:mobile/widgets/common/screen_header.dart';
@@ -168,20 +167,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
                 place: place,
                 onShare: () => SharePlus.instance.share(
                   ShareParams(
+                    subject: place.nome,
                     text: [
                       place.nome,
                       if (place.endereco.isNotEmpty) place.endereco,
-                      'Visto no Vibester',
+                      'Olha esse lugar no Vibester: '
+                          '${ShareLinks.place(widget.placeId)}',
                     ].join('\n'),
-                  ),
-                ),
-                onShowAmbience: () => Navigator.of(context).push(
-                  vibesterSlideRoute(
-                    PlaceAmbienceGalleryScreen(
-                      placeId: widget.placeId,
-                      placeName: place.nome,
-                    ),
-                    const RouteSettings(name: 'place-ambience-gallery'),
                   ),
                 ),
               ),
@@ -282,13 +274,8 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
 class _PlaceHero extends StatelessWidget {
   final PlaceModel place;
   final VoidCallback onShare;
-  final VoidCallback onShowAmbience;
 
-  const _PlaceHero({
-    required this.place,
-    required this.onShare,
-    required this.onShowAmbience,
-  });
+  const _PlaceHero({required this.place, required this.onShare});
 
   @override
   Widget build(BuildContext context) {
@@ -324,12 +311,9 @@ class _PlaceHero extends StatelessWidget {
                   onTap: () => Navigator.maybePop(context),
                 ),
                 const Spacer(),
-                _HeroAction(
-                  icon: Icons.photo_library_outlined,
-                  label: 'Fotos do ambiente',
-                  onTap: onShowAmbience,
-                ),
-                const SizedBox(width: AppSpacing.sm),
+                // "Fotos do ambiente" fica oculto enquanto
+                // PlaceService.getAmbiencePhotos for mock (fotos aleatórias do
+                // picsum.photos apresentadas como o ambiente do lugar).
                 _HeroAction(
                   icon: Icons.ios_share_rounded,
                   label: 'Compartilhar',
@@ -464,14 +448,14 @@ class _PlaceAddress extends StatelessWidget {
             Icon(
               Icons.location_on_outlined,
               size: 18,
-              color: colors.textDisabled,
+              color: colors.brasa,
             ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
                 endereco,
                 style: context.typography.bodyMedium.copyWith(
-                  color: colors.textSecondary,
+                  color: colors.textPrimary,
                 ),
               ),
             ),

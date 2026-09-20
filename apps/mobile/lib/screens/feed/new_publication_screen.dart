@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile/models/media/media_item.dart';
 import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/models/user/user_model.dart';
+import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/service/media/media_processor.dart';
 import 'package:mobile/service/posts/post_service.dart';
@@ -133,7 +134,7 @@ class _NewPublicationScreenState extends State<NewPublicationScreen> {
     setState(() => _publishing = true);
 
     try {
-      await _postService.createPost(
+      final created = await _postService.createPost(
         userVerified: false,
         userProfilePicture: user.fotoPerfil,
         userUsername: user.nomeUsuario,
@@ -149,6 +150,12 @@ class _NewPublicationScreenState extends State<NewPublicationScreen> {
       );
       // Envio concluído: o `dispose` já pode apagar os arquivos processados.
       _publishing = false;
+      // O post entra no topo do feed antes de a tela fechar — é a confirmação
+      // de que a publicação deu certo. O feed-service só o grava no feed do
+      // autor depois, via Kafka — um refresh agora ainda viria sem ele.
+      if (created != null && mounted) {
+        context.read<PublicationListProvider>().addOwnPublication(created);
+      }
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;

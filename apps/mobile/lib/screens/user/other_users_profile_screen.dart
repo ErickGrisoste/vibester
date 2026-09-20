@@ -1,18 +1,27 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:mobile/models/safety/blocked_profile.dart';
+import 'package:mobile/models/safety/report_reason.dart';
 import 'package:mobile/models/user/user_model.dart';
+import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/screens/highlights/property_highlights_screen.dart';
+import 'package:mobile/service/safety/safety_service.dart';
 import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/utils/username.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
-import 'package:mobile/widgets/common/vibester_image.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_state.dart';
-import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
+import 'package:mobile/widgets/media/profile_photo_viewer.dart';
+import 'package:mobile/widgets/motion/presence_pop.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
+import 'package:mobile/widgets/motion/vibester_shake.dart';
+import 'package:mobile/widgets/safety/report_sheet.dart';
+import 'package:mobile/widgets/safety/safety_actions.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -21,6 +30,10 @@ import 'package:share_plus/share_plus.dart';
 /// Mesma composição do perfil próprio (retrato colado, nome grande, números em
 /// DM Mono, grade de fotos), com a ação trocada: onde o seu perfil tem "Seus
 /// rolês", aqui fica **Seguir** — a única decisão que essa tela pede.
+///
+/// O menu ⋯ oferece denunciar e bloquear (App Store Guideline 1.2). Perfil
+/// bloqueado esconde as publicações e troca Seguir por Desbloquear; perfil que
+/// bloqueou quem está vendo aparece como indisponível.
 ///
 /// As abas de "favoritos" e "check-in" saíram: elas mostravam,
 /// para qualquer visitante, os favoritos e os check-ins do **usuário logado**,
@@ -40,6 +53,7 @@ class OtherUsersProfileScreen extends StatefulWidget {
 
 class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
   final UserService _userService = UserService();
+  final SafetyService _safetyService = SafetyService();
   final GlobalKey<PropertyHighlightsScreenState> _highlightsKey = GlobalKey();
 
   late Future<UserModel> _userFuture = _loadUser();
@@ -47,26 +61,63 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
   bool _isFollowing = false;
   bool _loadingFollow = false;
 
+  /// Situação de bloqueio lida do backend ao abrir. O lado "eu bloqueei" também
+  /// é refletido pelo [BlockProvider], que muda na hora ao bloquear.
+  BlockStatus _blockStatus = BlockStatus.none;
+  bool _loadingUnblock = false;
+
+  // Gatilhos de animação do botão, só por ação do usuário: seguir celebra
+  // como confirmar presença; deixar de seguir (ou voltar atrás por erro) treme.
+  int _followPops = 0;
+  int _followShakes = 0;
+
   Future<UserModel> _loadUser() async {
     final currentUserId = context.read<UserProvider>().user?.accountId;
+    final logado = currentUserId != null;
 
-    final results = await Future.wait([
+    final results = await Future.wait<Object>([
       _userService.getProfile(widget.accountId),
-      currentUserId != null
+      logado
           ? _userService.isFollowing(
               followerId: currentUserId,
               followingId: widget.accountId,
             )
           : Future.value(false),
+      // Falha aqui não pode esconder o perfil: sem a resposta, trata como sem
+      // bloqueio (o backend continua impedindo seguir quem bloqueou).
+      logado
+          ? _safetyService
+                .status(widget.accountId)
+                .catchError((Object _) => BlockStatus.none)
+          : Future.value(BlockStatus.none),
     ]);
 
     final profileData = results[0] as Map<String, dynamic>;
     final isFollowing = results[1] as bool;
+    final blockStatus = results[2] as BlockStatus;
 
-    if (mounted) setState(() => _isFollowing = isFollowing);
+    if (mounted) {
+      setState(() {
+        _isFollowing = isFollowing;
+        _blockStatus = blockStatus;
+      });
+    }
 
     return UserModel.fromProfileJson(profileData, accountId: widget.accountId);
   }
+
+  bool get _podeModerar {
+    final currentUserId = context.read<UserProvider>().user?.accountId;
+    return currentUserId != null && currentUserId != widget.accountId;
+  }
+
+  bool _bloqueando(BlockProvider blocks) =>
+      blocks.isBlocked(widget.accountId) ||
+      (_blockStatus.bloqueando && !_desbloqueadoNestaTela);
+
+  /// Desbloquear pelo botão desta tela precisa vencer o `bloqueando` que veio
+  /// do backend ao abrir.
+  bool _desbloqueadoNestaTela = false;
 
   Future<void> _onRefresh() async {
     setState(() => _userFuture = _loadUser());
@@ -85,6 +136,11 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
     final seguiaAntes = _isFollowing;
     setState(() {
       _loadingFollow = true;
+      if (seguiaAntes) {
+        _followShakes++;
+      } else {
+        _followPops++;
+      }
       _isFollowing = !seguiaAntes;
       otherUser.seguidores += seguiaAntes ? -1 : 1;
     });
@@ -104,6 +160,8 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        // Voltar atrás por erro treme, nunca celebra.
+        _followShakes++;
         _isFollowing = seguiaAntes;
         otherUser.seguidores += seguiaAntes ? 1 : -1;
       });
@@ -131,9 +189,63 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
     }
   }
 
+  Future<void> _abrirOpcoes(UserModel user) async {
+    final bloqueando = _bloqueando(context.read<BlockProvider>());
+
+    final action = await showSafetyActionsSheet(
+      context,
+      actions: [
+        SafetyAction.reportProfile,
+        bloqueando ? SafetyAction.unblock : SafetyAction.block,
+      ],
+    );
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case SafetyAction.reportProfile:
+        await showReportSheet(
+          context,
+          targetType: ReportTargetType.user,
+          targetId: widget.accountId,
+        );
+      case SafetyAction.block:
+        final bloqueado = await confirmAndBlockUser(
+          context,
+          accountId: widget.accountId,
+          displayName: user.nome,
+        );
+        if (bloqueado && mounted) {
+          setState(() {
+            _desbloqueadoNestaTela = false;
+            // O backend desfaz o follow; o contador acompanha.
+            if (_isFollowing) {
+              _isFollowing = false;
+              user.seguidores = max(0, user.seguidores - 1);
+            }
+          });
+        }
+      case SafetyAction.unblock:
+        await _desbloquear();
+      case SafetyAction.reportPost:
+        break;
+    }
+  }
+
+  Future<void> _desbloquear() async {
+    if (_loadingUnblock) return;
+    setState(() => _loadingUnblock = true);
+    final ok = await unblockUser(context, accountId: widget.accountId);
+    if (!mounted) return;
+    setState(() {
+      _loadingUnblock = false;
+      if (ok) _desbloqueadoNestaTela = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final blocks = context.watch<BlockProvider>();
 
     return Scaffold(
       backgroundColor: colors.noturno,
@@ -161,6 +273,33 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
           }
 
           final user = snapshot.data!;
+          final bloqueando = _bloqueando(blocks);
+
+          if (_blockStatus.bloqueadoPor && !bloqueando) {
+            return SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppSpacing.screen,
+                      AppSpacing.sm,
+                      AppSpacing.screen,
+                      0,
+                    ),
+                    child: _BackButton(),
+                  ),
+                  const Expanded(
+                    child: VibesterState(
+                      headline: 'Perfil indisponível',
+                      message: 'Esse perfil não está disponível pra você.',
+                      icon: Icons.person_off_outlined,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
           return RefreshIndicator(
             color: colors.ambar,
@@ -174,31 +313,52 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
                     user: user,
                     isFollowing: _isFollowing,
                     loading: _loadingFollow,
+                    pops: _followPops,
+                    shakes: _followShakes,
+                    blocked: bloqueando,
+                    loadingUnblock: _loadingUnblock,
                     onFollow: () => _alternarSeguir(user),
+                    onUnblock: _desbloquear,
                     onShare: _shareProfile,
+                    onMore: _podeModerar ? () => _abrirOpcoes(user) : null,
                   ),
                 ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.screen,
-                      AppSpacing.xxl,
-                      AppSpacing.screen,
-                      AppSpacing.sm,
+                if (bloqueando)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.screen),
+                      child: Text(
+                        'Você bloqueou este perfil. As publicações ficam '
+                        'ocultas enquanto o bloqueio existir.',
+                        style: context.typography.bodyMedium.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
                     ),
-                    child: Text(
-                      'PUBLICAÇÕES',
-                      style: context.typography.monoEyebrow.copyWith(
-                        color: colors.ambar,
+                  )
+                else ...[
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.screen,
+                        AppSpacing.xxl,
+                        AppSpacing.screen,
+                        AppSpacing.sm,
+                      ),
+                      child: Text(
+                        'PUBLICAÇÕES',
+                        style: context.typography.monoEyebrow.copyWith(
+                          color: colors.ambar,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                PropertyHighlightsScreen(
-                  key: _highlightsKey,
-                  accountId: widget.accountId,
-                  asSliver: true,
-                ),
+                  PropertyHighlightsScreen(
+                    key: _highlightsKey,
+                    accountId: widget.accountId,
+                    asSliver: true,
+                  ),
+                ],
               ],
             ),
           );
@@ -208,19 +368,67 @@ class _OtherUsersProfileScreenState extends State<OtherUsersProfileScreen> {
   }
 }
 
+class _BackButton extends StatelessWidget {
+  const _BackButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Semantics(
+      button: true,
+      label: 'Voltar',
+      child: VibesterPressable(
+        onTap: () => Navigator.maybePop(context),
+        borderRadius: AppRadius.smAll,
+        child: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: AppRadius.smAll,
+            border: Border.all(color: colors.hairline),
+          ),
+          child: Icon(
+            Icons.arrow_back_rounded,
+            size: 20,
+            color: colors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _OtherIdentity extends StatelessWidget {
   final UserModel user;
   final bool isFollowing;
   final bool loading;
+  final int pops;
+  final int shakes;
+  final bool blocked;
+  final bool loadingUnblock;
   final VoidCallback onFollow;
+  final VoidCallback onUnblock;
   final VoidCallback onShare;
+
+  /// Nulo quando não há sessão (link aberto deslogado): denunciar e bloquear
+  /// exigem conta.
+  final VoidCallback? onMore;
 
   const _OtherIdentity({
     required this.user,
     required this.isFollowing,
     required this.loading,
+    required this.pops,
+    required this.shakes,
+    required this.blocked,
+    required this.loadingUnblock,
     required this.onFollow,
+    required this.onUnblock,
     required this.onShare,
+    this.onMore,
   });
 
   @override
@@ -250,29 +458,7 @@ class _OtherIdentity extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Semantics(
-                      button: true,
-                      label: 'Voltar',
-                      child: VibesterPressable(
-                        onTap: () => Navigator.maybePop(context),
-                        borderRadius: AppRadius.smAll,
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: colors.surface,
-                            borderRadius: AppRadius.smAll,
-                            border: Border.all(color: colors.hairline),
-                          ),
-                          child: Icon(
-                            Icons.arrow_back_rounded,
-                            size: 20,
-                            color: colors.textPrimary,
-                          ),
-                        ),
-                      ),
-                    ),
+                    const _BackButton(),
                     const Spacer(),
                     Semantics(
                       button: true,
@@ -291,6 +477,24 @@ class _OtherIdentity extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (onMore != null)
+                      Semantics(
+                        button: true,
+                        label: 'Mais opções do perfil',
+                        child: VibesterPressable(
+                          onTap: onMore,
+                          borderRadius: AppRadius.pillAll,
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Icon(
+                              Icons.more_horiz_rounded,
+                              size: 22,
+                              color: colors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
 
@@ -319,15 +523,9 @@ class _OtherIdentity extends StatelessWidget {
                           child: SizedBox(
                             width: 92,
                             height: 106,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                VibesterImage(
-                                  source: user.fotoPerfil,
-                                  placeholderIcon: Icons.person_outline_rounded,
-                                ),
-                                const Grain(opacity: 0.06, density: 0.5),
-                              ],
+                            child: ProfilePortraitPhoto(
+                              source: user.fotoPerfil,
+                              accountId: user.accountId ?? '',
                             ),
                           ),
                         ),
@@ -360,7 +558,7 @@ class _OtherIdentity extends StatelessWidget {
                   ],
                 ),
 
-                if (user.bio.isNotEmpty) ...[
+                if (user.bio.isNotEmpty && !blocked) ...[
                   const SizedBox(height: AppSpacing.lg),
                   Text(
                     user.bio,
@@ -409,20 +607,40 @@ class _OtherIdentity extends StatelessWidget {
                 ),
 
                 const SizedBox(height: AppSpacing.xl),
-                VibesterButton(
-                  label: 'Seguir',
-                  successLabel: 'Seguindo',
-                  icon: Icons.person_add_alt_1_rounded,
-                  variant: isFollowing
-                      ? VibesterButtonVariant.outline
-                      : VibesterButtonVariant.primary,
-                  state: loading
-                      ? VibesterButtonState.loading
-                      : isFollowing
-                      ? VibesterButtonState.success
-                      : VibesterButtonState.idle,
-                  onPressed: onFollow,
-                ),
+                if (blocked)
+                  VibesterButton(
+                    label: 'Desbloquear',
+                    icon: Icons.lock_open_rounded,
+                    variant: VibesterButtonVariant.outline,
+                    state: loadingUnblock
+                        ? VibesterButtonState.loading
+                        : VibesterButtonState.idle,
+                    onPressed: onUnblock,
+                  )
+                else
+                  // Seguir celebra como confirmar presença; deixar de seguir
+                  // (ou voltar atrás por erro) mantém a tremida.
+                  VibesterShake(
+                    trigger: shakes,
+                    child: PresencePop(
+                      trigger: pops,
+                      child: VibesterButton(
+                        shakeOnStateChange: false,
+                        label: 'Seguir',
+                        successLabel: 'Seguindo',
+                        icon: Icons.person_add_alt_1_rounded,
+                        variant: isFollowing
+                            ? VibesterButtonVariant.outline
+                            : VibesterButtonVariant.primary,
+                        state: loading
+                            ? VibesterButtonState.loading
+                            : isFollowing
+                            ? VibesterButtonState.success
+                            : VibesterButtonState.idle,
+                        onPressed: onFollow,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ],

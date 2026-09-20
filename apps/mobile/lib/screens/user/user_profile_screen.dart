@@ -7,11 +7,10 @@ import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/utils/username.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/widgets/common/vibester_image.dart';
 import 'package:mobile/widgets/common/vibester_skeleton.dart';
 import 'package:mobile/widgets/common/vibester_tag.dart';
-import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/graffiti/spray_glow.dart';
+import 'package:mobile/widgets/media/profile_photo_viewer.dart';
 import 'package:mobile/widgets/motion/vibester_pressable.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -219,15 +218,9 @@ class _ProfileIdentity extends StatelessWidget {
                           child: SizedBox(
                             width: 92,
                             height: 106,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                VibesterImage(
-                                  source: user.fotoPerfil,
-                                  placeholderIcon: Icons.person_outline_rounded,
-                                ),
-                                const Grain(opacity: 0.06, density: 0.5),
-                              ],
+                            child: ProfilePortraitPhoto(
+                              source: user.fotoPerfil,
+                              accountId: user.accountId ?? '',
                             ),
                           ),
                         ),

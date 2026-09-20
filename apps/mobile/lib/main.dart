@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/models/event/event_model.dart';
 import 'package:mobile/models/user/user_model.dart';
+import 'package:mobile/service/media/image_cache.dart';
 import 'package:mobile/service/api_client.dart';
 import 'package:mobile/service/auth_storage_service.dart';
+import 'package:mobile/service/event/event_service.dart';
 import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/models/highlights/highlight_model.dart';
 import 'package:mobile/providers/events/events_list_provider.dart';
@@ -13,6 +16,7 @@ import 'package:mobile/providers/feed/publication_list_provider.dart';
 import 'package:mobile/providers/notification/notification_provider.dart';
 import 'package:mobile/providers/place/nearby_provider.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
+import 'package:mobile/providers/safety/block_provider.dart';
 import 'package:mobile/providers/theme/theme_provider.dart';
 import 'package:mobile/providers/user/user_provider.dart';
 import 'package:mobile/routes/app_routes.dart';
@@ -40,7 +44,8 @@ import 'package:mobile/screens/register/recover_password_screen.dart';
 import 'package:mobile/screens/register/register_screen.dart';
 import 'package:mobile/screens/register/reset_password_screen.dart';
 import 'package:mobile/screens/explore/explore_screen.dart';
-import 'package:mobile/screens/settings/account_management_settings_screen.dart';
+import 'package:mobile/screens/settings/blocked_accounts_screen.dart';
+import 'package:mobile/screens/settings/delete_account_screen.dart';
 import 'package:mobile/screens/settings/personal_information_settings_screen.dart';
 import 'package:mobile/screens/settings/settings_screen.dart';
 import 'package:mobile/screens/user/other_users_profile_screen.dart';
@@ -65,19 +70,21 @@ class _NoBounceScrollBehavior extends ScrollBehavior {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Aumenta o cache de imagens em memória do Flutter (padrão é só 100MB /
-  // 1000 imagens). Com o padrão, abrir uma tela com fotos grandes (ex:
-  // detalhe de post) evictava as miniaturas de outras telas (ex: grid do
-  // perfil), fazendo elas "recarregarem" visualmente ao voltar.
-  PaintingBinding.instance.imageCache.maximumSize = 300;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 200 << 20; // 200MB
+  // debugPrint não é removido no build de release: iria para o log do
+  // aparelho (Console.app/logcat) com payloads de notificação e mensagens de
+  // erro. Em release, silencia.
+  if (kReleaseMode) debugPrint = (String? message, {int? wrapWidth}) {};
+
+  // Limites do cache de imagem em memória — o motivo de cada número vive
+  // junto do cache de disco, em lib/service/media/image_cache.dart.
+  VibesterImageCache.configureMemoryCache();
 
   await initializeDateFormatting('pt_BR', null);
   // Interesses escolhidos no onboarding: restaurados antes da primeira tela
   // pra a régua de categorias da Home já nascer na ordem do usuário.
   await InterestsStorage.restore();
   var savedUser = await AuthStorageService.loadSession();
-  final onboardingPendente = await AuthStorageService.onboardingPendente();
+  final etapaPendente = await AuthStorageService.etapaPendente();
   // JWT vencido não é sessão: restaurar abriria a home com o feed recusando
   // tudo com 401. Descarta e começa pela tela inicial.
   final savedToken = savedUser?.token;
@@ -98,7 +105,7 @@ void main() async {
   runApp(
     MyApp(
       savedUser: savedUser,
-      onboardingPendente: onboardingPendente,
+      etapaPendente: etapaPendente,
       initialThemeMode: initialThemeMode,
       sessaoExpirada: sessaoExpirada,
     ),
@@ -107,8 +114,10 @@ void main() async {
 
 class MyApp extends StatefulWidget {
   final UserModel? savedUser;
-  final bool onboardingPendente;
   final ThemeMode initialThemeMode;
+
+  /// Passo do cadastro deixado pela metade, ou `null` se não há.
+  final EtapaCadastro? etapaPendente;
 
   /// A sessão salva foi descartada no boot por token vencido. O app avisa e
   /// leva ao login, em vez de abrir a capa como se nunca tivesse havido conta.
@@ -117,7 +126,7 @@ class MyApp extends StatefulWidget {
   const MyApp({
     super.key,
     this.savedUser,
-    this.onboardingPendente = false,
+    this.etapaPendente,
     required this.initialThemeMode,
     this.sessaoExpirada = false,
   });
@@ -130,12 +139,41 @@ class _MyAppState extends State<MyApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   final AppLinks _appLinks = AppLinks();
   final UserService _userService = UserService();
+  final EventService _eventService = EventService();
   StreamSubscription<Uri>? _linkSubscription;
+
+  /// Providers de sessão vivem como campos do State, não como variáveis
+  /// locais do `build`.
+  ///
+  /// Criados dentro do `build` e entregues com `.value`, eles nasciam de novo
+  /// a cada reconstrução deste widget: o usuário logado sumia, o contador de
+  /// notificações voltava a zero e as instâncias antigas ficavam sem
+  /// `dispose`, ainda ouvindo. Hoje nada aqui chama `setState`, então o
+  /// defeito estava dormente — mas é o tipo de armadilha que explode na
+  /// primeira mudança inocente neste arquivo.
+  late final UserProvider _userProvider;
+  late final NotificationProvider _notificationProvider;
+  late final ThemeProvider _themeProvider;
+  late final BlockProvider _blockProvider;
 
   @override
   void initState() {
     super.initState();
     ApiClient.onSessionExpired = _handleSessionExpired;
+
+    _userProvider = UserProvider();
+    _notificationProvider = NotificationProvider();
+    _themeProvider = ThemeProvider(widget.initialThemeMode);
+    _blockProvider = BlockProvider();
+
+    // A busca do contador de não lidas saiu daqui: a HomeScreen agora a faz
+    // ao montar e ao voltar do segundo plano, o que cobre também quem entra
+    // pelo login (e não só a sessão restaurada do disco). Mantê-la nos dois
+    // lugares só produzia duas chamadas idênticas no primeiro segundo.
+    if (widget.savedUser != null) {
+      _userProvider.setUser(widget.savedUser!);
+    }
+
     _initDeepLinks();
 
     if (widget.sessaoExpirada) {
@@ -174,6 +212,12 @@ class _MyAppState extends State<MyApp> {
     await userProvider.logout();
     if (!mounted) return;
 
+    // O provider vive acima do navigator e sobrevive ao logout: sem isto, a
+    // próxima conta a entrar herdava o selo e a lista da anterior até a
+    // primeira busca terminar.
+    _notificationProvider.clear();
+    _blockProvider.clear();
+
     navigator.pushNamedAndRemoveUntil(AppRoutes.initialScreen, (_) => false);
     navigator.pushNamed(AppRoutes.login);
     messenger.showSnackBar(
@@ -188,15 +232,55 @@ class _MyAppState extends State<MyApp> {
     _linkSubscription = _appLinks.uriLinkStream.listen(_handleUri);
   }
 
-  // Espera vibester://profile/{token}, gerado por
-  // UserService.generateShareLink no backend.
+  // Espera vibester://profile/{token} (token gerado por
+  // UserService.generateShareLink no backend), vibester://event/{id} e
+  // vibester://place/{id} (links de ShareLinks). Quem chega pelo link vem da
+  // landing page, que monta esses endereços.
   Future<void> _handleUri(Uri uri) async {
-    if (uri.scheme != 'vibester' || uri.host != 'profile') return;
-    final token = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
-    if (token == null) return;
+    if (uri.scheme != 'vibester') return;
+    final segment = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
+    if (segment == null) return;
 
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
+
+    switch (uri.host) {
+      case 'profile':
+        return _openSharedProfile(navigator, segment);
+      case 'event':
+        return _openSharedEvent(navigator, segment);
+      case 'place':
+        // PlaceDetailScreen já busca pelo id e trata o não encontrado.
+        navigator.pushNamed(AppRoutes.placeDetail, arguments: segment);
+    }
+  }
+
+  // A rota de detalhe recebe o EventModel pronto (vem de um card), então o
+  // link busca o evento antes de abrir.
+  Future<void> _openSharedEvent(
+    NavigatorState navigator,
+    String eventId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(navigator.context);
+    try {
+      final event = await _eventService.getEventById(eventId);
+      if (!mounted) return;
+      navigator.pushNamed(AppRoutes.eventDetail, arguments: event);
+    } catch (e) {
+      debugPrint('Falha ao abrir evento compartilhado: $e');
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível abrir esse rolê agora.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openSharedProfile(
+    NavigatorState navigator,
+    String token,
+  ) async {
 
     // Capturados antes do await: depois dele o context do navigator pode ter
     // sido desmontado, e usá-lo cruzando o gap assíncrono é o que o
@@ -246,30 +330,25 @@ class _MyAppState extends State<MyApp> {
   void dispose() {
     _linkSubscription?.cancel();
     ApiClient.onSessionExpired = null;
+    _userProvider.dispose();
+    _notificationProvider.dispose();
+    _themeProvider.dispose();
+    _blockProvider.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = UserProvider();
-    final notificationProvider = NotificationProvider();
-    final themeProvider = ThemeProvider(widget.initialThemeMode);
-    if (widget.savedUser != null) {
-      userProvider.setUser(widget.savedUser!);
-      if (widget.savedUser!.accountId != null) {
-        notificationProvider.fetchUnreadCount(widget.savedUser!.accountId!);
-      }
-    }
-
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => PlaceListProvider()),
         ChangeNotifierProvider(create: (_) => NearbyProvider()),
         ChangeNotifierProvider(create: (_) => EventsListProvider()),
         ChangeNotifierProvider(create: (_) => PublicationListProvider()),
-        ChangeNotifierProvider.value(value: userProvider),
-        ChangeNotifierProvider.value(value: notificationProvider),
-        ChangeNotifierProvider.value(value: themeProvider),
+        ChangeNotifierProvider.value(value: _userProvider),
+        ChangeNotifierProvider.value(value: _notificationProvider),
+        ChangeNotifierProvider.value(value: _themeProvider),
+        ChangeNotifierProvider.value(value: _blockProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) => MaterialApp(
@@ -280,13 +359,18 @@ class _MyAppState extends State<MyApp> {
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: themeProvider.themeMode,
-          // Sessao salva com onboarding pendente = o app foi fechado no meio
-          // do onboarding; retoma dali em vez de pular direto para a home.
+          // A conta nasce na confirmação do e-mail, mas o cadastro só termina
+          // na apresentação. Fechar o app entre os dois deixa uma etapa
+          // gravada, e é ela que diz onde retomar — sem isso o app abria na
+          // home com perfil e interesses em branco, sem perguntar mais nada.
           initialRoute: widget.savedUser == null
               ? AppRoutes.initialScreen
-              : (widget.onboardingPendente
-                    ? AppRoutes.onboarding
-                    : AppRoutes.home),
+              : switch (widget.etapaPendente) {
+                  EtapaCadastro.perfil => AppRoutes.profileEditing,
+                  EtapaCadastro.interesses => AppRoutes.userInterestsSetup,
+                  EtapaCadastro.apresentacao => AppRoutes.onboarding,
+                  null => AppRoutes.home,
+                },
           onGenerateRoute: (settings) {
             switch (settings.name) {
               // EVENTS
@@ -352,23 +436,32 @@ class _MyAppState extends State<MyApp> {
               case AppRoutes.register:
                 return vibesterFadeRoute(const RegisterScreen(), settings);
               case AppRoutes.resetPassword:
-                return vibesterFadeRoute(const ResetPasswordScreen(), settings);
+                final email = settings.arguments as String? ?? '';
+                return vibesterFadeRoute(
+                  ResetPasswordScreen(email: email),
+                  settings,
+                );
 
               // SEARCH
               case AppRoutes.search:
                 return vibesterSlideRoute(const ExploreScreen(), settings);
 
               // SETTINGS
-              case AppRoutes.accountManagementSettings:
-                return vibesterSlideRoute(
-                  const AccountManagementSettingsScreen(),
-                  settings,
-                );
               case AppRoutes.settings:
                 return vibesterSlideRoute(const SettingsScreen(), settings);
               case AppRoutes.personalInformationSettings:
                 return vibesterSlideRoute(
                   const PersonalInformationSettingsScreen(),
+                  settings,
+                );
+              case AppRoutes.blockedAccounts:
+                return vibesterSlideRoute(
+                  const BlockedAccountsScreen(),
+                  settings,
+                );
+              case AppRoutes.deleteAccount:
+                return vibesterSlideRoute(
+                  const DeleteAccountScreen(),
                   settings,
                 );
 
@@ -381,13 +474,16 @@ class _MyAppState extends State<MyApp> {
                   settings,
                 );
               case AppRoutes.userInterests:
-                // `arguments: true` só vem do cadastro (ver
-                // ProfileEditingScreen). Sem argumento a tela é uma edição
-                // avulsa e apenas volta ao fechar.
+                // Edição avulsa, vinda das configurações: salva e volta.
                 return vibesterSlideRoute(
-                  UserInterestsScreen(
-                    noCadastro: settings.arguments as bool? ?? false,
-                  ),
+                  const UserInterestsScreen(),
+                  settings,
+                );
+              case AppRoutes.userInterestsSetup:
+                // Mesma tela como passo do cadastro: sem seta de voltar, e ao
+                // concluir segue para a apresentação descartando a pilha.
+                return vibesterSlideRoute(
+                  const UserInterestsScreen(noCadastro: true),
                   settings,
                 );
               case AppRoutes.otherProfile:

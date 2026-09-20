@@ -1,32 +1,33 @@
 import 'package:email_validator/email_validator.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile/routes/app_routes.dart';
-import 'package:mobile/screens/register/email_confirm_screen.dart';
+import 'package:mobile/service/user/user_service.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
-import 'package:mobile/theme/vibester_page_route.dart';
 import 'package:mobile/widgets/buttons/vibester_button.dart';
 import 'package:mobile/widgets/common/screen_header.dart';
 import 'package:mobile/widgets/graffiti/grain.dart';
 import 'package:mobile/widgets/text-field/primary_text_field.dart';
 
-/// Recuperar acesso.
+/// Recuperar acesso: pede ao auth-service um código de redefinição
+/// (`POST /auth/password/forgot`) e segue para a tela que o usa.
 ///
-/// Mesmo fluxo: valida o e-mail, abre a tela de código e, confirmado, segue
-/// para a redefinição de senha. A validação passou a checar formato de e-mail
-/// (antes só checava se o campo estava vazio, então um "asdf" seguia adiante
-/// e só falhava depois) e a navegação usa a transição do app em vez de um
-/// `MaterialPageRoute` cru no meio de um fluxo todo animado.
+/// O backend responde igual exista ou não conta com o email, então a tela
+/// também não distingue — só avisa para conferir a caixa de entrada.
 class RecoverPasswordScreen extends StatefulWidget {
-  const RecoverPasswordScreen({super.key});
+  final UserService? userService;
+
+  const RecoverPasswordScreen({super.key, this.userService});
 
   @override
   State<RecoverPasswordScreen> createState() => _RecoverPasswordScreenState();
 }
 
 class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
+  late final UserService _userService = widget.userService ?? UserService();
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
+  bool _enviando = false;
 
   @override
   void dispose() {
@@ -34,26 +35,25 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
     super.dispose();
   }
 
-  void _enviarCodigo() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _enviarCodigo() async {
+    if (_enviando || !_formKey.currentState!.validate()) return;
 
     final email = _emailController.text.trim();
+    setState(() => _enviando = true);
 
-    Navigator.push(
-      context,
-      vibesterFadeRoute(
-        EmailConfirmScreen(
-          senha: '',
-          email: email,
-          onEmailConfirmed: () => Navigator.pushNamed(
-            context,
-            AppRoutes.resetPassword,
-            arguments: email,
-          ),
-        ),
-        const RouteSettings(name: 'email-confirm-recovery'),
-      ),
-    );
+    try {
+      await _userService.requestPasswordReset(email: email);
+      if (!mounted) return;
+      Navigator.pushNamed(context, AppRoutes.resetPassword, arguments: email);
+    } catch (e) {
+      debugPrint('Falha ao pedir código de senha: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
   }
 
   @override
@@ -83,8 +83,8 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'A gente manda um código de verificação pro seu '
-                          'e-mail.',
+                          'Informe o email da sua conta. A gente manda um '
+                          'código de 6 dígitos pra você criar uma senha nova.',
                           style: context.typography.bodyLarge.copyWith(
                             color: colors.textMuted,
                           ),
@@ -96,6 +96,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                           icon: Icons.mail_outline_rounded,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.done,
+                          enabled: !_enviando,
                           onSubmitted: (_) => _enviarCodigo(),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -110,6 +111,9 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                         const SizedBox(height: AppSpacing.xl),
                         VibesterButton(
                           label: 'Enviar código',
+                          state: _enviando
+                              ? VibesterButtonState.loading
+                              : VibesterButtonState.idle,
                           onPressed: _enviarCodigo,
                         ),
                       ],

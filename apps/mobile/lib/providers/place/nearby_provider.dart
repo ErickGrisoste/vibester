@@ -57,10 +57,22 @@ class NearbyProvider extends ChangeNotifier {
   /// Ver `PlaceListProvider.fetchPlaces` para a lógica de staleness. [force] é
   /// o caminho do pull-to-refresh e do botão "tentar de novo" — só ele refaz a
   /// leitura de GPS, que é a parte cara.
-  Future<void> load({bool force = false}) async {
-    if (_isLoading) return;
-    if (!force && _places.isNotEmpty && !isDataStale(_lastFetchedAt)) return;
+  Future<void> load({bool force = false}) {
+    // Uma carga em andamento (a do onboarding, por exemplo) é compartilhada
+    // em vez de descartada: quem chamou agora — o pull-to-refresh da Home —
+    // espera o mesmo resultado em vez de voltar na hora com a lista vazia.
+    final inFlight = _inFlight;
+    if (inFlight != null) return inFlight;
+    if (!force && _places.isNotEmpty && !isDataStale(_lastFetchedAt)) {
+      return Future.value();
+    }
 
+    return _inFlight = _load(force: force).whenComplete(() => _inFlight = null);
+  }
+
+  Future<void>? _inFlight;
+
+  Future<void> _load({required bool force}) async {
     _isLoading = true;
     _error = null;
     if (!hasLocation || force) _status = LocationStatus.locating;

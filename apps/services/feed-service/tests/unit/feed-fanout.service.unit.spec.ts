@@ -54,10 +54,11 @@ describe("FeedFanoutService — Unitários", () => {
     });
 
     it("distribui post do estabelecimento para seguidores", async () => {
-      mockExecute
-        .mockResolvedValueOnce({ rows: [] }) // savePostByUser → INSERT posts_by_user
-        .mockResolvedValueOnce({ rows: [{ follower_id: FOLLOWER_ID }] }) // findFollowersByEstablishment
-        .mockResolvedValue({ rows: [] }); // addItemToUserFeed
+      mockExecute.mockImplementation(async (query: string) =>
+        query.includes("FROM feed_keyspace.followers_by_establishment")
+          ? { rows: [{ follower_id: FOLLOWER_ID }] }
+          : { rows: [] }
+      );
 
       await feedFanoutService.handlePostCreated({
         itemId: POST_ID,
@@ -75,6 +76,57 @@ describe("FeedFanoutService — Unitários", () => {
       } as any);
 
       expect(mockExecute).toHaveBeenCalled();
+    });
+  });
+
+  describe("handlePostCreated — feed do próprio autor", () => {
+    const feedByUserInserts = () =>
+      mockExecute.mock.calls.filter(([query]) =>
+        (query as string).includes("INSERT INTO feed_keyspace.feed_by_user")
+      );
+
+    function userPost() {
+      return {
+        itemId: POST_ID,
+        itemType: FeedItemType.USER_POST,
+        authorId: AUTHOR_ID,
+        authorUsername: "testuser",
+        authorVerified: false,
+        content: "Ótimo lugar!",
+        imageUrls: [],
+        totalLikes: 0,
+        totalComments: 0,
+        isSponsored: false,
+        isDeleted: false,
+        createdAt: ISO_DATE,
+      } as any;
+    }
+
+    it("grava o post no feed do autor mesmo sem seguidores", async () => {
+      await feedFanoutService.handlePostCreated(userPost());
+
+      const inserts = feedByUserInserts();
+      expect(inserts).toHaveLength(1);
+      expect((inserts[0][1] as unknown[])[0]).toBe(AUTHOR_ID);
+
+      const entryInserts = mockExecute.mock.calls.filter(([query]) =>
+        (query as string).includes("INSERT INTO feed_keyspace.feed_entries_by_post")
+      );
+      expect(entryInserts).toHaveLength(1);
+      expect(entryInserts[0][1]).toEqual(expect.arrayContaining([POST_ID, AUTHOR_ID]));
+    });
+
+    it("grava no feed do autor e no de cada seguidor", async () => {
+      mockExecute.mockImplementation(async (query: string) =>
+        query.includes("FROM feed_keyspace.followers_by_user")
+          ? { rows: [{ follower_id: FOLLOWER_ID }] }
+          : { rows: [] }
+      );
+
+      await feedFanoutService.handlePostCreated(userPost());
+
+      const donos = feedByUserInserts().map(([, params]) => (params as unknown[])[0]);
+      expect(donos).toEqual([AUTHOR_ID, FOLLOWER_ID]);
     });
   });
 

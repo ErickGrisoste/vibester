@@ -5,6 +5,18 @@ class ApiEndpoints {
   static String register() => '$baseUrl/auth/register';
   static String login() => '$baseUrl/auth/login';
   static String verifyEmail() => '$baseUrl/auth/verify-email';
+  static String forgotPassword() => '$baseUrl/auth/password/forgot';
+  static String resetPassword() => '$baseUrl/auth/password/reset';
+  // DELETE autenticado: o accountId vem do JWT, a senha vai no corpo.
+  static String deleteAccount() => '$baseUrl/auth/account';
+
+  // Safety (user-service): bloqueio e denúncia, sempre em nome do JWT.
+  static String blocks() => '$baseUrl/user/users/blocks';
+  static String block(String accountId) =>
+      '$baseUrl/user/users/blocks/$accountId';
+  static String blockStatus(String accountId) =>
+      '$baseUrl/user/users/blocks/$accountId/status';
+  static String reports() => '$baseUrl/user/users/reports';
 
   // User
   static String createProfile() => '$baseUrl/api/users/profile';
@@ -66,6 +78,7 @@ class ApiEndpoints {
 
   //Post
   static String posts() => '$baseUrl/post/posts';
+  static String post(String postId) => '$baseUrl/post/posts/$postId';
   static String postsUploadUrl() => '$baseUrl/post/posts/upload-url';
   static String likePost(String postId) => '$baseUrl/post/posts/$postId/likes';
 

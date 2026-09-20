@@ -54,10 +54,16 @@ void main() {
 
   group('rótulo do dia', () {
     test('hoje e amanhã têm rótulo próprio', () {
-      expect(
-        evento(inicio: agora.add(const Duration(hours: 2))).dayLabel,
-        'HOJE',
-      );
+      // Ancorado na meia-noite de hoje, não em `agora + 2h`: `dayLabel`
+      // compara dia de calendário, então depois das 22h aquele offset caía no
+      // dia seguinte e o teste reprovava por horário de execução, não por
+      // regressão.
+      final hoje = DateTime(
+        agora.year,
+        agora.month,
+        agora.day,
+      ).add(const Duration(hours: 22));
+      expect(evento(inicio: hoje).dayLabel, 'HOJE');
 
       final amanha = DateTime(
         agora.year,
