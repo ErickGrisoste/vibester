@@ -5,6 +5,7 @@ import {
   ListEstablishmentsFilters,
   OpeningHour,
   PaginatedResponse,
+  ReplaceEstablishmentImagesInput,
 } from "../types/establishment.types";
 import { redis, cacheAside } from "../config/redis";
 
@@ -193,7 +194,10 @@ export class EstablishmentService {
     return cacheAside(`establishment:profile:${id}`, 300, async () => {
       const establishment = await prismaClient.establishment.findUnique({
         where: { id },
-        include: { openingHours: true },
+        include: {
+          openingHours: true,
+          images: { orderBy: { position: "asc" } },
+        },
       });
 
       if (!establishment) {
@@ -202,6 +206,28 @@ export class EstablishmentService {
 
       return establishment as EstablishmentProfileResponse;
     });
+  }
+
+  /** Substitui a galeria de imagens do estabelecimento por uma lista nova
+   * (delete+insert atômico) — reflete o estado mais recente vindo do
+   * evento establishment.images.updated, não faz merge incremental. */
+  static async replaceImages(
+    id: string,
+    images: ReplaceEstablishmentImagesInput[]
+  ): Promise<void> {
+    await prismaClient.$transaction([
+      prismaClient.establishmentImage.deleteMany({ where: { establishmentId: id } }),
+      prismaClient.establishmentImage.createMany({
+        data: images.map((image) => ({
+          establishmentId: id,
+          url: image.url,
+          position: image.position,
+          source: image.source ?? "SERPAPI",
+        })),
+      }),
+    ]);
+
+    await redis.del(`establishment:profile:${id}`).catch(() => {});
   }
 
   static async updateMovementLevel(

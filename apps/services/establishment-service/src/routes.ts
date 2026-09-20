@@ -89,6 +89,19 @@ const establishmentProfileSchema = {
         },
       },
     },
+    images: {
+      type: "array",
+      description: "Galeria de imagens do estabelecimento (ex.: fotos de ambiente via SerpAPI)",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          url: { type: "string" },
+          source: { type: "string", enum: ["SERPAPI", "MANUAL"] },
+          position: { type: "number" },
+        },
+      },
+    },
   },
 };
 

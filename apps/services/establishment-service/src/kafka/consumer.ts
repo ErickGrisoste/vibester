@@ -15,6 +15,21 @@ const movementUpdatedSchema = z.object({
   }),
 });
 
+const imagesUpdatedSchema = z.object({
+  eventId: z.string().uuid(),
+  eventType: z.literal("establishment.images.updated"),
+  occurredAt: z.string(),
+  data: z.object({
+    establishmentId: z.string().uuid(),
+    images: z.array(
+      z.object({
+        url: z.string().url(),
+        position: z.number().int().nonnegative(),
+      })
+    ),
+  }),
+});
+
 export class EstablishmentKafkaConsumer {
   private consumer: Consumer;
 
@@ -40,11 +55,27 @@ export class EstablishmentKafkaConsumer {
     const value = message.value?.toString();
     if (!value) return;
 
+    let raw: unknown;
     try {
-      const raw = JSON.parse(value);
+      raw = JSON.parse(value);
+    } catch (error) {
+      console.error("[Kafka] Erro ao fazer parse da mensagem:", error);
+      return;
+    }
 
+    const eventType = (raw as { eventType?: string }).eventType;
+
+    if (eventType === "establishment.movement.updated") {
+      await this.handleMovementUpdated(raw);
+    } else if (eventType === "establishment.images.updated") {
+      await this.handleImagesUpdated(raw);
+    }
+  }
+
+  private async handleMovementUpdated(raw: unknown) {
+    try {
       const parsed = movementUpdatedSchema.safeParse(raw);
-      if (!parsed.success || parsed.data.eventType !== "establishment.movement.updated") return;
+      if (!parsed.success) return;
 
       const { establishmentId, level, category } = parsed.data.data;
       await EstablishmentService.updateMovementLevel(establishmentId, level);
@@ -57,6 +88,20 @@ export class EstablishmentKafkaConsumer {
       console.log(`[Kafka] nivelMovimento atualizado: ${establishmentId} → ${level}`);
     } catch (error) {
       console.error("[Kafka] Erro ao processar establishment.movement.updated:", error);
+    }
+  }
+
+  private async handleImagesUpdated(raw: unknown) {
+    try {
+      const parsed = imagesUpdatedSchema.safeParse(raw);
+      if (!parsed.success) return;
+
+      const { establishmentId, images } = parsed.data.data;
+      await EstablishmentService.replaceImages(establishmentId, images);
+
+      console.log(`[Kafka] imagens atualizadas: ${establishmentId} → ${images.length} foto(s)`);
+    } catch (error) {
+      console.error("[Kafka] Erro ao processar establishment.images.updated:", error);
     }
   }
 

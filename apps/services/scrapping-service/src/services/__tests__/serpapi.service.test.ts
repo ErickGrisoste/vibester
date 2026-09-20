@@ -462,4 +462,101 @@ describe("SerpApiService", () => {
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
+
+  describe("getPlaceImages", () => {
+    it("returns the full-res image URLs from the Ambiente category", async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          makeFetchResponse({ place_results: { data_id: "0xabc:0xdef" } })
+        )
+        .mockResolvedValueOnce(
+          makeFetchResponse({
+            photos: [
+              { thumbnail: "https://img.test/t1.jpg", image: "https://img.test/full1.jpg" },
+              { thumbnail: "https://img.test/t2.jpg", image: "https://img.test/full2.jpg" },
+            ],
+          })
+        );
+
+      const result = await service.getPlaceImages("place-123");
+
+      expect(result).toEqual(["https://img.test/full1.jpg", "https://img.test/full2.jpg"]);
+
+      const photosUrl = new URL(String(fetchMock.mock.calls[1][0]));
+      expect(photosUrl.searchParams.get("engine")).toBe("google_maps_photos");
+      expect(photosUrl.searchParams.get("data_id")).toBe("0xabc:0xdef");
+      expect(photosUrl.searchParams.get("category_id")).toBe("CgIYIg");
+    });
+
+    it("returns an empty array without a second call when data_id is missing", async () => {
+      fetchMock.mockResolvedValueOnce(makeFetchResponse({ place_results: {} }));
+
+      const result = await service.getPlaceImages("place-no-data-id");
+
+      expect(result).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("respects the limit parameter", async () => {
+      fetchMock
+        .mockResolvedValueOnce(makeFetchResponse({ place_results: { data_id: "0xabc:0xdef" } }))
+        .mockResolvedValueOnce(
+          makeFetchResponse({
+            photos: [
+              { image: "https://img.test/1.jpg" },
+              { image: "https://img.test/2.jpg" },
+              { image: "https://img.test/3.jpg" },
+            ],
+          })
+        );
+
+      const result = await service.getPlaceImages("place-123", 2);
+
+      expect(result).toEqual(["https://img.test/1.jpg", "https://img.test/2.jpg"]);
+    });
+
+    it("throws when the photos request is not ok", async () => {
+      fetchMock
+        .mockResolvedValueOnce(makeFetchResponse({ place_results: { data_id: "0xabc:0xdef" } }))
+        .mockResolvedValueOnce(makeFetchResponse(null, false, 500));
+
+      await expect(service.getPlaceImages("place-123")).rejects.toThrow(
+        "Erro ao consultar SerpAPI (fotos): 500"
+      );
+    });
+
+    it("returns an empty array when the photos response shape is unexpected", async () => {
+      fetchMock
+        .mockResolvedValueOnce(makeFetchResponse({ place_results: { data_id: "0xabc:0xdef" } }))
+        .mockResolvedValueOnce(makeFetchResponse({ photos: "not-an-array" }));
+
+      const result = await service.getPlaceImages("place-123");
+
+      expect(result).toEqual([]);
+    });
+
+    it("throws when the data_id request itself is not ok", async () => {
+      fetchMock.mockResolvedValueOnce(makeFetchResponse(null, false, 500));
+
+      await expect(service.getPlaceImages("place-123")).rejects.toThrow(
+        "Erro ao consultar SerpAPI (data_id): 500"
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns an empty array without a second call when the data_id response shape is unexpected", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+
+      fetchMock.mockResolvedValueOnce(
+        makeFetchResponse({ place_results: { popular_times: { graph_results: { x: "not-an-array" } } } })
+      );
+
+      const result = await service.getPlaceImages("place-123");
+
+      expect(result).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      writeSpy.mockRestore();
+    });
+  });
 });

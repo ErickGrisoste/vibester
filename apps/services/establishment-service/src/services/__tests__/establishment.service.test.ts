@@ -1,14 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { mockFindMany, mockFindUnique, mockUpdate, mockCount, mockQueryRaw, mockTransaction } =
-  vi.hoisted(() => ({
-    mockFindMany: vi.fn(),
-    mockFindUnique: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockCount: vi.fn(),
-    mockQueryRaw: vi.fn(),
-    mockTransaction: vi.fn(),
-  }));
+const {
+  mockFindMany,
+  mockFindUnique,
+  mockUpdate,
+  mockCount,
+  mockQueryRaw,
+  mockTransaction,
+  mockImageDeleteMany,
+  mockImageCreateMany,
+} = vi.hoisted(() => ({
+  mockFindMany: vi.fn(),
+  mockFindUnique: vi.fn(),
+  mockUpdate: vi.fn(),
+  mockCount: vi.fn(),
+  mockQueryRaw: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockImageDeleteMany: vi.fn(),
+  mockImageCreateMany: vi.fn(),
+}));
 
 vi.mock("../../prisma/index", () => ({
   default: {
@@ -17,6 +27,10 @@ vi.mock("../../prisma/index", () => ({
       findUnique: mockFindUnique,
       update: mockUpdate,
       count: mockCount,
+    },
+    establishmentImage: {
+      deleteMany: mockImageDeleteMany,
+      createMany: mockImageCreateMany,
     },
     $queryRaw: mockQueryRaw,
     $transaction: mockTransaction,
@@ -292,6 +306,49 @@ describe("EstablishmentService.getEstablishmentProfile", () => {
       name: "Pub London",
       category: "pub",
       averageRating: 4.2,
+    });
+  });
+});
+
+describe("EstablishmentService.replaceImages", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTransaction.mockImplementation(async (ops: unknown) =>
+      Array.isArray(ops) ? Promise.all(ops) : ops
+    );
+  });
+
+  it("deletes existing images and inserts the new list inside a transaction", async () => {
+    mockImageDeleteMany.mockResolvedValue({ count: 2 });
+    mockImageCreateMany.mockResolvedValue({ count: 3 });
+
+    await EstablishmentService.replaceImages("est-1", [
+      { url: "https://img.test/a.jpg", position: 0 },
+      { url: "https://img.test/b.jpg", position: 1, source: "SERPAPI" },
+    ]);
+
+    expect(mockTransaction).toHaveBeenCalledTimes(1);
+    expect(mockImageDeleteMany).toHaveBeenCalledWith({
+      where: { establishmentId: "est-1" },
+    });
+    expect(mockImageCreateMany).toHaveBeenCalledWith({
+      data: [
+        { establishmentId: "est-1", url: "https://img.test/a.jpg", position: 0, source: "SERPAPI" },
+        { establishmentId: "est-1", url: "https://img.test/b.jpg", position: 1, source: "SERPAPI" },
+      ],
+    });
+  });
+
+  it("defaults source to SERPAPI when not provided", async () => {
+    mockImageDeleteMany.mockResolvedValue({ count: 0 });
+    mockImageCreateMany.mockResolvedValue({ count: 1 });
+
+    await EstablishmentService.replaceImages("est-2", [
+      { url: "https://img.test/c.jpg", position: 0 },
+    ]);
+
+    expect(mockImageCreateMany).toHaveBeenCalledWith({
+      data: [{ establishmentId: "est-2", url: "https://img.test/c.jpg", position: 0, source: "SERPAPI" }],
     });
   });
 });

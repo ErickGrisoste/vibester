@@ -75,6 +75,7 @@ const serpApiResponseSchema = z.object({
   place_results: z
     .object({
       type: z.union([z.string(), z.array(z.string())]).optional(),
+      data_id: z.string().optional(),
       popular_times: z
         .object({
           current_day: z.string().optional(),
@@ -89,6 +90,22 @@ const serpApiResponseSchema = z.object({
         .optional(),
     })
     .optional(),
+});
+
+/** Id fixo da categoria "Ambiente" na taxonomia de fotos do Google Maps
+ * (engine=google_maps_photos) — validado manualmente contra a SerpAPI em
+ * dois estabelecimentos reais e distintos, com o mesmo id nos dois. Não é
+ * específico por lugar, então não precisa ser descoberto dinamicamente via
+ * `categories` a cada chamada. */
+const AMBIENCE_CATEGORY_ID = "CgIYIg";
+
+const serpApiPhotoSchema = z.object({
+  thumbnail: z.string().optional(),
+  image: z.string(),
+});
+
+const serpApiPhotosResponseSchema = z.object({
+  photos: z.array(serpApiPhotoSchema).optional(),
 });
 
 const SEARCH_QUERY_BY_TYPE: Record<string, string> = {
@@ -342,5 +359,69 @@ export class SerpApiService {
       hoursData,
       category,
     };
+  }
+
+  /** Busca algumas fotos do "Ambiente" do estabelecimento (engine
+   * google_maps_photos). Duas chamadas pagas por placeId: uma pra descobrir
+   * o data_id (não é o mesmo id que place_id) e outra pra pegar as fotos já
+   * filtradas pela categoria — sem paginar além da primeira página. */
+  async getPlaceImages(placeId: string, limit = 20): Promise<string[]> {
+    const dataId = await this.fetchDataId(placeId);
+    if (!dataId) return [];
+
+    const url = new URL("https://serpapi.com/search.json");
+    url.searchParams.set("engine", "google_maps_photos");
+    url.searchParams.set("data_id", dataId);
+    url.searchParams.set("category_id", AMBIENCE_CATEGORY_ID);
+    url.searchParams.set("hl", "pt-BR");
+    url.searchParams.set("api_key", env.serpapiKey ?? "");
+
+    const stopTimer = scrapingExternalApiLatencySeconds.startTimer({ api: "serpapi" });
+    const response = await fetchWithTimeout(url);
+    stopTimer();
+
+    if (!response.ok) {
+      throw new Error(`Erro ao consultar SerpAPI (fotos): ${response.status}`);
+    }
+
+    const rawJson = await response.json();
+    const parsed = serpApiPhotosResponseSchema.safeParse(rawJson);
+
+    if (!parsed.success) {
+      consoleLogger.warn(
+        `[SerpAPI] Resposta de fotos em formato inesperado para placeId=${placeId}: ${parsed.error.issues.map((i) => i.path.join(".")).join(", ")}`
+      );
+      return [];
+    }
+
+    return (parsed.data.photos ?? []).slice(0, limit).map((photo) => photo.image);
+  }
+
+  private async fetchDataId(placeId: string): Promise<string | null> {
+    const url = new URL("https://serpapi.com/search.json");
+    url.searchParams.set("engine", "google_maps");
+    url.searchParams.set("place_id", placeId);
+    url.searchParams.set("hl", "pt-BR");
+    url.searchParams.set("api_key", env.serpapiKey ?? "");
+
+    const stopTimer = scrapingExternalApiLatencySeconds.startTimer({ api: "serpapi" });
+    const response = await fetchWithTimeout(url);
+    stopTimer();
+
+    if (!response.ok) {
+      throw new Error(`Erro ao consultar SerpAPI (data_id): ${response.status}`);
+    }
+
+    const rawJson = await response.json();
+    const parsed = serpApiResponseSchema.safeParse(rawJson);
+
+    if (!parsed.success) {
+      consoleLogger.warn(
+        `[SerpAPI] Resposta em formato inesperado ao buscar data_id para placeId=${placeId}`
+      );
+      return null;
+    }
+
+    return parsed.data.place_results?.data_id ?? null;
   }
 }
