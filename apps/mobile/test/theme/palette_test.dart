@@ -45,6 +45,21 @@ void main() {
       expect(dark.hairline.a, lessThan(dark.grey.a));
     });
 
+    test('o photoFade desce de transparente a preto cheio', () {
+      // O hero do lugar termina no fundo da tela, não numa borda de card: o
+      // último stop precisa ser preto opaco, senão aparece costura entre a
+      // foto e o conteúdo abaixo.
+      final fade = AppColors.dark.photoFade;
+
+      expect(fade.begin, Alignment.topCenter);
+      expect(fade.end, Alignment.bottomCenter);
+      expect(fade.colors.first.a, 0.0);
+      expect(fade.colors.last, AppColors.dark.scrim);
+      expect(fade.colors.last.a, 1.0);
+      // Nos dois temas o véu é preto real — o texto do hero é branco fixo.
+      expect(AppColors.light.photoFade.colors.last, AppColors.light.scrim);
+    });
+
     test('o gradiente da marca continua indo de âmbar a brasa', () {
       expect(AppColors.dark.gradient.colors, [
         AppColors.dark.ambar,

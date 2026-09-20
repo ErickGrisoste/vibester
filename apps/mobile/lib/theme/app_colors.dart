@@ -82,6 +82,25 @@ class AppColors extends ThemeExtension<AppColors> {
     ],
   );
 
+  /// Gradiente de dissolução para foto que ocupa o topo de uma tela inteira
+  /// (transparente → preto opaco).
+  ///
+  /// Diferente do [photoScrim], que para em 0.92 porque o card tem borda e a
+  /// foto precisa continuar sendo foto até a base: aqui a imagem termina no
+  /// fundo da tela, então o último stop é preto cheio para não deixar costura
+  /// visível entre o fim da foto e o conteúdo que vem abaixo.
+  LinearGradient get photoFade => LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    stops: const [0.0, 0.35, 0.72, 1.0],
+    colors: [
+      scrim.withValues(alpha: 0.0),
+      scrim.withValues(alpha: 0.25),
+      scrim.withValues(alpha: 0.75),
+      scrim,
+    ],
+  );
+
   /// Véu de cor de marca sobre a base de uma foto, aplicado **por cima** do
   /// [photoScrim].
   ///
