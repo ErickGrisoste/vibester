@@ -19,9 +19,21 @@ class NotificationCard extends StatelessWidget {
 
   const NotificationCard({super.key, required this.notification, this.onTap});
 
-  String get _nomeAtor => (notification.atorNome?.isNotEmpty ?? false)
-      ? notification.atorNome!
-      : 'Alguém';
+  /// Aviso do próprio Vibester, não de outra pessoa: hoje só `post_rejected`,
+  /// que chega quando a revalidação de conteúdo reprova um post já publicado.
+  ///
+  /// Sem este caso a linha saía quebrada — o `switch` de [_acao] não conhecia o
+  /// tipo e devolvia texto vazio, e o ator (que o servidor manda nulo para
+  /// aviso do sistema) virava "Alguém". O autor via "Alguém" e mais nada, sem
+  /// o motivo que vem em `conteudo`.
+  bool get _doSistema => notification.tipo == 'post_rejected';
+
+  String get _nomeAtor {
+    if (_doSistema) return 'Vibester';
+    return (notification.atorNome?.isNotEmpty ?? false)
+        ? notification.atorNome!
+        : 'Alguém';
+  }
 
   String get _acao {
     final plural = notification.outrosCount > 0;
@@ -37,6 +49,13 @@ class NotificationCard extends StatelessWidget {
             : 'comentou sua publicação$trecho';
       case 'follow':
         return plural ? 'começaram a seguir você' : 'começou a seguir você';
+      case 'post_rejected':
+        // O texto inteiro — motivo e o que dá para fazer — já vem pronto do
+        // servidor, em pt-BR.
+        final conteudo = notification.conteudo;
+        return conteudo.isNotEmpty
+            ? conteudo
+            : 'Sua publicação não segue as diretrizes da comunidade.';
       default:
         return '';
     }
@@ -47,9 +66,17 @@ class NotificationCard extends StatelessWidget {
     final colors = context.colors;
     final type = context.typography;
 
+    // A miniatura também aparece no aviso de reprovação: é ela que diz ao
+    // autor qual das publicações dele foi reprovada.
     final hasThumbnail =
-        (notification.tipo == 'like' || notification.tipo == 'comment') &&
+        (notification.tipo == 'like' ||
+            notification.tipo == 'comment' ||
+            _doSistema) &&
         (notification.postImagemUrl?.isNotEmpty ?? false);
+
+    // Duplicata do mesmo aviso é agrupada pelo servidor e chegaria como
+    // "e mais 1" — que não faz sentido quando o "ator" é o próprio Vibester.
+    final mostraOutros = !_doSistema && notification.outrosCount > 0;
 
     return VibesterPressable(
       onTap: onTap,
@@ -80,9 +107,12 @@ class NotificationCard extends StatelessWidget {
               child: SizedBox(
                 width: 44,
                 height: 44,
+                // Aviso do sistema não tem rosto: fonte vazia cai no ícone.
                 child: VibesterImage(
-                  source: notification.atorAvatarUrl ?? '',
-                  placeholderIcon: Icons.person_outline_rounded,
+                  source: _doSistema ? '' : notification.atorAvatarUrl ?? '',
+                  placeholderIcon: _doSistema
+                      ? Icons.shield_outlined
+                      : Icons.person_outline_rounded,
                 ),
               ),
             ),
@@ -105,7 +135,7 @@ class NotificationCard extends StatelessWidget {
                             color: colors.textPrimary,
                           ),
                         ),
-                        if (notification.outrosCount > 0)
+                        if (mostraOutros)
                           TextSpan(text: ' e mais ${notification.outrosCount}'),
                         TextSpan(text: ' $_acao'),
                       ],

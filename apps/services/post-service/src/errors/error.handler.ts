@@ -20,7 +20,12 @@ export function registerErrorHandler(app: FastifyInstance) {
         }
 
         if (error instanceof HttpError) {
-            return reply.status(error.statusCode).send({ message: error.message });
+            // `details` só entra quando existe: erro sem detalhe continua
+            // respondendo exatamente `{ message }`, como sempre respondeu.
+            return reply.status(error.statusCode).send({
+                message: error.message,
+                ...(error.details ?? {}),
+            });
         }
 
         const fastifyError = error as { statusCode?: number; message?: string };

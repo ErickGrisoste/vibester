@@ -35,7 +35,12 @@ export class PostController {
             tags: body.tags,
         };
 
-        const post = await this.postService.create(data);
+        // O header segue como veio para o post-validation-service, que exige
+        // JWT e tira dele a identidade do autor. O post-service continua sem
+        // verificar o token — ele só o repassa.
+        const post = await this.postService.create(data, {
+            authorization: request.headers.authorization,
+        });
 
         return reply.status(201).send(post);
     }
@@ -98,7 +103,9 @@ export class PostController {
 
         const updateInput: UpdatePostInput = { postId, caption };
 
-        const post = await this.postService.updateCaption(updateInput, request.body.userId);
+        const post = await this.postService.updateCaption(updateInput, request.body.userId, {
+            authorization: request.headers.authorization,
+        });
 
         return reply.status(200).send(post);
     }

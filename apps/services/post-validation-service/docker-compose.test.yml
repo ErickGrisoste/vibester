@@ -1,0 +1,13 @@
+# Só o Redis: as regras são puras e não precisam de infra, e o Kafka é mockado
+# nos testes (mesma decisão do post-service). Serve para exercitar o cache e o
+# store do rate limit contra um Redis real.
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

@@ -106,10 +106,11 @@ Atualmente existem os seguintes serviços:
 - Establishment
 - Feed
 - Post
+- Post Validation
+- Interaction
 - Notification
 - Payment
 - Scrapping
-- Interaction
 
 Cada microserviço possui responsabilidade única e deve evoluir de forma independente.
 
@@ -214,6 +215,9 @@ Entre as funcionalidades existentes estão:
 - criação de postagens, com múltiplas mídias por post misturando foto e vídeo
   (contrato de upload e leitura em
   [`apps/services/post-service/docs/midias-no-post.md`](apps/services/post-service/docs/midias-no-post.md));
+- validação de conteúdo de postagem contra as diretrizes da comunidade
+  (veredito síncrono + revalidação assíncrona; ver
+  [`apps/services/post-validation-service/CLAUDE.md`](apps/services/post-validation-service/CLAUDE.md));
 - feed;
 - coleta dos sinais implícitos de quem lê o feed (impressão, tempo de atenção,
   descarte rápido), enviada pelo app em lote ao interaction-service e consumida

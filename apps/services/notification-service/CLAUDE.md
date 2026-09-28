@@ -11,7 +11,7 @@
 
 O `notification-service` é responsável exclusivamente por:
 
-- receber eventos Kafka de outros serviços e persistir **notificações in-app** (`follow`, `like`, `comment`) para o destinatário;
+- receber eventos Kafka de outros serviços e persistir **notificações in-app** (`follow`, `like`, `comment`, `post_rejected`) para o destinatário;
 - **agrupamento de notificações** por tipo/referência na listagem (ex.: múltiplos likes no mesmo post viram um grupo);
 - expor endpoints HTTP para **listagem paginada**, **contagem de não lidas** e **marcação de lidas** das notificações do usuário autenticado;
 - **envio de e-mails transacionais** (verificação de conta, boas-vindas, recuperação de senha, 2FA) via Kafka (`auth.email.verification`, `user.registered`) ou via chamada HTTP direta dos outros serviços (`POST /notifications/email`, `/reset-password`, `/welcome`, `/2fa`);
@@ -64,6 +64,7 @@ src/
                    postLiked.handler.ts            → post.liked → insertNotification("like", ...)
                    postCommented.handler.ts        → post.commented → insertNotification("comment", ...)
                    userDeleted.handler.ts          → user.deleted → deleta todas as notificações do usuário
+                   postValidationRejected.handler.ts → post.validation.rejected → insertNotification("post_rejected", autor, autor, postId, motivo)
   workers/       email.worker.ts                   → fila in-memory de e-mail com concorrência máxima de 5 workers
   prisma/        index.ts                          → singleton do PrismaClient com adapter pg.Pool
   types/         notification.types.ts             → NotificationRow, NotificationGroup, NotificationGroupResponse, ActorSummary, PostSummary
@@ -161,6 +162,14 @@ Variáveis atuais:
 | `post.liked` | `postLiked.handler.ts` | Persiste notificação `like` para o autor do post |
 | `post.commented` | `postCommented.handler.ts` | Persiste notificação `comment` para o autor do post |
 | `user.deleted` | `userDeleted.handler.ts` | Deleta todas as notificações cujo `recipientId` é o usuário removido |
+| `post.validation.rejected` | `postValidationRejected.handler.ts` | Persiste notificação `post_rejected` para o autor quando a revalidação do `post-validation-service` reprova um post já publicado. Ver abaixo |
+
+### `post_rejected` — aviso do sistema
+
+- **`actorId` é o próprio autor** só porque o schema de `Notification` exige o campo. Na listagem, `enrich` **não** busca esse ator (devolve `actor: null`, que o app lê como "notificação do Vibester") e **busca** a miniatura do post (`refId`), para o autor saber qual publicação foi reprovada.
+- **O texto não pode dizer que o post foi ocultado.** A revalidação só avisa; o post continua no ar até alguém decidir o contrário. A instrução que vai junto é excluir, que é a única ação disponível no app hoje (não há edição de legenda).
+- O evento carrega só o **código** do motivo, nunca o termo casado. `MESSAGE_BY_CODE` no handler traduz para pt-BR; código desconhecido cai numa frase genérica.
+- Pode chegar duplicado (o worker republica quando o Kafka reentrega a mensagem de origem). O agrupamento por `type:refId` junta as duplicatas numa linha só na listagem.
 
 O consumer usa `groupId: "notification-service-group"`, `fromBeginning: false`, retry com 10 tentativas e `initialRetryTime` de 300ms.
 
