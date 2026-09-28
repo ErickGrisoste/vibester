@@ -89,10 +89,17 @@ export class ListNotificationsService {
 
     return Promise.all(
       groups.map(async (g) => {
-        const actor = await getActor(g.actorId);
+        // `post_rejected` é aviso do sistema: o `actorId` gravado é o próprio
+        // autor só porque o schema exige o campo. Buscar esse perfil gastaria
+        // uma chamada ao user-service para o app mostrar a pessoa como autora
+        // do aviso sobre o próprio post — `actor: null` é o que o app lê como
+        // "notificação do Vibester".
+        const actor = g.type === "post_rejected" ? null : await getActor(g.actorId);
         let post: PostSummary | null = null;
 
-        if (g.type === "like" || g.type === "comment") {
+        // A miniatura também vale para `post_rejected`: é o que diz ao autor
+        // QUAL publicação foi reprovada, sem ele ter que adivinhar pela data.
+        if (g.type === "like" || g.type === "comment" || g.type === "post_rejected") {
           post = await getPost(g.refId);
         }
 

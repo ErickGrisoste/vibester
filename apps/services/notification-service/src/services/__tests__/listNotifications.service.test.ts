@@ -165,3 +165,51 @@ describe("ListNotificationsService.buildFeed", () => {
         expect(result.nextCursor).toBeNull();
     });
 });
+
+describe("ListNotificationsService.buildFeed — post_rejected", () => {
+    let service: ListNotificationsService;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        service = new ListNotificationsService();
+        mockGetProfile.mockResolvedValue({ accountId: "author-1", name: "Autor", username: "autor", avatarUrl: "" });
+        mockGetPost.mockResolvedValue({ postId: "post-9", imageUrl: "https://img/9.jpg", caption: "c", isDeleted: false });
+    });
+
+    /**
+     * O actorId gravado é o próprio autor só porque o schema exige. Buscar esse
+     * perfil faria o app mostrar a pessoa como autora do aviso sobre o próprio
+     * post — e gastaria uma chamada ao user-service por nada.
+     */
+    it("nao busca ator: aviso do sistema sai com actor null", async () => {
+        mockFindMany.mockResolvedValue([
+            makeRow({ type: "post_rejected", actorId: "author-1", recipientId: "author-1", refId: "post-9", content: "Sua publicação não segue as diretrizes da comunidade." }),
+        ]);
+
+        const result = await service.buildFeed("author-1");
+
+        expect(result.items[0].actor).toBeNull();
+        expect(mockGetProfile).not.toHaveBeenCalled();
+    });
+
+    it("traz a miniatura do post reprovado, para o autor saber qual foi", async () => {
+        mockFindMany.mockResolvedValue([
+            makeRow({ type: "post_rejected", actorId: "author-1", recipientId: "author-1", refId: "post-9" }),
+        ]);
+
+        const result = await service.buildFeed("author-1");
+
+        expect(mockGetPost).toHaveBeenCalledWith("post-9");
+        expect(result.items[0].post?.imageUrl).toBe("https://img/9.jpg");
+    });
+
+    it("entrega o motivo no content", async () => {
+        mockFindMany.mockResolvedValue([
+            makeRow({ type: "post_rejected", actorId: "author-1", recipientId: "author-1", refId: "post-9", content: "Sua publicação não segue as diretrizes da comunidade: há links demais na publicação." }),
+        ]);
+
+        const result = await service.buildFeed("author-1");
+
+        expect(result.items[0].content).toBe("Sua publicação não segue as diretrizes da comunidade: há links demais na publicação.");
+    });
+});
