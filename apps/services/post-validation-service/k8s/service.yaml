@@ -1,0 +1,13 @@
+# Só o modo api recebe tráfego. O worker não precisa de Service: nada o chama
+# por HTTP, e os probes do k8s batem direto no pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: post-validation-service
+  namespace: default
+spec:
+  selector:
+    app: post-validation-service-api
+  ports:
+    - port: 3008
+      targetPort: 3008

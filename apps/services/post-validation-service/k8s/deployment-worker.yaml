@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: post-validation-service-worker
+  namespace: default
+  labels:
+    app: post-validation-service-worker
+spec:
+  replicas: 1
+  # Recreate, e não RollingUpdate: evita um rebalance extra do consumer group
+  # durante o deploy. Mesma escolha do worker do interaction-service.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: post-validation-service-worker
+  template:
+    metadata:
+      labels:
+        app: post-validation-service-worker
+      # Anotações no template do POD (não no metadata do Deployment): é o que o
+      # job `kubernetes-pods` do monitoring/prometheus.yml lê para descobrir o
+      # alvo. No worker é o que mostra quantos posts publicados a revalidação reprova.
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3008"
+        prometheus.io/path: "/metrics"
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: post-validation-service-worker
+          image: ghcr.io/victormarchidev/vibester-post-validation-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3008
+          envFrom:
+            - secretRef:
+                name: post-validation-service-secret
+            - configMapRef:
+                name: redis-env
+          env:
+            - name: SERVICE_MODE
+              value: "worker"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "384Mi"
+          # Aqui, diferente da api, o /ready PODE devolver 503: um worker sem
+          # consumidor Kafka não faz nada, e mantê-lo "pronto" esconderia a falha.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3008
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3008
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL

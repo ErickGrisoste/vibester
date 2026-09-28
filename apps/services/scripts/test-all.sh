@@ -10,6 +10,7 @@ TS_SERVICES=(
   "auth-service"
   "user-service"
   "post-service"
+  "post-validation-service"
   "event-service"
   "establishment-service"
   "feed-service"
