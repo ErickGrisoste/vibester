@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -57,7 +58,8 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     _user = null;
-    ApiClient.token = null;
+    // Não espera o servidor: a sessão local some na hora, com ou sem rede.
+    unawaited(ApiClient.logout());
     await AuthStorageService.clearSession();
     notifyListeners();
   }

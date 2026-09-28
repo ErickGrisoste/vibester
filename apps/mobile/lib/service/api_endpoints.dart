@@ -5,6 +5,9 @@ class ApiEndpoints {
   static String register() => '$baseUrl/auth/register';
   static String login() => '$baseUrl/auth/login';
   static String verifyEmail() => '$baseUrl/auth/verify-email';
+  // Sessão: troca o refresh token por um par novo / encerra a do aparelho.
+  static String refreshSession() => '$baseUrl/auth/refresh';
+  static String logout() => '$baseUrl/auth/logout';
   static String forgotPassword() => '$baseUrl/auth/password/forgot';
   static String resetPassword() => '$baseUrl/auth/password/reset';
   // DELETE autenticado: o accountId vem do JWT, a senha vai no corpo.

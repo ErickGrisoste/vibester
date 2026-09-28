@@ -152,6 +152,8 @@ jobs:
           kubectl apply -f apps/services/auth-service/k8s/
           kubectl set image deployment/auth-service \
             auth-service=ghcr.io/${{ env.OWNER_LC }}/vibester-auth-service:${{ github.sha }}
+          kubectl set image cronjob/auth-session-purge \
+            purge=ghcr.io/${{ env.OWNER_LC }}/vibester-auth-service:${{ github.sha }}
           kubectl rollout status deployment/auth-service --timeout=300s || {
             echo "--- Pod describe ---"
             kubectl describe pod -l app=auth-service

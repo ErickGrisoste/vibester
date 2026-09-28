@@ -98,21 +98,26 @@ void main() async {
   await InterestsStorage.restore();
   var savedUser = await AuthStorageService.loadSession();
   final etapaPendente = await AuthStorageService.etapaPendente();
-  // JWT vencido não é sessão: restaurar abriria a home com o feed recusando
-  // tudo com 401. Descarta e começa pela tela inicial.
-  final savedToken = savedUser?.token;
+  final refreshToken = await AuthStorageService.loadRefreshToken();
+  // Access token vencido é o caso normal de quem reabre o app: a sessão é
+  // restaurada e o interceptor renova antes da primeira chamada, sem segurar a
+  // abertura esperando a rede. Sem refresh token não há como renovar, então a
+  // sessão é descartada aqui.
   // Guardado para a interface: descartar a sessão em silêncio faz o usuário
   // abrir o app, cair na tela inicial e achar que perdeu tudo. O 401 em tempo
   // de uso já explica o que houve (ver `_handleSessionExpired`); o boot
   // precisava fazer o mesmo.
   var sessaoExpirada = false;
-  if (savedToken != null && ApiClient.isTokenExpired(savedToken)) {
+  if (savedUser != null && refreshToken == null) {
     await AuthStorageService.clearSession();
     savedUser = null;
     sessaoExpirada = true;
   }
   if (savedUser?.token != null) {
-    ApiClient.token = savedUser!.token;
+    ApiClient.setSession(
+      accessToken: savedUser!.token!,
+      refreshToken: refreshToken,
+    );
   }
   final initialThemeMode = await ThemeService.loadThemeMode();
   runApp(
@@ -226,7 +231,8 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // 401 numa rota autenticada: o token venceu. Encerra a sessão pelos dois
+  // 401 numa rota autenticada e o refresh token também recusado (vencido,
+  // revogado, conta suspensa) ou inexistente. Encerra a sessão pelos dois
   // lados (memória e storage seguro, via UserProvider.logout) e volta ao
   // login, mesma pilha do "Sair" das configurações.
   Future<void> _handleSessionExpired() async {

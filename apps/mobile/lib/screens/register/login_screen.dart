@@ -61,12 +61,13 @@ class _LoginScreenState extends State<LoginScreen> {
         password: senha,
       );
 
-      final token = loginResponse['token'];
+      final token = loginResponse['accessToken'];
+      final refreshToken = loginResponse['refreshToken'] as String?;
       final accountId = loginResponse['accountId'];
 
       // Token precisa estar setado ANTES do getProfile, porque é o
       // interceptor que anexa o header Authorization na chamada.
-      ApiClient.token = token;
+      ApiClient.setSession(accessToken: token, refreshToken: refreshToken);
 
       // A credencial já foi aceita e o token é válido a partir daqui. Uma
       // falha ao carregar o perfil não pode derrubar o login: entramos com os
@@ -86,6 +87,11 @@ class _LoginScreenState extends State<LoginScreen> {
         usuarioLogado = UserModel.fromLoginJson(loginResponse);
       }
 
+      await AuthStorageService.saveTokens(
+        accessToken: token,
+        refreshToken: refreshToken,
+      );
+
       await AuthStorageService.saveSession(usuarioLogado);
 
       if (!mounted) return;
@@ -104,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Se o login passou mas o perfil falhou, não fica meia sessão: o token
       // já estava no ApiClient para o getProfile.
-      ApiClient.token = null;
+      ApiClient.clearSession();
 
       if (!mounted) return;
       setState(() => _isLoading = false);
