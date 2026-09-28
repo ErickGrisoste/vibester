@@ -11,7 +11,7 @@ O `auth-service` é responsável exclusivamente por:
 
 - registro de contas (fluxo com verificação de email por código), com idade mínima de 18 anos;
 - verificação de email e criação definitiva da conta (`Access`);
-- login e emissão de token JWT;
+- login e sessões: access token (JWT curto) + refresh token rotativo (`/refresh`, `/logout`);
 - redefinição de senha por código (`/password/forgot`, `/password/reset`);
 - exclusão da conta pelo titular (`DELETE /account`, evento `user.deleted`) e suspensão pela moderação (`/admin/accounts/:accountId/(un)suspend`).
 
@@ -137,4 +137,16 @@ Todo valor de configuração novo deve passar por `src/config/env.ts` (nunca ler
 - **Idade mínima**: `RegisterService` recusa com 400 (`reason: underage`) quem ainda não fez 18 anos (`hasMinimumAge`, em UTC). O app aplica a mesma regra antes de enviar.
 - **Esqueci a senha** — `POST /password/forgot { email }` responde **sempre** 202 com a mesma mensagem (sem enumeração). Com conta, grava `pwreset:{email}` no Redis (HMAC do código, `PASSWORD_RESET_TTL_SECONDS`, padrão 600s), com cooldown de 60s entre envios, e publica `auth.password.reset { email, name, code, expiresInMinutes }` (email pelo notification-service). `POST /password/reset { email, code, password(min 8) }`: 404 sem pendência, 422 código errado, 429 após `MAX_CODE_ATTEMPTS`; sucesso troca o hash, consome o código e zera o contador de falhas de login. O HMAC do código vive em `services/verification-code.ts`, compartilhado com a verificação de cadastro.
 - **Excluir conta** — `DELETE /account { password }` com `Authorization: Bearer`. O `accountId` vem **só** do JWT (`utils/request-auth.ts`). Senha errada = 401 "Senha incorreta". Ordem: publica `user.deleted { userId, accountId, occurredAt }` (key = accountId) **antes** de apagar o `Access`; se o publish falha nada é apagado, se o delete falha a repetição republica (consumidores são idempotentes). Consumidores: user-service (perfil, follows, bloqueios, denúncias), post-service (posts, curtidas, comentários, mídia no R2), notification-service (notificações). **Check-ins do event-service não são apagados** (o serviço não tem Kafka) — ficam com o `userId` de uma conta que não existe mais.
-- **Suspensão (moderação)** — `POST /admin/accounts/:accountId/suspend` e `/unsuspend` com header `x-admin-key` = `ADMIN_API_KEY` (secret `auth-admin-secret`, opcional; **sem a variável as rotas respondem 404**). Grava `Access.suspendedAt`; o login recusa com 403 **depois** de conferir a senha (antes disso revelaria que a conta existe). Token já emitido vence sozinho em `JWT_EXPIRES_IN`.
+- **Suspensão (moderação)** — `POST /admin/accounts/:accountId/suspend` e `/unsuspend` com header `x-admin-key` = `ADMIN_API_KEY` (secret `auth-admin-secret`, opcional; **sem a variável as rotas respondem 404**). Grava `Access.suspendedAt` e apaga todas as sessões da conta; o login recusa com 403 **depois** de conferir a senha (antes disso revelaria que a conta existe) e o `/refresh` também responde 403. O access token já emitido vence sozinho em `ACCESS_TOKEN_TTL_SECONDS`.
+
+---
+
+## Sessões (access + refresh token)
+
+- **Login** (`POST /login`) abre uma sessão e devolve `accessToken` (JWT HS256, `ACCESS_TOKEN_TTL_SECONDS`, padrão 900s), `refreshToken` e `expiresIn` (segundos). O payload do JWT é o de sempre (`userId`, `accountId`), então os outros serviços continuam conferindo o token sozinhos, sem consultar sessão.
+- **Refresh token é opaco** (32 bytes aleatórios, base64url), nunca JWT: um JWT com o mesmo segredo seria aceito como access token pelos outros serviços. O banco guarda só o SHA-256 (`services/session.service.ts`). Nunca logar o refresh token.
+- **Tabela `sessions`**: uma linha por aparelho logado, com `tokenHash` (atual) e `previousTokenHash` (o que acabou de ser trocado). A rotação sobrescreve a linha — a tabela cresce com sessões ativas, não com renovações. FK para `accesses.accountId` com `ON DELETE CASCADE` (excluir a conta derruba as sessões).
+- **`POST /refresh { refreshToken }`**: troca o token e renova a validade (`REFRESH_TOKEN_TTL_SECONDS`, padrão 30 dias, sem teto absoluto). As trocas são `updateMany` condicionais no hash, para duas requisições simultâneas não divergirem. Token anterior reapresentado dentro de `REFRESH_TOKEN_REUSE_GRACE_SECONDS` (20s) recebe outro par (resposta perdida, corrida); fora dela é tratado como roubo e **a sessão é apagada** (`reason: refresh_token_reused`). Sessão vencida ou conta suspensa também apagam a linha.
+- **`POST /logout { refreshToken }`**: apaga a sessão, sempre 204.
+- **Troca de senha** (`/password/reset`) e **suspensão** apagam todas as sessões da conta (`SessionService.revokeAll`).
+- **Limpeza**: `src/jobs/purge-expired-sessions.ts`, rodado pelo CronJob `k8s/cronjob-purge-sessions.yaml` (diário, lotes de 5.000). O deploy atualiza a imagem do CronJob junto com a do Deployment.

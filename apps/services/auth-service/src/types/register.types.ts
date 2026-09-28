@@ -1,3 +1,5 @@
+import { TokenPair } from "./session.types";
+
 export interface RegisterInputInterface {
     username: string;
     name: string;
@@ -23,8 +25,7 @@ export interface RegisterOutputInterface {
     updatedAt: Date;
 }
 
-export interface LoginOutputInterface {
+export interface LoginOutputInterface extends TokenPair {
     authId: string;
-    token: string;
     accountId: string;
 }

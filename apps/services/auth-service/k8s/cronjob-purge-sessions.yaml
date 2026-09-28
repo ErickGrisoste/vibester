@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: auth-session-purge
+  namespace: default
+  labels:
+    app: auth-session-purge
+spec:
+  # Diário, de madrugada (UTC), fora do pico de uso.
+  schedule: "30 6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app: auth-session-purge
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: ghcr-secret
+          containers:
+            - name: purge
+              # A tag é trocada pelo deploy (kubectl set image), junto com a do Deployment.
+              image: ghcr.io/victormarchidev/vibester-auth-service:latest
+              imagePullPolicy: IfNotPresent
+              command: ["node", "dist/jobs/purge-expired-sessions.js"]
+              envFrom:
+                - secretRef:
+                    name: auth-db-secret
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "250m"
+                  memory: "256Mi"

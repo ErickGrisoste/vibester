@@ -26,23 +26,23 @@ describe('LoginController', () => {
   });
 
   it('should call service and return 200 on success', async () => {
-    vi.mocked(LoginService).prototype.login = vi.fn().mockResolvedValue({ authId: '1', token: 't', accountId: 'acc' });
+    vi.mocked(LoginService).prototype.login = vi.fn().mockResolvedValue({ authId: '1', accountId: 'acc', accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
 
     const controller = new LoginController();
-    const req: any = { body: { email: 'a@b.com', password: 'password' }, log: { error: vi.fn(), warn: vi.fn() } };
+    const req: any = { body: { email: 'a@b.com', password: 'password' }, headers: {}, log: { error: vi.fn(), warn: vi.fn() } };
     const reply = mockReply();
 
     await controller.login(req, reply);
 
     expect(reply.status).toHaveBeenCalledWith(200);
-    expect(reply.send).toHaveBeenCalledWith({ authId: '1', token: 't', accountId: 'acc' });
+    expect(reply.send).toHaveBeenCalledWith({ authId: '1', accountId: 'acc', accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
   });
 
   it('should return 401 when service throws AppError 401', async () => {
     vi.mocked(LoginService).prototype.login = vi.fn().mockRejectedValue(new AppError('Usuário ou senha inválidos', 401));
 
     const controller = new LoginController();
-    const req: any = { body: { email: 'a@b.com', password: 'password' }, log: { error: vi.fn(), warn: vi.fn() } };
+    const req: any = { body: { email: 'a@b.com', password: 'password' }, headers: {}, log: { error: vi.fn(), warn: vi.fn() } };
     const reply = mockReply();
 
     await controller.login(req, reply);
@@ -55,7 +55,7 @@ describe('LoginController', () => {
     vi.mocked(LoginService).prototype.login = vi.fn().mockRejectedValue(new Error('DB timeout'));
 
     const controller = new LoginController();
-    const req: any = { body: { email: 'a@b.com', password: 'password' }, log: { error: vi.fn(), warn: vi.fn() } };
+    const req: any = { body: { email: 'a@b.com', password: 'password' }, headers: {}, log: { error: vi.fn(), warn: vi.fn() } };
     const reply = mockReply();
 
     await controller.login(req, reply);

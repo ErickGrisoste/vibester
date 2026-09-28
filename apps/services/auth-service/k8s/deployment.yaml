@@ -54,6 +54,20 @@ spec:
             # Validade do código de redefinição de senha (evento auth.password.reset).
             - name: PASSWORD_RESET_TTL_SECONDS
               value: "600"
+            # Sessão: access token (JWT) curto + refresh token renovado a cada uso.
+            # O access token é o tempo máximo para suspensão/troca de senha valer
+            # nos outros serviços; o refresh é quanto tempo sem abrir o app até
+            # precisar logar de novo.
+            - name: ACCESS_TOKEN_TTL_SECONDS
+              value: "900"
+            - name: REFRESH_TOKEN_TTL_SECONDS
+              value: "2592000"
+            # Tolerância para reenvio do refresh token recém-trocado; depois
+            # dela, reapresentá-lo encerra a sessão (token roubado).
+            - name: REFRESH_TOKEN_REUSE_GRACE_SECONDS
+              value: "20"
+            - name: RATE_LIMIT_REFRESH_MAX
+              value: "60"
             # Chave das rotas /admin/accounts/:id/(un)suspend usadas pela moderação.
             # Sem o secret, as rotas respondem 404.
             - name: ADMIN_API_KEY

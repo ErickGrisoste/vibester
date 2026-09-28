@@ -6,6 +6,7 @@ import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { PendingPasswordReset } from "../types/password-reset.types";
 import { AuthAttemptsService } from "./auth-attempts.service";
+import { SessionService } from "./session.service";
 import { codeMatches, generateCode, hashCode } from "./verification-code";
 
 export const PASSWORD_RESET_TOPIC = "auth.password.reset";
@@ -17,6 +18,7 @@ const RESEND_COOLDOWN_SECONDS = 60;
 
 export class PasswordResetService {
     private readonly attempts = new AuthAttemptsService();
+    private readonly sessions = new SessionService();
 
     /**
      * Envia um código de redefinição para o email, se houver conta.
@@ -96,8 +98,13 @@ export class PasswordResetService {
             throw err;
         }
 
-        await redis.del(key);
-        await this.attempts.clearLoginFailures(email);
+        // Quem troca a senha pode estar tirando um invasor da conta: todas as
+        // sessões abertas caem, inclusive a do próprio aparelho.
+        await Promise.all([
+            redis.del(key),
+            this.attempts.clearLoginFailures(email),
+            this.sessions.revokeAll(pending.accountId),
+        ]);
     }
 
     private async registerFailedAttempt(key: string, pending: PendingPasswordReset): Promise<void> {

@@ -1,6 +1,6 @@
 import { FastifyRequest } from "fastify";
 
-export type AuthEvent = "login" | "verify-email" | "register" | "password-reset" | "account-delete" | "admin";
+export type AuthEvent = "login" | "verify-email" | "register" | "password-reset" | "account-delete" | "admin" | "refresh";
 
 /**
  * Mascara o identificador antes de ir para o log.

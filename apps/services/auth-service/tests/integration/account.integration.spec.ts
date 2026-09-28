@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import prismaMock, { mockAccess } from '../mocks/prisma.client';
+import prismaMock, { mockAccess, mockSession } from '../mocks/prisma.client';
 
 vi.mock('../../src/prisma', () => ({ default: prismaMock }));
 vi.mock('../../src/prisma/index', () => ({ default: prismaMock }));
@@ -121,6 +121,7 @@ describe('POST /admin/accounts/:accountId/(un)suspend', () => {
       where: { accountId: ACCOUNT_ID },
       data: { suspendedAt: expect.any(Date) },
     });
+    expect(mockSession.deleteMany).toHaveBeenCalledWith({ where: { accountId: ACCOUNT_ID } });
   });
 
   it('204 reativa limpando suspendedAt', async () => {

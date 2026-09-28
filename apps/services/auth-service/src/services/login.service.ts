@@ -1,10 +1,9 @@
 import prismaClient from "../prisma";
 import { LoginInputInterface, LoginOutputInterface } from "../types/register.types";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import { env } from "../config/env";
 import { AppError } from "../errors/app-error";
 import { AuthAttemptsService } from "./auth-attempts.service";
+import { SessionService } from "./session.service";
 
 // O cadastro grava o username com "@" na frente (ex.: "@joaosilva"), mas o
 // usuario digita tanto "joaosilva" quanto "@joaosilva" na tela de login.
@@ -20,8 +19,9 @@ function usernameVariants(username: string): string[] {
 
 export class LoginService {
     private readonly attempts = new AuthAttemptsService();
+    private readonly sessions = new SessionService();
 
-    async login(input: LoginInputInterface): Promise<LoginOutputInterface> {
+    async login(input: LoginInputInterface, userAgent?: string): Promise<LoginOutputInterface> {
         const usernames = input.username ? usernameVariants(input.username) : [];
 
         const user = await prismaClient.access.findFirst({
@@ -56,18 +56,15 @@ export class LoginService {
             );
         }
 
-        await this.attempts.clearLoginFailures(user.email);
-
-        const token = jwt.sign(
-            { userId: user.id, accountId: user.accountId },
-            env.jwtSecret,
-            { expiresIn: env.jwtExpiresIn as jwt.SignOptions["expiresIn"] }
-        );
+        const [, session] = await Promise.all([
+            this.attempts.clearLoginFailures(user.email),
+            this.sessions.start(user, userAgent),
+        ]);
 
         return {
             authId: user.id,
-            token,
             accountId: user.accountId,
+            ...session,
         };
     }
 }
