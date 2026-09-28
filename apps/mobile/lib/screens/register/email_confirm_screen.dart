@@ -53,10 +53,11 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
         password: widget.senha,
       );
 
-      final token = loginResponse['token'];
+      final token = loginResponse['accessToken'];
+      final refreshToken = loginResponse['refreshToken'] as String?;
       final accountId = loginResponse['accountId'];
 
-      ApiClient.token = token;
+      ApiClient.setSession(accessToken: token, refreshToken: refreshToken);
 
       // Mesmo tratamento da tela de login: a conta já foi criada e o token é
       // válido, então falha ao carregar o perfil não desfaz o cadastro.
@@ -72,6 +73,11 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
         debugPrint('Cadastro OK, mas falhou ao carregar o perfil: $e');
         usuarioLogado = UserModel.fromLoginJson(loginResponse);
       }
+
+      await AuthStorageService.saveTokens(
+        accessToken: token,
+        refreshToken: refreshToken,
+      );
 
       await AuthStorageService.saveSession(usuarioLogado);
 
@@ -93,7 +99,7 @@ class _EmailConfirmScreenState extends State<EmailConfirmScreen> {
       );
     } catch (e) {
       debugPrint(e.toString());
-      ApiClient.token = null;
+      ApiClient.clearSession();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

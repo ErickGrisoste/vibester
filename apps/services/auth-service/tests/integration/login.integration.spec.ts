@@ -36,7 +36,9 @@ describe('Login integration', () => {
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
-    expect(body).toHaveProperty('token');
+    expect(body).toHaveProperty('accessToken');
+    expect(body).toHaveProperty('refreshToken');
+    expect(body).not.toHaveProperty('token');
     expect(body.authId).toBe(user.id);
   });
 

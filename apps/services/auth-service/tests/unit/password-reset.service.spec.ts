@@ -19,7 +19,7 @@ vi.mock('bcryptjs', () => {
 });
 
 import { PasswordResetService, PASSWORD_RESET_TOPIC } from '../../src/services/password-reset.service';
-import { mockAccess } from '../mocks/prisma.client';
+import { mockAccess, mockSession } from '../mocks/prisma.client';
 import { redisMock } from '../mocks/redis';
 import { producerMock } from '../mocks/kafka.producer';
 
@@ -125,6 +125,23 @@ describe('PasswordResetService.reset', () => {
     });
     expect(redisMock.del).toHaveBeenCalledWith(`pwreset:${ACCOUNT.email}`);
     expect(redisMock.del).toHaveBeenCalledWith(`auth:fail:login:${ACCOUNT.email}`);
+  });
+
+  it('encerra todas as sessões da conta ao trocar a senha', async () => {
+    redisMock.get.mockResolvedValueOnce(JSON.stringify({ accountId: ACCOUNT.accountId, codeHash: hmac('654321') }));
+    mockAccess.update.mockResolvedValueOnce({});
+
+    await service.reset(ACCOUNT.email, '654321', 'novaSenha123');
+
+    expect(mockSession.deleteMany).toHaveBeenCalledWith({ where: { accountId: ACCOUNT.accountId } });
+  });
+
+  it('não mexe nas sessões quando o código está errado', async () => {
+    redisMock.get.mockResolvedValueOnce(JSON.stringify({ accountId: ACCOUNT.accountId, codeHash: hmac('654321') }));
+
+    await service.reset(ACCOUNT.email, '000000', 'novaSenha123').catch(() => {});
+
+    expect(mockSession.deleteMany).not.toHaveBeenCalled();
   });
 
   it('404 quando a conta foi excluída depois do pedido', async () => {

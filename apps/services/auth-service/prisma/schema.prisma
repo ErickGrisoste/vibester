@@ -21,6 +21,29 @@ model Access {
   suspendedAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  sessions     Session[]
 
   @@map("accesses")
+}
+
+// Uma linha por dispositivo logado. Guarda só o hash (SHA-256) do refresh
+// token atual e do anterior: o token em si vive apenas no aparelho. A troca a
+// cada refresh sobrescreve a linha em vez de criar outra, então a tabela cresce
+// com o número de sessões ativas, não com o número de renovações.
+model Session {
+  id                String    @id @default(uuid())
+  accountId         String
+  tokenHash         String    @unique
+  // Token que acabou de ser trocado. Reapresentado dentro da janela de
+  // tolerância é reenvio legítimo; fora dela, sinal de roubo.
+  previousTokenHash String?   @unique
+  rotatedAt         DateTime?
+  expiresAt         DateTime
+  userAgent         String?
+  createdAt         DateTime  @default(now())
+  access            Access    @relation(fields: [accountId], references: [accountId], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("sessions")
 }

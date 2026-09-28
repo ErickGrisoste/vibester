@@ -19,7 +19,7 @@ export class LoginController {
         }
 
         try {
-            const account = await this.loginService.login(request.body);
+            const account = await this.loginService.login(request.body, request.headers["user-agent"]);
             return reply.status(200).send(account);
         } catch (error: any) {
             if (error instanceof AppError) {

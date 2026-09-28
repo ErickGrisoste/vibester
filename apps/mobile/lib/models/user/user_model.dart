@@ -71,7 +71,7 @@ class UserModel {
   factory UserModel.fromLoginJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['authId'],
-      token: json['token'],
+      token: json['accessToken'],
       accountId: json['accountId'],
       nome: '',
       nomeUsuario: '',

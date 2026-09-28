@@ -32,6 +32,11 @@ class AuthStorageService {
   static const _sessionKey = 'user_session';
   static const _etapaKey = 'etapa_cadastro';
 
+  /// Tokens em chaves próprias, fora do JSON do perfil: o `ApiClient` troca os
+  /// dois a cada refresh e não pode depender de ter o `UserModel` em mãos.
+  static const _accessTokenKey = 'access_token';
+  static const _refreshTokenKey = 'refresh_token';
+
   /// Chave da versão anterior, que só marcava a apresentação.
   ///
   /// Mantida apenas para leitura: quem atualizar o app no meio do onboarding
@@ -41,7 +46,6 @@ class AuthStorageService {
 
   static Future<void> saveSession(UserModel user) async {
     final json = jsonEncode({
-      'token': user.token,
       'accountId': user.accountId,
       'id': user.id,
       'userID': user.userID,
@@ -63,9 +67,10 @@ class AuthStorageService {
       final json = await _storage.read(key: _sessionKey);
       if (json == null) return null;
       final map = jsonDecode(json) as Map<String, dynamic>;
-      if (map['token'] == null) return null;
+      final token = await _storage.read(key: _accessTokenKey);
+      if (token == null) return null;
       return UserModel(
-        token: map['token'] as String,
+        token: token,
         accountId: map['accountId'] as String?,
         id: map['id'] as String?,
         userID: map['userID'] as String?,
@@ -81,6 +86,24 @@ class AuthStorageService {
         createdAt: (map['createdAt'] as String?) ?? '',
         updatedAt: (map['updatedAt'] as String?) ?? '',
       );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> saveTokens({
+    required String accessToken,
+    String? refreshToken,
+  }) async {
+    await _storage.write(key: _accessTokenKey, value: accessToken);
+    if (refreshToken != null) {
+      await _storage.write(key: _refreshTokenKey, value: refreshToken);
+    }
+  }
+
+  static Future<String?> loadRefreshToken() async {
+    try {
+      return await _storage.read(key: _refreshTokenKey);
     } catch (_) {
       return null;
     }
@@ -113,6 +136,8 @@ class AuthStorageService {
 
   static Future<void> clearSession() async {
     await _storage.delete(key: _sessionKey);
+    await _storage.delete(key: _accessTokenKey);
+    await _storage.delete(key: _refreshTokenKey);
     await _storage.delete(key: _etapaKey);
     await _storage.delete(key: _onboardingKey);
   }

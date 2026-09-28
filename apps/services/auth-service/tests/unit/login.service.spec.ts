@@ -35,7 +35,9 @@ describe('LoginService', () => {
 
     expect(mockAccess.findFirst).toHaveBeenCalled();
     expect(bcrypt.compare).toHaveBeenCalledWith('plain', 'hashed');
-    expect(result).toHaveProperty('token');
+    expect(result).toHaveProperty('accessToken');
+    expect(result).toHaveProperty('refreshToken');
+    expect(result).not.toHaveProperty('token');
     expect(result.authId).toBe(user.id);
   });
 

@@ -1,14 +1,19 @@
 import prismaClient from "../prisma/index";
 import { AppError } from "../errors/app-error";
+import { SessionService } from "./session.service";
 
 /**
  * Suspensão de conta por moderação (Guideline 1.2 da App Store: remover quem
- * publica conteúdo abusivo). Conta suspensa não consegue mais fazer login; o
- * token já emitido vence sozinho em até `JWT_EXPIRES_IN`.
+ * publica conteúdo abusivo). Suspender encerra todas as sessões e bloqueia
+ * login e refresh; o access token já emitido vence sozinho em até
+ * `ACCESS_TOKEN_TTL_SECONDS`.
  */
 export class AccountSuspensionService {
+    private readonly sessions = new SessionService();
+
     async suspend(accountId: string): Promise<void> {
         await this.setSuspendedAt(accountId, new Date());
+        await this.sessions.revokeAll(accountId);
     }
 
     async unsuspend(accountId: string): Promise<void> {

@@ -5,8 +5,18 @@ dotenv.config();
 export const env = {
     port: Number(process.env.PORT) || 3001,
     jwtSecret: process.env.JWT_SECRET as string,
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1h",
-    jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    // Validade do access token (JWT). Curto de propósito: é o tempo máximo que
+    // uma suspensão ou troca de senha leva para valer nos outros serviços, que
+    // conferem o JWT sozinhos e não consultam sessão.
+    accessTokenTtlSeconds: Number(process.env.ACCESS_TOKEN_TTL_SECONDS) || 900,
+    // Validade do refresh token, renovada a cada uso: quem abre o app ao menos
+    // uma vez nesse intervalo nunca precisa logar de novo.
+    refreshTokenTtlSeconds: Number(process.env.REFRESH_TOKEN_TTL_SECONDS) || 30 * 24 * 60 * 60,
+    // Janela em que o refresh token recém-trocado ainda é aceito (resposta
+    // perdida na rede, requisições simultâneas). Depois dela, reapresentá-lo é
+    // tratado como roubo e derruba a sessão.
+    refreshTokenReuseGraceSeconds: Number(process.env.REFRESH_TOKEN_REUSE_GRACE_SECONDS) || 20,
+    rateLimitRefreshMax: Number(process.env.RATE_LIMIT_REFRESH_MAX) || 60,
     databaseUrl: process.env.DATABASE_URL as string,
     profileServiceUrl: process.env.PROFILE_SERVICE_URL as string,
     kafkaBrokers: process.env.KAFKA_BROKERS as string,

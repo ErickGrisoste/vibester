@@ -140,7 +140,7 @@ data:
           "post": {
             "summary": "Login",
             "tags": ["Auth"],
-            "description": "Autentica uma conta usando email ou username e retorna um token JWT.",
+            "description": "Autentica uma conta usando email ou username e abre uma sessão para o aparelho. Devolve um access token (JWT de 15 min, enviado como `Authorization: Bearer` nas rotas autenticadas) e um refresh token (30 dias, renovados a cada POST /auth/refresh). O username é aceito com ou sem o prefixo \"@\".",
             "requestBody": {
               "required": true,
               "content": {
@@ -166,8 +166,10 @@ data:
                       "type": "object",
                       "properties": {
                         "authId": { "type": "string", "format": "uuid", "description": "ID da conta no auth-service" },
-                        "token": { "type": "string" },
-                        "accountId": { "type": "string", "format": "uuid", "description": "ID da conta usado como userID no user-service" }
+                        "accountId": { "type": "string", "format": "uuid", "description": "ID da conta usado como userID no user-service" },
+                        "accessToken": { "type": "string", "description": "JWT enviado como Authorization: Bearer" },
+                        "refreshToken": { "type": "string", "description": "Opaco. Guardar no armazenamento seguro do aparelho e usar só em /auth/refresh e /auth/logout" },
+                        "expiresIn": { "type": "integer", "example": 900, "description": "Validade do access token, em segundos" }
                       }
                     }
                   }
@@ -181,6 +183,116 @@ data:
                       "type": "object",
                       "properties": { "error": { "type": "string" } }
                     }
+                  }
+                }
+              },
+              "401": {
+                "description": "Usuário ou senha inválidos",
+                "content": {
+                  "application/json": {
+                    "schema": { "type": "object", "properties": { "error": { "type": "string" } } }
+                  }
+                }
+              },
+              "403": {
+                "description": "Conta suspensa pela moderação",
+                "content": {
+                  "application/json": {
+                    "schema": { "type": "object", "properties": { "error": { "type": "string" } } }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/auth/refresh": {
+          "post": {
+            "summary": "Renovar a sessão",
+            "tags": ["Auth"],
+            "description": "Troca o refresh token por um par novo (access + refresh) e renova a validade da sessão por mais 30 dias. O refresh token enviado deixa de valer: reenviá-lo em até 20s devolve outro par (resposta perdida, requisições simultâneas); depois disso é tratado como token roubado e a sessão é encerrada. Não exige Authorization.",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "required": ["refreshToken"],
+                    "properties": {
+                      "refreshToken": { "type": "string", "minLength": 1, "maxLength": 128 }
+                    }
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "Sessão renovada",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "accessToken": { "type": "string" },
+                        "refreshToken": { "type": "string" },
+                        "expiresIn": { "type": "integer", "example": 900 }
+                      }
+                    }
+                  }
+                }
+              },
+              "400": {
+                "description": "Dados inválidos",
+                "content": {
+                  "application/json": {
+                    "schema": { "type": "object", "properties": { "error": { "type": "string" } } }
+                  }
+                }
+              },
+              "401": {
+                "description": "Refresh token inválido, expirado, revogado ou reutilizado — é preciso logar de novo",
+                "content": {
+                  "application/json": {
+                    "schema": { "type": "object", "properties": { "error": { "type": "string" } } }
+                  }
+                }
+              },
+              "403": {
+                "description": "Conta suspensa pela moderação (a sessão é encerrada)",
+                "content": {
+                  "application/json": {
+                    "schema": { "type": "object", "properties": { "error": { "type": "string" } } }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/auth/logout": {
+          "post": {
+            "summary": "Encerrar a sessão do aparelho",
+            "tags": ["Auth"],
+            "description": "Invalida o refresh token enviado. Idempotente: responde 204 mesmo se a sessão já não existir. O access token já emitido vence sozinho em até 15 min.",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "required": ["refreshToken"],
+                    "properties": {
+                      "refreshToken": { "type": "string", "minLength": 1, "maxLength": 128 }
+                    }
+                  }
+                }
+              }
+            },
+            "responses": {
+              "204": { "description": "Sessão encerrada" },
+              "400": {
+                "description": "Dados inválidos",
+                "content": {
+                  "application/json": {
+                    "schema": { "type": "object", "properties": { "error": { "type": "string" } } }
                   }
                 }
               }

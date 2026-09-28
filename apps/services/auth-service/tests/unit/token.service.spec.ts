@@ -10,9 +10,9 @@ describe('Token generation/validation', () => {
   it('should sign token with env secret', () => {
     vi.mocked(jwt.sign).mockReturnValue('signed' as any);
 
-    const token = jwt.sign({ userId: 'u' }, env.jwtSecret, { expiresIn: env.jwtExpiresIn as any });
+    const token = jwt.sign({ userId: 'u' }, env.jwtSecret, { expiresIn: env.accessTokenTtlSeconds });
 
-    expect(jwt.sign).toHaveBeenCalledWith({ userId: 'u' }, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
+    expect(jwt.sign).toHaveBeenCalledWith({ userId: 'u' }, env.jwtSecret, { expiresIn: env.accessTokenTtlSeconds });
     expect(token).toBe('signed');
   });
 

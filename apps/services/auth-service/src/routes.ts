@@ -6,6 +6,8 @@ import { LoginController } from "./controllers/login.controller";
 import { EmailVerificationController } from "./controllers/email-verification.controller";
 import { PasswordResetController } from "./controllers/password-reset.controller";
 import { AccountController } from "./controllers/account.controller";
+import { SessionController } from "./controllers/session.controller";
+import { RefreshTokenInputInterface } from "./types/session.types";
 import { ForgotPasswordInputInterface, ResetPasswordInputInterface } from "./types/password-reset.types";
 import { AccountIdParamsInterface, DeleteAccountInputInterface } from "./types/account.types";
 import { env } from "./config/env";
@@ -15,10 +17,25 @@ const loginController = new LoginController();
 const emailVerificationController = new EmailVerificationController();
 const passwordResetController = new PasswordResetController();
 const accountController = new AccountController();
+const sessionController = new SessionController();
 
 const errorResponse = {
     type: "object",
     properties: { error: { type: "string" } },
+};
+
+const tokenPairProperties = {
+    accessToken: { type: "string" },
+    refreshToken: { type: "string" },
+    expiresIn: { type: "integer", description: "Validade do access token, em segundos" },
+};
+
+const refreshTokenBody = {
+    type: "object",
+    required: ["refreshToken"],
+    properties: {
+        refreshToken: { type: "string", minLength: 1, maxLength: 128 },
+    },
 };
 
 const accountIdParams = {
@@ -165,7 +182,7 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
         schema: {
             tags: ["Auth"],
             summary: "Login",
-            description: "Autentica uma conta usando email ou username e retorna um token JWT. O username é aceito com ou sem o prefixo \"@\". Falhas consecutivas são contabilizadas e o dono da conta é notificado por email ao atingir o limite da janela.",
+            description: "Autentica uma conta usando email ou username e abre uma sessão: devolve um access token (JWT de ACCESS_TOKEN_TTL_SECONDS) e um refresh token (REFRESH_TOKEN_TTL_SECONDS, renovado a cada POST /refresh). O username é aceito com ou sem o prefixo \"@\". Falhas consecutivas são contabilizadas e o dono da conta é notificado por email ao atingir o limite da janela.",
             body: {
                 type: "object",
                 required: ["password"],
@@ -185,8 +202,8 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
                     type: "object",
                     properties: {
                         authId: { type: "string", format: "uuid" },
-                        token: { type: "string" },
                         accountId: { type: "string", format: "uuid" },
+                        ...tokenPairProperties,
                     },
                 },
                 400: {
@@ -213,6 +230,54 @@ export async function authRoutes(instance: FastifyInstance, options: FastifyPlug
         request: FastifyRequest<{ Body: LoginInputInterface }>,
         reply: FastifyReply) => {
             return loginController.login(request, reply);
+        }
+    );
+
+    instance.post("/refresh", {
+        schema: {
+            tags: ["Auth"],
+            summary: "Renovar a sessão",
+            description: "Troca o refresh token por um par novo (access + refresh). O refresh token enviado deixa de valer: reenviá-lo dentro de REFRESH_TOKEN_REUSE_GRACE_SECONDS devolve outro par; depois disso é tratado como roubo e encerra a sessão. Conta suspensa responde 403 e perde a sessão.",
+            body: refreshTokenBody,
+            response: {
+                200: {
+                    description: "Sessão renovada",
+                    type: "object",
+                    properties: tokenPairProperties,
+                },
+                400: { description: "Dados inválidos", ...errorResponse },
+                401: { description: "Refresh token inválido, expirado ou reutilizado", ...errorResponse },
+                403: { description: "Conta suspensa pela moderação", ...errorResponse },
+            },
+        },
+        config: {
+            rateLimit: { max: env.rateLimitRefreshMax, timeWindow: '1 minute' },
+        },
+    }, async (
+        request: FastifyRequest<{ Body: RefreshTokenInputInterface }>,
+        reply: FastifyReply) => {
+            return sessionController.refresh(request, reply);
+        }
+    );
+
+    instance.post("/logout", {
+        schema: {
+            tags: ["Auth"],
+            summary: "Encerrar a sessão do aparelho",
+            description: "Invalida o refresh token enviado. Idempotente: responde 204 mesmo se o token não existir mais. O access token já emitido vence sozinho em ACCESS_TOKEN_TTL_SECONDS.",
+            body: refreshTokenBody,
+            response: {
+                204: { description: "Sessão encerrada", type: "null" },
+                400: { description: "Dados inválidos", ...errorResponse },
+            },
+        },
+        config: {
+            rateLimit: { max: env.rateLimitRefreshMax, timeWindow: '1 minute' },
+        },
+    }, async (
+        request: FastifyRequest<{ Body: RefreshTokenInputInterface }>,
+        reply: FastifyReply) => {
+            return sessionController.logout(request, reply);
         }
     );
 
