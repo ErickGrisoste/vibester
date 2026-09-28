@@ -8,8 +8,15 @@ export async function registerSwagger(app: FastifyInstance) {
       info: {
         title: "Auth Service API",
         description:
-          "Documentação da API do serviço de autenticação do Vibester (registro e login de contas).",
+          "Documentação da API do serviço de autenticação do Vibester (registro, login e sessões).",
         version: "1.0.0",
+      },
+      // Referenciado por `security: [{ bearerAuth: [] }]` nas rotas: sem a
+      // declaração, `app.swagger()` lança e a geração da doc quebra.
+      components: {
+        securitySchemes: {
+          bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT" },
+        },
       },
       tags: [
         { name: "Health", description: "Verificação de saúde do serviço" },
