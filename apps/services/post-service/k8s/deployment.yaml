@@ -19,6 +19,18 @@ spec:
     metadata:
       labels:
         app: post-service
+      # Anotações no template do POD: é o que o job `kubernetes-pods` do
+      # monitoring/prometheus.yml lê para descobrir o alvo. Entraram junto com a
+      # integração ao post-validation-service porque `post_validation_total` —
+      # a métrica que decide quando virar POST_VALIDATION_MODE de `warn` para
+      # `block` — vive aqui e, sem scrape, o rollout seria às cegas. Como efeito,
+      # as demais métricas que o serviço já expunha em /metrics passam a ser
+      # coletadas também (todas com cardinalidade controlada; ver "Infra" no
+      # CLAUDE.md do serviço).
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
     spec:
       imagePullSecrets:
         - name: ghcr-secret
@@ -41,6 +53,21 @@ spec:
           env:
             - name: ASTRA_SECURE_CONNECT_BUNDLE
               value: /etc/astra/secure-connect-bundle.zip
+            # post-validation-service. Nao e segredo: e endereco de Service
+            # interno e politica de enforcement, ambos versionados aqui de
+            # proposito, para que virar `warn`/`block` seja um diff revisavel.
+            - name: POST_VALIDATION_URL
+              value: http://post-validation-service:3008
+            - name: POST_VALIDATION_TIMEOUT_MS
+              value: "1000"
+            # `warn` no primeiro deploy: consulta e mede, mas nao barra.
+            # Acompanhe post_validation_total{result="invalid"} por alguns dias
+            # e, quando a taxa nao for falso positivo da blocklist, troque para
+            # "block" neste arquivo — o CI aplica o manifest, entao a troca e um
+            # diff revisavel. Ligar direto em `block` faz todo falso positivo
+            # virar publicacao recusada no primeiro minuto.
+            - name: POST_VALIDATION_MODE
+              value: "warn"
           volumeMounts:
             - name: astra-bundle
               mountPath: /etc/astra

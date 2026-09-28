@@ -72,6 +72,37 @@ const likeSchema = {
     },
 };
 
+/**
+ * 422 da validação de conteúdo (post-validation-service).
+ *
+ * Declarar a resposta não é só documentação: o Fastify serializa cada status
+ * declarado com o schema dele e descarta o que não estiver listado. Sem
+ * `issues` aqui, o array sumiria do corpo e o app perderia os códigos.
+ */
+const contentRejectedSchema = {
+    type: "object",
+    description:
+        "Conteúdo recusado pelas diretrizes da comunidade. `message` já traz os motivos em pt-BR, prontos para exibir; `issues` detalha cada um. Nunca informa qual termo ou domínio casou.",
+    properties: {
+        message: { type: "string" },
+        issues: {
+            type: "array",
+            items: {
+                type: "object",
+                properties: {
+                    code: {
+                        type: "string",
+                        description:
+                            "CONTENT_EMPTY, CONTENT_TOO_LONG, FORBIDDEN_LANGUAGE, HATE_SPEECH, MALFORMED_LINK, BLOCKED_LINK, SHORTENED_LINK, TOO_MANY_LINKS, SPAM_SUSPECTED ou TOO_MANY_TAGS",
+                    },
+                    field: { type: "string", enum: ["content", "tags"] },
+                    message: { type: "string" },
+                },
+            },
+        },
+    },
+};
+
 const errorSchema = {
     type: "object",
     properties: {
@@ -303,7 +334,7 @@ export async function routes(app: FastifyInstance) {
                     tags: { type: "array", items: { type: "string" }, maxItems: 20 },
                 },
             },
-            response: { 201: postSchema, 400: errorSchema, 429: errorSchema },
+            response: { 201: postSchema, 400: errorSchema, 422: contentRejectedSchema, 429: errorSchema },
         },
     }, postController.create.bind(postController));
 
@@ -355,7 +386,7 @@ export async function routes(app: FastifyInstance) {
                     userId: { type: "string", format: "uuid", description: "Precisa ser o dono do post" },
                 },
             },
-            response: { 200: postSchema, 400: errorSchema, 403: errorSchema, 404: errorSchema },
+            response: { 200: postSchema, 400: errorSchema, 403: errorSchema, 404: errorSchema, 422: contentRejectedSchema },
         },
     }, postController.updateCaption.bind(postController));
 

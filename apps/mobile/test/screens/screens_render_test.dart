@@ -208,12 +208,29 @@ void main() {
       await pumpScreen(
         tester,
         const PlaceAmbienceGalleryScreen(
-          placeId: 'place-1',
+          photos: [
+            'https://cdn.test/ambiente-1.jpg',
+            'https://cdn.test/ambiente-2.jpg',
+          ],
           placeName: 'Bar do Zé',
         ),
         user: fakeUser(),
       );
       expect(find.text('Bar do Zé'), findsOneWidget);
+      expect(find.text('1 DE 2'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('PlaceAmbienceGalleryScreen sem fotos mostra estado vazio', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        const PlaceAmbienceGalleryScreen(photos: [], placeName: 'Bar do Zé'),
+        size: TestScreens.small,
+        user: fakeUser(),
+      );
+      expect(find.text('SEM FOTOS'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

@@ -1,0 +1,36 @@
+# Só a api. O worker não entra: ele escala por lag de partição do Kafka, e CPU
+# não é o sinal certo para isso — um worker parado esperando mensagem tem CPU
+# baixa e lag alto ao mesmo tempo.
+#
+# Por que existe: medido localmente, um processo satura perto de 880 req/s e,
+# acima de ~100 requisições simultâneas, o p95 passa dos 200ms do requisito — o
+# que sobra é fila no event loop, não custo das regras. No cluster o limite é
+# 500m de CPU por pod, então a saturação vem antes. Cache e rate limit vivem no
+# Redis e não há banco, então réplica nova não precisa de coordenação nenhuma.
+#
+# Mesmo padrão dos outros serviços (notification, auth, payment...).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: post-validation-service-api-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: post-validation-service-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

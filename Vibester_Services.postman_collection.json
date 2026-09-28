@@ -55,6 +55,11 @@
 			"key": "scrapping_service_url",
 			"value": "http://localhost:3010",
 			"type": "string"
+		},
+		{
+			"key": "post_validation_service_url",
+			"value": "http://localhost:3008",
+			"type": "string"
 		}
 	],
 	"item": [
@@ -837,10 +842,15 @@
 					"name": "Criar Post",
 					"request": {
 						"method": "POST",
+						"description": "O post-service repassa o header Authorization ao post-validation-service antes de gravar. Sem ele, a validacao e pulada. Conteudo reprovado responde 422 com { message, issues } — message ja traz os motivos em pt-BR.",
 						"header": [
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
 							}
 						],
 						"body": {
@@ -1342,6 +1352,101 @@
 							"raw": "{{scrapping_service_url}}/scrape",
 							"host": ["{{scrapping_service_url}}"],
 							"path": ["scrape"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Post Validation Service",
+			"description": "Servico INTERNO (sem rota no Traefik): quem chama em producao e o post-service, antes de gravar. Use localmente com SERVICE_MODE=api na porta 3008. Exige JWT — o userId vem do accountId do token, nunca do corpo. Conteudo reprovado responde 200 com valid=false; 4xx e so para requisicao errada.",
+			"item": [
+				{
+					"name": "Validar Postagem",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"content\": \"Hoje tem show no bar da esquina, chega junto!\",\n  \"tags\": [\"show\", \"sexta\"],\n  \"mediaCount\": 1\n}"
+						},
+						"url": {
+							"raw": "{{post_validation_service_url}}/validations/post",
+							"host": ["{{post_validation_service_url}}"],
+							"path": ["validations", "post"]
+						},
+						"description": "200 com { valid, issues, contentHash, cached }. mediaCount so distingue post so de foto (valido) de post vazio (CONTENT_EMPTY)."
+					}
+				},
+				{
+					"name": "Validar Postagem (reprovada)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"content\": \"Promo relampago em https://bit.ly/promo, corre!\",\n  \"mediaCount\": 1\n}"
+						},
+						"url": {
+							"raw": "{{post_validation_service_url}}/validations/post",
+							"host": ["{{post_validation_service_url}}"],
+							"path": ["validations", "post"]
+						},
+						"description": "Espera-se 200 com valid=false e a issue SHORTENED_LINK. A resposta nunca diz qual termo ou dominio casou — isso vai so para o log de auditoria."
+					}
+				},
+				{
+					"name": "Health (liveness)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{post_validation_service_url}}/health",
+							"host": ["{{post_validation_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Ready (readiness)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{post_validation_service_url}}/ready",
+							"host": ["{{post_validation_service_url}}"],
+							"path": ["ready"]
+						},
+						"description": "No modo api sempre 200; status=degraded quando Redis ou Kafka estao fora."
+					}
+				},
+				{
+					"name": "Metricas (Prometheus)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{post_validation_service_url}}/metrics",
+							"host": ["{{post_validation_service_url}}"],
+							"path": ["metrics"]
 						}
 					}
 				}

@@ -15,5 +15,12 @@ vi.mock('../../src/config/env', () => ({
     r2_bucket_name: 'test-bucket',
     r2_public_url: 'https://test.r2.dev',
     redis_url: 'redis://localhost:6379',
+    // post-validation-service. `block` é o padrão de produção, e mantê-lo aqui
+    // faz os testes exercitarem o caminho real. Os testes existentes continuam
+    // passando porque nenhum manda header `Authorization` — sem token o cliente
+    // devolve `skipped` antes de qualquer chamada de rede.
+    post_validation_url: 'http://post-validation.test',
+    post_validation_timeout_ms: 1000,
+    post_validation_mode: 'block',
   },
 }));

@@ -173,43 +173,37 @@ class AppColors extends ThemeExtension<AppColors> {
     error: Color(0xFFFF5252),
   );
 
-  /// Tema claro — espelho frio da paleta escura.
+  /// Tema claro — papel frio, acento quente.
   ///
-  /// O par `ambar`/`brasa` não se distingue por profundidade: no tema escuro
-  /// eles têm claridade 50 e 55 e apenas 1,35:1 de contraste entre si. O que
-  /// separa os dois é **matiz** — 19°, de laranja-amarelo a vermelho. Este
-  /// tema reproduz essa relação, não a aparência.
+  /// O que inverte aqui são as **superfícies** (papel claro, texto escuro) e
+  /// os cinzas; o par de acento `ambar`/`brasa` **não** inverte: é o mesmo
+  /// laranja/vermelho do tema escuro. Uma versão anterior tentou espelhar o
+  /// par em frio (ciano #4DBEFF → índigo #4A3FD6), e isso foi desfeito de
+  /// propósito — o laranja é a marca, e o app deixava de se parecer consigo
+  /// mesmo ao trocar de tema.
   ///
-  /// A distância virou 49°, e isso é de propósito: a percepção de matiz é
-  /// comprimida no azul. 19° na faixa quente atravessa duas cores nomeáveis;
-  /// 19° na faixa fria é indistinguível. 49° entre ciano e índigo devolve a
-  /// mesma separação que o par original tem a olho nu, e a razão de claridade
-  /// entre eles fica em 1,41:1 — praticamente o 1,35:1 do par quente.
+  /// Custo consciente dessa escolha, registrado para quem for mexer: sobre o
+  /// papel ([noturno] = #F7F9FC) o `ambar` dá 2,3:1 e a `brasa` 3,2:1, abaixo
+  /// do piso de 4,5:1 para texto. Ou seja, no tema claro esses dois tokens
+  /// funcionam como **preenchimento** (com [onFill]/[onAmbar] escolhendo o
+  /// texto por cima), não como cor de texto fino sobre o papel — para texto,
+  /// prefira [textPrimary]/[textSecondary]. (O par frio anterior não
+  /// resolvia isso: o ciano dava 2,0:1, ainda pior que o laranja.)
   ///
-  /// A posição em relação ao papel, essa sim, inverte: no escuro o acento é
-  /// mais claro que o fundo, aqui é mais escuro. Ambos os tokens são cor de
-  /// *texto* em dezenas de telas, não só preenchimento, então os dois ficam
-  /// acima de 4,5:1 sobre [noturno] — é esse piso que impede um azul mais
-  /// claro que estes.
-  ///
-  /// [error] é a única cor quente que sobra, de propósito: erro não espelha.
+  /// [error] escurece, porque aí o vermelho precisa ser legível como texto.
   static const AppColors light = AppColors(
     // Azul claríssimo — fonte de `surface` (#E1EAF5) e `surfaceRaised`
-    // (#D4E0F1). Matiz 215°, entre os dois acentos, para não puxar as
-    // camadas nem pro ciano nem pro índigo.
+    // (#D4E0F1). Matiz 215°, fria e neutra: as camadas do papel não competem
+    // com o acento quente que vem por cima delas.
     navy: Color(0xFFCFDDF0),
-    
-    /*( Inversão de cores do ambar )*/
+    // Mesmo âmbar do tema escuro: o acento da marca não muda com o tema.
     ambar: Color(0xFFF88806),
-
     // Escurecido de #94A3B8 mantendo a matiz: `hairline` deriva daqui por
     // opacidade e, com o cinza claro, o separador sumia sobre `surface`.
     grey: Color(0xFF64748B),
     darkGrey: Color(0xFFF0EDF5),
-    
-    /*( Inversão de cores do brasa )*/
+    // Mesma brasa do tema escuro, pelo mesmo motivo do âmbar.
     brasa: Color(0xFFFF4D1C),
-
     // Branco com pigmento azul, como o noturno escuro e um preto com pigmento
     // roxo. Papel branco puro tira a temperatura da tela inteira.
     noturno: Color(0xFFF7F9FC),

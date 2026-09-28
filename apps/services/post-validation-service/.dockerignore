@@ -1,0 +1,12 @@
+# A imagem tem que sair igual em qualquer máquina. Sem isto, `COPY . .` levava o
+# node_modules de quem fez o build (binários do Windows/macOS numa imagem
+# Alpine) por cima do que o `npm install` do estágio de build acabou de montar —
+# e levava junto um `.env` local, que o dotenv carregaria em runtime com os
+# segredos de quem gerou a imagem. No CI o checkout é limpo e isso não aparecia.
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+*.log

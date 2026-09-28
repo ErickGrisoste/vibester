@@ -14,6 +14,13 @@ class PlaceModel {
   final String bannerImage;
   final double? latitude;
   final double? longitude;
+
+  /// Fotos do ambiente do lugar (fachada, decoração, pista) na ordem em que o
+  /// estabelecimento as publica. Só vêm no detalhe
+  /// (`GET /establishment/establishments/:id`, campo `images`) — a listagem
+  /// não as devolve, então numa `PlaceModel` vinda de lista isso é vazio.
+  final List<String> imagensAmbiente;
+
   bool isFavorite;
 
   PlaceModel({
@@ -32,6 +39,7 @@ class PlaceModel {
     this.latitude,
     this.longitude,
     this.distancia,
+    this.imagensAmbiente = const [],
     this.isFavorite = false,
   });
 
@@ -67,7 +75,29 @@ class PlaceModel {
           (location?['longitude'] as num?)?.toDouble() ??
           (json['longitude'] as num?)?.toDouble(),
       distancia: distanceToKm != null ? distanceToKm * 1000 : null,
+      imagensAmbiente: _parseImagens(json['images']),
     );
+  }
+
+  /// `images` vem como `[{ id, url, source, position }]` já ordenado por
+  /// `position` pelo establishment-service. Reordenamos mesmo assim (custo
+  /// desprezível numa galeria) e descartamos entrada sem `url`, para uma foto
+  /// quebrada não virar um item vazio na galeria.
+  static List<String> _parseImagens(dynamic raw) {
+    if (raw is! List || raw.isEmpty) return const [];
+
+    final itens = raw.whereType<Map>().toList()
+      ..sort((a, b) {
+        final pa = (a['position'] as num?)?.toInt() ?? 0;
+        final pb = (b['position'] as num?)?.toInt() ?? 0;
+        return pa.compareTo(pb);
+      });
+
+    return [
+      for (final item in itens)
+        if (item['url'] is String && (item['url'] as String).isNotEmpty)
+          item['url'] as String,
+    ];
   }
 
   //Dart pra json, é o contrario do de cima, pra quando for mandar pra API

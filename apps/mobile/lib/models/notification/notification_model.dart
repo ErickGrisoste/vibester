@@ -1,6 +1,6 @@
 class NotificationModel {
   final String id;
-  final String tipo; // like | comment | follow
+  final String tipo; // like | comment | follow | post_rejected
   final String? referenciaId;
   final int outrosCount;
   final int totalCount;

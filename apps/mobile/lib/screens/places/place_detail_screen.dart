@@ -5,12 +5,14 @@ import 'package:mobile/models/place/place_model.dart';
 import 'package:mobile/providers/place/place_list_provider.dart';
 import 'package:mobile/screens/events/event_list_screen.dart';
 import 'package:mobile/screens/highlights/property_highlights_screen.dart';
+import 'package:mobile/screens/places/place_ambience_gallery_screen.dart';
 import 'package:mobile/service/places/place_service.dart';
 import 'package:mobile/service/share_links.dart';
 import 'package:mobile/theme/app_colors.dart';
 import 'package:mobile/theme/app_motion.dart';
 import 'package:mobile/theme/app_spacing.dart';
 import 'package:mobile/theme/theme_extensions.dart';
+import 'package:mobile/theme/vibester_page_route.dart';
 import 'package:mobile/utils/event_time.dart';
 import 'package:mobile/utils/hero_tags.dart';
 import 'package:mobile/widgets/common/screen_header.dart';
@@ -100,6 +102,20 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
     }
   }
 
+  /// As fotos já vieram no detalhe (`images` da mesma resposta), então a
+  /// galeria abre sem nova chamada de rede.
+  void _abrirAmbiente(PlaceModel place) {
+    Navigator.of(context).push(
+      vibesterDetailRoute(
+        PlaceAmbienceGalleryScreen(
+          photos: place.imagensAmbiente,
+          placeName: place.nome,
+        ),
+        const RouteSettings(name: 'place-ambience'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -166,6 +182,9 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
             children: [
               _PlaceHero(
                 place: place,
+                onAmbiente: place.imagensAmbiente.isNotEmpty
+                    ? () => _abrirAmbiente(place)
+                    : null,
                 onShare: () => SharePlus.instance.share(
                   ShareParams(
                     subject: place.nome,
@@ -254,7 +273,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen>
               indicatorWeight: AppStroke.marker,
               labelStyle: context.typography.monoMicro,
               unselectedLabelStyle: context.typography.monoMicro,
-              tabs: const [Tab(text: 'ROLANDO'), Tab(text: 'EVENTOS')],
+              tabs: const [
+                Tab(text: 'ROLANDO'),
+                Tab(text: 'EVENTOS'),
+              ],
             ),
           ),
         ),
@@ -276,7 +298,15 @@ class _PlaceHero extends StatelessWidget {
   final PlaceModel place;
   final VoidCallback onShare;
 
-  const _PlaceHero({required this.place, required this.onShare});
+  /// Nulo quando o lugar não tem foto de ambiente — aí o botão nem aparece,
+  /// em vez de abrir uma galeria vazia.
+  final VoidCallback? onAmbiente;
+
+  const _PlaceHero({
+    required this.place,
+    required this.onShare,
+    this.onAmbiente,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -318,9 +348,15 @@ class _PlaceHero extends StatelessWidget {
                   onTap: () => Navigator.maybePop(context),
                 ),
                 const Spacer(),
-                // "Fotos do ambiente" fica oculto enquanto
-                // PlaceService.getAmbiencePhotos for mock (fotos aleatórias do
-                // picsum.photos apresentadas como o ambiente do lugar).
+                if (onAmbiente != null) ...[
+                  _HeroAction(
+                    icon: Icons.photo_library_outlined,
+                    label: 'Fotos do ambiente',
+                    badge: place.imagensAmbiente.length,
+                    onTap: onAmbiente!,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
                 _HeroAction(
                   icon: Icons.ios_share_rounded,
                   label: 'Compartilhar',
@@ -402,30 +438,66 @@ class _HeroAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
+  /// Quantidade exibida num selo colado no canto do botão — usada pelas fotos
+  /// do ambiente, pra dizer quantas existem antes de abrir. Nulo esconde o
+  /// selo; o botão continua com o mesmo alvo de toque de 44.
+  final int? badge;
+
   const _HeroAction({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.badge,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
+
     return Semantics(
       button: true,
-      label: label,
+      label: badge != null ? '$label ($badge)' : label,
       child: VibesterPressable(
         onTap: onTap,
         borderRadius: AppRadius.pillAll,
-        child: Container(
-          width: 44,
-          height: 44,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: context.colors.scrim.withValues(alpha: 0.55),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-          ),
-          child: Icon(icon, size: 20, color: Colors.white),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.scrim.withValues(alpha: 0.55),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+              ),
+              child: Icon(icon, size: 20, color: Colors.white),
+            ),
+            if (badge != null)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.xs,
+                    vertical: 1,
+                  ),
+                  constraints: const BoxConstraints(minWidth: 18),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.ambar,
+                    borderRadius: AppRadius.pillAll,
+                  ),
+                  child: Text(
+                    '$badge',
+                    style: context.typography.monoMicro.copyWith(
+                      color: colors.noturno,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -452,11 +524,7 @@ class _PlaceAddress extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.location_on_outlined,
-              size: 18,
-              color: colors.brasa,
-            ),
+            Icon(Icons.location_on_outlined, size: 18, color: colors.brasa),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
@@ -668,11 +736,7 @@ class _PlaceActionState extends State<_PlaceAction>
                           ..._buildBurst(progress, colors),
                         Transform.scale(
                           scale: _scaleSequence.evaluate(_controller),
-                          child: Icon(
-                            widget.icon,
-                            size: 14,
-                            color: foreground,
-                          ),
+                          child: Icon(widget.icon, size: 14, color: foreground),
                         ),
                       ],
                     ),

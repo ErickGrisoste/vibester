@@ -9,6 +9,7 @@ import { handleUserDeletedEvent } from "./handlers/userDeleted.handler";
 import { handleExcessiveAttemptsEvent } from "./handlers/excessiveAttempts.handler";
 import { handlePasswordResetEvent } from "./handlers/passwordReset.handler";
 import { handleContentReportedEvent } from "./handlers/contentReported.handler";
+import { handlePostValidationRejectedEvent } from "./handlers/postValidationRejected.handler";
 
 export const kafka = new Kafka({
   clientId: "notification-service",
@@ -32,6 +33,9 @@ const TOPICS = [
   "auth.attempts.exceeded",
   "auth.password.reset",
   "content.reported",
+  // Publicado pelo post-validation-service (modo worker) quando a revalidacao
+  // reprova um post que ja esta no ar.
+  "post.validation.rejected",
 ];
 
 export async function startKafkaConsumers(): Promise<void> {
@@ -75,6 +79,9 @@ export async function startKafkaConsumers(): Promise<void> {
             break;
           case "content.reported":
             await handleContentReportedEvent(value);
+            break;
+          case "post.validation.rejected":
+            await handlePostValidationRejectedEvent(value);
             break;
           case "user.deleted":
             await handleUserDeletedEvent(value);

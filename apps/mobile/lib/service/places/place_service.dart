@@ -46,18 +46,4 @@ class PlaceService {
     final List data = body['data'];
     return data.map((json) => PlaceModel.fromJson(json)).toList();
   }
-
-  /// MOCK temporário: o establishment-service ainda não expõe um endpoint de
-  /// fotos do ambiente (fachada, decoração, pista) separado das publicações
-  /// de usuários. Enquanto não existir, devolve um conjunto fixo por
-  /// [placeId] para a aba AMBIENTE poder ser desenvolvida e revisada.
-  /// Assinatura já pronta para virar uma chamada real (`GET
-  /// /establishment/{id}/photos` ou equivalente) sem alterar quem a chama.
-  Future<List<String>> getAmbiencePhotos(String placeId) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    return List.generate(
-      8,
-      (i) => 'https://picsum.photos/seed/vibester-ambience-$placeId-$i/900/1200',
-    );
-  }
 }

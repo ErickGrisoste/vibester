@@ -1,0 +1,160 @@
+name: post-validation-service CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/services/post-validation-service/**"
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/vibester-post-validation-service
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: apps/services/post-validation-service/package-lock.json
+
+      # npm ci (e não npm install): instala exatamente o lockfile, o que evita o
+      # bug do arborist ao reresolver os peers opcionais do vitest.
+      - name: Install dependencies
+        working-directory: apps/services/post-validation-service
+        run: npm ci --legacy-peer-deps
+
+      - name: Typecheck
+        working-directory: apps/services/post-validation-service
+        run: npx tsc --noEmit
+
+      - name: Run unit tests
+        working-directory: apps/services/post-validation-service
+        run: npm run test:unit
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: apps/services/post-validation-service/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/services/post-validation-service
+        run: npm ci --legacy-peer-deps
+
+      # Não precisa de infra: as regras são puras, o Redis é mockado e o Kafka
+      # não é tocado pelos testes de rota.
+      - name: Run route tests
+        working-directory: apps/services/post-validation-service
+        run: npx vitest run --config vitest.config.ts
+
+      # Threshold em 70/70/60, igual ao post-service. Não reduza para fazer um
+      # PR passar — este é o serviço em que um branch não coberto é um post
+      # legítimo derrubado em produção.
+      - name: Coverage thresholds
+        working-directory: apps/services/post-validation-service
+        run: npm run test:coverage
+
+      - name: Build
+        working-directory: apps/services/post-validation-service
+        run: npm run build
+
+  build-and-push:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Normalize image owner casing
+        run: echo "IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/vibester-post-validation-service" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/services/post-validation-service
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+
+  deploy:
+    name: Deploy to k3s
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.VPS_KUBECONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Normalize image owner casing
+        run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      # `apply` antes do `set image`, como no notification/auth/payment: sem ele
+      # o primeiro deploy falha, porque `set image` não cria Deployment — só
+      # troca a imagem de um que já existe. Também é o que faz mudança nos
+      # manifests (probes, recursos, anotações) chegar ao cluster; com `set image`
+      # sozinho, editar o YAML não teria efeito nenhum.
+      #
+      # O Secret `post-validation-service-secret` NÃO é criado aqui: segredo não
+      # vive no repositório. Ver "Primeiro deploy" no CLAUDE.md do serviço.
+      - name: Apply manifests
+        run: kubectl apply -f apps/services/post-validation-service/k8s/
+
+      # A api primeiro: é ela que está no caminho da criação de post. Aqui não há
+      # migration, então não existe a ordem obrigatória do interaction-service.
+      - name: Deploy api
+        run: |
+          kubectl set image deployment/post-validation-service-api \
+            post-validation-service-api=ghcr.io/${{ env.OWNER_LC }}/vibester-post-validation-service:${{ github.sha }}
+          kubectl rollout status deployment/post-validation-service-api --timeout=300s || {
+            echo "--- Pod describe ---"
+            kubectl describe pod -l app=post-validation-service-api
+            echo "--- Pod logs ---"
+            kubectl logs -l app=post-validation-service-api --tail=100 --previous 2>/dev/null || kubectl logs -l app=post-validation-service-api --tail=100
+            exit 1
+          }
+
+      - name: Deploy worker
+        run: |
+          kubectl set image deployment/post-validation-service-worker \
+            post-validation-service-worker=ghcr.io/${{ env.OWNER_LC }}/vibester-post-validation-service:${{ github.sha }}
+          kubectl rollout status deployment/post-validation-service-worker --timeout=300s || {
+            echo "--- Pod describe ---"
+            kubectl describe pod -l app=post-validation-service-worker
+            echo "--- Pod logs ---"
+            kubectl logs -l app=post-validation-service-worker --tail=100 --previous 2>/dev/null || kubectl logs -l app=post-validation-service-worker --tail=100
+            exit 1
+          }

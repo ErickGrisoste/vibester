@@ -5,6 +5,9 @@ export const SERVICES = {
   auth:  __ENV.AUTH_URL  || 'http://localhost:3001',
   user:  __ENV.USER_URL  || 'http://localhost:3003',
   event: __ENV.EVENT_URL || 'http://localhost:3334',
+  // post-validation-service e isolavel porque nao tem banco: so CPU e um Redis
+  // opcional. Roda sozinho com SERVICE_MODE=api e um JWT_SECRET qualquer.
+  postValidation: __ENV.POST_VALIDATION_URL || 'http://localhost:3008',
 };
 
 // Alvos de VUs por tipo de cenário

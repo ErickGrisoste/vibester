@@ -20,15 +20,31 @@ void main() {
       expect(dark.noturno, const Color(0xFF0C0910));
     });
 
-    test('o tema claro tem o par de acento frio próprio', () {
-      // O claro não repete o laranja/vermelho do escuro: espelha a relação de
-      // matiz entre âmbar e brasa em azul (ciano → índigo). Ver o comentário
-      // de `AppColors.light`.
+    test('o tema claro usa o mesmo par de acento do escuro', () {
+      // O que inverte no tema claro são as superfícies e os cinzas — o
+      // acento não. Âmbar e brasa são os mesmos nos dois temas: é a marca, e
+      // o app precisa se parecer consigo mesmo nos dois modos. (Houve uma
+      // versão que espelhava o par em frio, ciano → índigo; foi desfeita de
+      // propósito. Ver o comentário de `AppColors.light`.)
       const light = AppColors.light;
 
-      expect(light.ambar, const Color(0xFF4DBEFF));
-      expect(light.brasa, const Color(0xFF4A3FD6));
+      expect(light.ambar, AppColors.dark.ambar);
+      expect(light.brasa, AppColors.dark.brasa);
       expect(light.gradient.colors, [light.ambar, light.brasa]);
+    });
+
+    test('o claro inverte o papel e os cinzas, não o acento', () {
+      // Guarda do que de fato distingue os dois temas: se alguém copiar o
+      // `noturno`/`navy` escuro para cá, o tema claro deixa de existir.
+      const light = AppColors.light;
+      const dark = AppColors.dark;
+
+      expect(light.noturno, isNot(dark.noturno));
+      expect(light.navy, isNot(dark.navy));
+      expect(light.grey, isNot(dark.grey));
+      // Papel claro contra texto escuro — o oposto do tema escuro.
+      expect(light.noturno.computeLuminance(), greaterThan(0.8));
+      expect(light.textPrimary.computeLuminance(), lessThan(0.1));
     });
 
     test('as superfícies derivadas saem da paleta, não de cor nova', () {

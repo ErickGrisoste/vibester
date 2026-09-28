@@ -21,8 +21,7 @@ class AppMotion {
   /// Transições maiores (bottom sheets, modais, reveals).
   static const slow = Duration(milliseconds: 400);
 
-  /// Transição entre telas — mesmo valor já validado no onboarding
-  /// (`onboarding_screen.dart`).
+  /// Transição entre telas.
   static const pageTransition = Duration(milliseconds: 320);
 
   /// Passo de stagger entre itens de uma lista (30–70ms recomendado).
