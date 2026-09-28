@@ -21,6 +21,8 @@ Ele **não** possui dados "vivos" de perfil de usuário ou de estabelecimento �
 
 Nunca adicione regras de negócio de autenticação, perfil, feed (agregação/ranqueamento) ou estabelecimento aqui. Se uma feature parece pertencer a outro domínio, ela deve ser feita no serviço correspondente e comunicada via Kafka.
 
+**Exceção única à regra acima**: a criação e a edição de post consultam o `post-validation-service` por HTTP síncrono antes de gravar (ver "Validação de conteúdo"). É a única chamada síncrona que este serviço faz a outro, e existe porque o autor precisa saber que o texto foi recusado **antes** de o post existir — um evento Kafka só avisaria depois de publicado, com o conteúdo já no ar.
+
 ---
 
 ## Stack e Dependências deste Serviço
@@ -33,6 +35,7 @@ Nunca adicione regras de negócio de autenticação, perfil, feed (agregação/r
 - `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` — geração de URLs pré-assinadas (PUT) para o cliente subir a imagem direto no R2 (`src/config/r2.ts`, `src/services/upload.service.ts`). É o único fluxo de upload de fato exposto por rota hoje.
 - `sharp` — usado só dentro de `UploadService.uploadImages` (redimensiona para 1080px e converte para `.webp`), mas **esse método não é chamado por nenhum controller/rota** — é código morto hoje (só há teste para `generatePresignedUrls`, não para `uploadImages`). Se for implementar upload via multipart no futuro, reaproveite esse método em vez de escrever um novo.
 - `zod` é usado para: validação de env (`src/config/env.ts`), validação de `params` dentro dos controllers (`postIdParamsSchema`, `userIdParamsSchema`, `establishmentIdParamsSchema`, `generateUploadUrlsSchema` em `src/schema/post.schema.ts`, chamados via `.parse()`). O body das rotas de escrita passa por **duas camadas**: primeiro o JSON Schema do Fastify em `routes.ts` (forma e tipos), depois Zod no controller para as regras que o JSON Schema não expressa — em `POST /posts` e `POST /posts/upload-url`, `createPostSchema`/`generateUploadUrlsSchema` validam o vínculo entre campos (`media` **ou** `imageUrls`, `contentType` compatível com `type`), que a URL da mídia pertence ao bucket, e normalizam o formato legado para o novo. Ao mexer num, confira o outro: o Fastify roda antes e um `required` desatualizado rejeita o payload antes do Zod ver.
+- `fetch` nativo do Node (sem client HTTP novo) para a chamada ao `post-validation-service` em `src/clients/validation.client.ts` — timeout por `AbortController`, ver "Validação de conteúdo".
 - Vitest para testes (unit co-localizado em `__tests__` + integration em `tests/integration`), `ioredis-mock` disponível como dependência de teste.
 
 Não introduza um ORM alternativo, outro cliente Redis/Kafka/S3, nem volte a usar PostgreSQL/Prisma neste serviço sem alinhar com o time — reutilize o que já existe.
@@ -43,6 +46,7 @@ Não introduza um ORM alternativo, outro cliente Redis/Kafka/S3, nem volte a usa
 
 ```
 src/
+  clients/       validation.client.ts                                           → HTTP para o post-validation-service (única chamada síncrona a outro serviço)
   config/        cassandra.ts, redis.ts (cacheAside), r2.ts, env.ts, swagger.ts
   controller/    post.controller.ts, like.controller.ts, comment.controller.ts   → classes, métodos bind() registrados em routes.ts
   services/      post.service.ts, like.service.ts, comment.service.ts, upload.service.ts
@@ -80,6 +84,47 @@ tests/
 4. `controller/<feature>.controller.ts` — classe, um método por rota, `.bind(this)` no registro em `routes.ts`; use os schemas Zod de `schema/post.schema.ts` (`.parse()`) para `params`, mas siga o padrão de JSON Schema do Fastify para `body`/`querystring`/`response` na própria definição da rota.
 5. `routes.ts` — registrar com `schema` completo (tags, summary, description, `body`/`params`/`querystring`/`response` por status) e `config.rateLimit` dedicado (`rate_limit_write_max` para escrita, `rate_limit_like_max` para like/unlike) quando a rota for de mutação.
 6. Testes unitários do service em `src/services/__tests__` + teste de integração da rota em `tests/integration`.
+
+---
+
+## Validação de conteúdo (`post-validation-service`)
+
+`POST /posts` e `PATCH /posts/:postId` consultam o `post-validation-service` **antes de gravar**. Conteúdo reprovado vira `422` e o post não chega a existir.
+
+Código: `src/clients/validation.client.ts` (transporte) e `PostService.enforceValidation` (política). A separação é intencional — o cliente nunca decide o que fazer com o veredito.
+
+### Indisponibilidade deixa passar — e isso é escolha, não descuido
+
+Se o serviço de validação não responde no orçamento (`POST_VALIDATION_TIMEOUT_MS`, 1s), o post é **publicado assim mesmo**.
+
+O raciocínio: barrar publicação quando o filtro cai transformaria um serviço auxiliar no ponto único de falha do Vibester inteiro — o oposto do que o `CLAUDE.md` raiz pede. O que cobre o outro lado é o **worker** do `post-validation-service`, que revalida tudo que foi publicado e notifica o autor. Conteúdo que escapa durante uma queda é pego depois; uma plataforma que não aceita post não tem conserto retroativo.
+
+O mesmo vale para **chamador sem `Authorization`**: a rota de validação exige JWT e este serviço só repassa o header que recebeu. Sem token não há consulta, e o post passa.
+
+Quem quiser o comportamento oposto muda `enforceValidation`, com os olhos abertos. Não é env var de propósito: é decisão de produto, não de configuração.
+
+### `POST_VALIDATION_MODE` e o rollout
+
+| Modo | Efeito |
+|---|---|
+| `block` | reprovado vira `422`, post não é criado. **Padrão.** |
+| `warn` | consulta e mede, nunca barra. |
+| `off` | nem chama. Interruptor de emergência, sem deploy. |
+
+**Suba a primeira vez em `warn`.** Acompanhe `post_validation_total{result="invalid"}` por alguns dias, confirme que a taxa não é falso positivo da blocklist, e só então vire `block`. Ligar direto em `block` faz todo falso positivo virar publicação recusada no primeiro minuto de deploy.
+
+**O manifest de produção (`k8s/deployment.yaml`) sai em `warn`**, e o CI aplica o manifest a cada deploy (`kubectl apply` antes do `set image`) — virar `block` é trocar uma linha nesse arquivo, num diff revisável. O `block` da tabela acima é o padrão do *código* (`src/config/env.ts`), que só vale quando a variável não está definida, como em teste e em ambiente local.
+
+Sobre tamanho: o limite de 500 do serviço de validação é mais apertado que os 2000 do `createPostSchema` daqui, mas o composer do app já corta em 280 — quem publica pelo app não esbarra nele. Ver "Três limites de legenda" no `CLAUDE.md` do `post-validation-service`.
+
+### Detalhes que não são óbvios
+
+1. **A validação roda antes de gerar o `postId` e antes de qualquer escrita.** Post recusado não deve deixar rastro no Cassandra nem publicar `post.created`.
+2. **Em `updateCaption`, a checagem de dono vem primeiro.** Quem nem pode editar o post não deve descobrir nada sobre o filtro, e validar antes gastaria uma chamada de rede para devolver `403` no fim.
+3. **A edição informa a mídia já existente** (`post.media.length`). Sem isso, apagar a legenda de um post com foto seria lido como post vazio.
+4. **`401` do serviço de validação é tratado como indisponibilidade, não como reprovação.** Token expirado é problema de sessão; virar recusa de conteúdo daria ao autor uma mensagem sobre o texto dele que não tem nada a ver com o que aconteceu.
+5. **`HttpError` ganhou `details` opcional** para carregar as `issues` no corpo do `422`. Erro sem `details` continua respondendo exatamente `{ message }` — nenhuma resposta existente mudou de forma.
+6. **Comentários não são validados.** `POST /posts/:postId/comments` não passa por aqui — lacuna conhecida, e fechá-la é adicionar a mesma chamada no `CommentService`.
 
 ---
 
@@ -130,6 +175,8 @@ Toda feature nova precisa de: teste unitário do service (incluindo o fan-out pa
 
 Toda variável de ambiente é validada por `zod` em `src/config/env.ts` (`envSchema.safeParse(process.env)`, processo encerra com `process.exit(1)` se inválida) — mesmo padrão do `establishment-service`. Não leia `process.env` direto em outro arquivo do `src/`, com a exceção já existente de `scripts/migrate.ts` (roda fora do runtime do server, antes de qualquer conexão, e lê `process.env` diretamente). Propague no `k8s/deployment.yaml` (`secretRef: post-service-secret` para credenciais Astra/R2, `configMapRef: redis-env` para Redis) e no `.env.example` (placeholders vazios, nunca valor real).
 
+As três de validação (`POST_VALIDATION_URL`, `POST_VALIDATION_TIMEOUT_MS`, `POST_VALIDATION_MODE`) ficam em `env:` literal no Deployment, não em Secret: nenhuma é segredo, e deixá-las versionadas faz de `warn` -> `block` um diff revisável em vez de uma edição invisível de Secret.
+
 ---
 
 ## Infra deste Serviço
@@ -138,7 +185,7 @@ Toda variável de ambiente é validada por `zod` em `src/config/env.ts` (`envSch
 - `k8s/`: só existem `deployment.yaml` e `service.yaml` — **sem `hpa.yaml`, sem `pdb.yaml`, sem `networkpolicy.yaml`**, diferente dos três serviços já documentados. `replicas: 1` está fixo — o serviço não escala horizontalmente hoje (ver nota de rate limit em memória em Segurança/Performance antes de simplesmente aumentar réplicas).
 - O secure connect bundle do Astra é montado via `Secret` + `Volume` (`astra-secure-connect-bundle` em `/etc/astra/secure-connect-bundle.zip`) — `ASTRA_SECURE_CONNECT_BUNDLE` no deployment aponta para o **caminho do arquivo montado**, não para o conteúdo do bundle.
 - **Liveness e readiness são separados** (`routes.ts`): `livenessProbe` do `k8s/deployment.yaml` aponta para `/health` (só confirma que o processo Fastify está de pé, não toca em Redis/Cassandra — matar o processo não conserta uma dependência externa fora do ar). `readinessProbe` aponta para `/ready`, que checa as duas: **Cassandra é crítico** (toda rota depende dele, derruba o readiness com `503` se falhar) e **Redis não é** (`cacheAside` já cai pro Cassandra direto quando o Redis falha — Redis fora do ar reporta `status: "degraded"` mas continua `200`, não tira o pod de rotação sozinho). Ao adicionar uma dependência nova, decida explicitamente se ela é crítica (vai pro `/ready`, derruba o readiness) ou best-effort (só reportada, não derruba nada) — não assuma automaticamente.
-- **Métricas Prometheus em `/metrics`** (`src/metrics/registry.ts`, biblioteca `prom-client`) — inclui métricas padrão de processo (`collectDefaultMetrics`) e as específicas do serviço: `http_request_duration_seconds`/`http_requests_total` (hook `onResponse` em `plugins.ts`, label `route` = padrão da rota via `request.routeOptions.url`, nunca a URL crua — evita explodir cardinalidade com UUID), `cassandra_query_duration_seconds` (tabela extraída da própria query em `base.repository.ts`, sem precisar anotar cada método), `cassandra_fanout_partial_failure_total` (incrementada por `utils/fanout.ts` quando só parte de um fan-out multi-tabela falha — usado pelos 5 métodos `*InAllViews` de `post.repository.ts`), `cache_result_total`/`cache_invalidation_failure_total` (`config/redis.ts`), `kafka_publish_total` (`kafka/events.ts`), `rate_limit_exceeded_total` (`plugins.ts`), e contadores de negócio (`posts_created_total`, `likes_total`, `comments_total`, `presigned_url_generated_total`). Toda métrica nova do serviço deve ser registrada em `metrics/registry.ts` — não crie `new client.Counter(...)` solto em outro arquivo.
+- **Métricas Prometheus em `/metrics`** (`src/metrics/registry.ts`, biblioteca `prom-client`) — inclui métricas padrão de processo (`collectDefaultMetrics`) e as específicas do serviço: `http_request_duration_seconds`/`http_requests_total` (hook `onResponse` em `plugins.ts`, label `route` = padrão da rota via `request.routeOptions.url`, nunca a URL crua — evita explodir cardinalidade com UUID), `cassandra_query_duration_seconds` (tabela extraída da própria query em `base.repository.ts`, sem precisar anotar cada método), `cassandra_fanout_partial_failure_total` (incrementada por `utils/fanout.ts` quando só parte de um fan-out multi-tabela falha — usado pelos 5 métodos `*InAllViews` de `post.repository.ts`), `cache_result_total`/`cache_invalidation_failure_total` (`config/redis.ts`), `kafka_publish_total` (`kafka/events.ts`), `rate_limit_exceeded_total` (`plugins.ts`), `post_validation_total` (`clients/validation.client.ts` — rótulo `result`: valid/invalid/unavailable/skipped; é a métrica que governa o rollout do `POST_VALIDATION_MODE`, e `unavailable` em alta significa que a validação está deixando tudo passar sem ninguém perceber), e contadores de negócio (`posts_created_total`, `likes_total`, `comments_total`, `presigned_url_generated_total`). Toda métrica nova do serviço deve ser registrada em `metrics/registry.ts` — não crie `new client.Counter(...)` solto em outro arquivo.
 - Sem tracing distribuído (OpenTelemetry) — fora do escopo por enquanto; log estruturado (Pino) + métricas cobrem a lacuna de observabilidade mais urgente hoje.
 - Swagger (`/docs`) é sempre registrado em `server.ts`, sem flag de ambiente (`SWAGGER_ENABLED`) para desligá-lo — diferente do `establishment-service`; não assuma que a documentação fica oculta em produção.
 

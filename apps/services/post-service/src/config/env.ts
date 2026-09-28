@@ -28,6 +28,24 @@ const envSchema = z.object({
     // Lista separada por vírgula. Ausente/vazia = fallback para `origin: true`
     // (aceita qualquer origem, com aviso no log) — ver src/plugins.ts.
     CORS_ALLOWED_ORIGINS: z.string().optional(),
+
+    // --- post-validation-service ---
+    POST_VALIDATION_URL: z.string().url().default("http://post-validation-service:3008"),
+
+    // Orçamento da chamada inteira. O serviço de validação responde em ~5ms e
+    // promete p95 < 200ms; 1s é folga larga para rede de cluster e ainda assim
+    // um teto que o autor não sente ao publicar.
+    POST_VALIDATION_TIMEOUT_MS: z.coerce.number().int().positive().default(1000),
+
+    // Como a criação de post reage ao veredito:
+    //   block - conteúdo reprovado vira 422 e o post NÃO é criado.
+    //   warn  - consulta e mede, mas nunca barra. É o modo de rollout: sobe
+    //           assim, olha `post_validation_total{result="invalid"}` por
+    //           alguns dias e só então vira `block`. Ligar direto em `block`
+    //           faz todo falso positivo da blocklist virar publicação recusada
+    //           no primeiro minuto de deploy.
+    //   off   - nem chama. Interruptor de emergência, sem deploy.
+    POST_VALIDATION_MODE: z.enum(["block", "warn", "off"]).default("block"),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -64,4 +82,8 @@ export const env = {
     cors_allowed_origins: _env.CORS_ALLOWED_ORIGINS
         ? _env.CORS_ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
         : undefined,
+    // Sem barra final: o cliente monta `${post_validation_url}/validations/post`.
+    post_validation_url: _env.POST_VALIDATION_URL.replace(/\/+$/, ""),
+    post_validation_timeout_ms: _env.POST_VALIDATION_TIMEOUT_MS,
+    post_validation_mode: _env.POST_VALIDATION_MODE,
 };

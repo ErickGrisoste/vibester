@@ -115,3 +115,20 @@ export const presignedUrlGeneratedTotal = new client.Counter({
     labelNames: ["media_type"] as const,
     registers: [registry],
 });
+
+/**
+ * Resultado da consulta ao post-validation-service, por criação/edição de post.
+ *
+ * `result`: valid | invalid | unavailable | skipped.
+ *
+ * É a métrica que governa o rollout do `POST_VALIDATION_MODE`: só vale virar
+ * `warn` -> `block` depois de olhar a taxa de `invalid` e se convencer de que
+ * não é falso positivo da blocklist. E `unavailable` em alta é o sinal de que a
+ * validação está deixando tudo passar sem ninguém perceber.
+ */
+export const postValidationTotal = new client.Counter({
+    name: "post_validation_total",
+    help: "Consultas ao post-validation-service, por resultado",
+    labelNames: ["result"] as const,
+    registers: [registry],
+});

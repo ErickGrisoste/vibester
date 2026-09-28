@@ -136,6 +136,18 @@ jobs:
       - name: Normalize image owner casing
         run: echo "OWNER_LC=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
 
+      # `apply` antes do `set image`, como no notification/auth/payment/
+      # establishment. Sem ele, nenhuma mudança em k8s/ chegava ao cluster — nem
+      # as variáveis POST_VALIDATION_* (o post-service subiria sempre no padrão
+      # do código) nem as anotações de scrape do Prometheus.
+      #
+      # Efeito colateral a lembrar: `apply` devolve o Deployment ao que está no
+      # repositório. Ajuste feito à mão no cluster (réplicas, env via
+      # `kubectl set env`) é desfeito no próximo deploy — o YAML passa a ser a
+      # fonte de verdade, que é o ponto.
+      - name: Apply manifests
+        run: kubectl apply -f apps/services/post-service/k8s/
+
       - name: Deploy
         run: |
           kubectl set image deployment/post-service \
